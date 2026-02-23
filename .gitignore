@@ -1,0 +1,42 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.pdb
+*.exe
+*.log
+appsettings.Development.json
+
+# Node / React
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# IDE
+.vs/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test results
+TestResults/
+coverage/
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
