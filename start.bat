@@ -26,16 +26,43 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: Kill any previous sessions on our ports
+echo [1/5] Stopping previous sessions...
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%API_PORT% " ^| findstr "LISTENING"') do (
+    echo        Killing process %%p on port %API_PORT%
+    taskkill /PID %%p /F >nul 2>&1
+)
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%CLIENT_PORT% " ^| findstr "LISTENING"') do (
+    echo        Killing process %%p on port %CLIENT_PORT%
+    taskkill /PID %%p /F >nul 2>&1
+)
+timeout /t 2 /nobreak >nul
+
 :: Start the backend API
-echo [1/3] Starting backend API on port %API_PORT%...
+echo [2/5] Starting backend API on port %API_PORT%...
 start "NatPuzzle API" /D "%API_DIR%" cmd /c "dotnet run"
 
+:: Wait for the API to be ready before starting the frontend
+echo [3/5] Waiting for API to be ready...
+set /a ATTEMPTS=0
+:wait_api
+if %ATTEMPTS% geq 30 (
+    echo [WARN] Timed out waiting for API. Continuing anyway...
+    goto :start_client
+)
+timeout /t 1 /nobreak >nul
+set /a ATTEMPTS+=1
+curl -s -o nul -w "" http://localhost:%API_PORT%/api/v1/states >nul 2>&1
+if errorlevel 1 goto :wait_api
+echo        API is ready.
+
 :: Start the frontend dev server
-echo [2/3] Starting frontend dev server on port %CLIENT_PORT%...
+:start_client
+echo [4/5] Starting frontend dev server on port %CLIENT_PORT%...
 start "NatPuzzle Client" /D "%CLIENT_DIR%" cmd /c "npm run dev"
 
 :: Wait for the frontend to be ready, then open browser
-echo [3/3] Waiting for frontend to be ready...
+echo [5/5] Waiting for frontend to be ready...
 set /a ATTEMPTS=0
 :wait_loop
 if %ATTEMPTS% geq 30 (
