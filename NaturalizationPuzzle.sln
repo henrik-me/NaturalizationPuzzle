@@ -1,0 +1,44 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "api", "api", "{81034408-37C8-1011-444E-4C15C2FADA8E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NaturalizationPuzzle.Api", "src\api\NaturalizationPuzzle.Api.csproj", "{03CEEDEC-3061-6C87-526F-273A69C67CCC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "api", "api", "{97094B24-3C9A-C0DB-C982-4A4025DE3508}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NaturalizationPuzzle.Api.Tests", "tests\api\NaturalizationPuzzle.Api.Tests.csproj", "{E30A8C59-2478-5F7B-66A4-524F647CE22E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{03CEEDEC-3061-6C87-526F-273A69C67CCC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{03CEEDEC-3061-6C87-526F-273A69C67CCC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{03CEEDEC-3061-6C87-526F-273A69C67CCC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{03CEEDEC-3061-6C87-526F-273A69C67CCC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E30A8C59-2478-5F7B-66A4-524F647CE22E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E30A8C59-2478-5F7B-66A4-524F647CE22E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E30A8C59-2478-5F7B-66A4-524F647CE22E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E30A8C59-2478-5F7B-66A4-524F647CE22E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{81034408-37C8-1011-444E-4C15C2FADA8E} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{03CEEDEC-3061-6C87-526F-273A69C67CCC} = {81034408-37C8-1011-444E-4C15C2FADA8E}
+		{97094B24-3C9A-C0DB-C982-4A4025DE3508} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{E30A8C59-2478-5F7B-66A4-524F647CE22E} = {97094B24-3C9A-C0DB-C982-4A4025DE3508}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {22A21A23-B854-45CA-A40B-4BE10C66B43E}
+	EndGlobalSection
+EndGlobal

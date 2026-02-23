@@ -56,6 +56,16 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [Node.js 20+](https://nodejs.org/) with npm
 
+### Quick Start (Recommended)
+
+Run the startup script from the repository root — it launches both servers and opens the app in your default browser:
+
+```bash
+start.bat
+```
+
+Two console windows will open (one for the API, one for the frontend). Close them to stop the servers.
+
 ### Start the Backend API
 
 ```bash
