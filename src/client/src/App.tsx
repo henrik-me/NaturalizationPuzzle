@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navigation } from './components/Navigation';
 import { OfflineBanner } from './components/OfflineBanner';
 import { StudyPage } from './pages/StudyPage';
@@ -13,11 +14,13 @@ export function App(): React.ReactNode {
         <div className="min-h-screen bg-slate-50">
           <OfflineBanner />
           <Navigation />
-          <Routes>
-            <Route path="/" element={<StudyPage />} />
-            <Route path="/quiz" element={<QuizPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<StudyPage />} />
+              <Route path="/quiz" element={<QuizPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </Routes>
+          </ErrorBoundary>
         </div>
       </BrowserRouter>
     </AppProvider>

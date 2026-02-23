@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NaturalizationPuzzle.Api.Data;
 using NaturalizationPuzzle.Api.Endpoints;
+using NaturalizationPuzzle.Api.Middleware;
 using NaturalizationPuzzle.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +13,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IQuestionService, QuestionService>();
 builder.Services.AddScoped<IStateService, StateService>();
 builder.Services.AddScoped<IQuizService, QuizService>();
+
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 builder.Services.AddOpenApi();
 builder.Services.AddCors(options =>
@@ -31,6 +35,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseExceptionHandler();
 app.UseCors();
 app.UseHttpsRedirection();
 
