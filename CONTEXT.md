@@ -35,6 +35,23 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - QuestionServiceTests: 6 tests (CRUD, filtering, state resolution)
 - QuizServiceTests: 4 tests (create, retrieve, modes)
 
+### Tests (`src/client/` — co-located)
+- Vitest with jsdom, @testing-library/react, @testing-library/user-event
+- apiClient.test.ts: 5 tests (GET/POST success, error, network failure)
+- QuizCard.test.tsx: 6 tests (render, 65/20 badge, reveal/next, category)
+- OfflineBanner.test.tsx: 1 test (hidden when online)
+
+### E2E Tests (`tests/e2e/`)
+- Playwright with Chromium, Page Object Model pattern
+- SettingsPage/StudyPage page objects
+- state-selection.spec.ts: 2 tests (select state, persistence)
+- study-flow.spec.ts: 3 tests (display, reveal/advance, 65/20 filter)
+
+### Error Handling
+- React ErrorBoundary wrapping Routes with user-friendly fallback
+- .NET GlobalExceptionHandler middleware returning ProblemDetails (RFC 9457)
+  with correlation IDs and structured logging
+
 ## Decisions Made
 
 | Decision | Rationale |
@@ -48,12 +65,14 @@ Full-stack application scaffolded and building. Backend API is functional with s
 
 ## Known Issues / Tech Debt
 
-- None yet — project is in initial setup phase.
+- Playwright E2E tests require both .NET API and Vite dev server running (config handles auto-start)
+- State seed data uses "Varies by district" for multi-district states — a future enhancement could let users specify their congressional district
+- No @axe-core/playwright integration yet for automated accessibility checks in E2E tests
 
 ## Next Steps
 
-1. Add state seed data (all 50 states with governors, senators, capitals, representatives)
-2. Set up Vitest for frontend unit tests
-3. Set up Playwright for E2E tests
-4. Add error boundary component
-5. Add global exception handling middleware to API
+1. Add @axe-core/playwright for automated accessibility testing in E2E specs
+2. Add user progress tracking (track which questions have been studied/answered)
+3. Add quiz scoring with real-time pass/fail evaluation (stop at 12 correct or 9 wrong)
+4. Add search/filter by keyword within questions
+5. Add dark mode support
