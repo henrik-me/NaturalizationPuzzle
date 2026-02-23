@@ -103,6 +103,19 @@ Maintain a `CONTEXT.md` file in the repository root. This file captures:
 
 Update `CONTEXT.md` whenever significant progress is made. This ensures any new session (human or AI) can quickly understand the current state.
 
+### README File
+
+Maintain the `README.md` file in the repository root. When any of the following change, update the corresponding section in the README:
+
+- **API endpoints** (routes, methods, parameters) — update the API Endpoints tables.
+- **Frontend routes** (new pages, changed paths) — update the Routes table.
+- **System architecture** (new services, middleware, data flow changes) — update the system diagrams.
+- **Getting started** (ports, prerequisites, new build steps) — update the Getting Started section.
+- **Tech stack** (new dependencies, version bumps) — update the Tech Stack table.
+- **Test commands** (new test projects, changed scripts) — update the test-running sections.
+
+The README is the public-facing entry point for the project — keep it accurate and in sync with the code.
+
 ### Async Everywhere
 
 - **Frontend**: All API calls use `async/await`. Service functions return `Promise<T>`. Components use async data fetching patterns (e.g., `useEffect` with async IIFE or a custom `useFetch` hook).
