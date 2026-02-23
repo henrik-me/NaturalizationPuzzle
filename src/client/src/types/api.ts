@@ -35,3 +35,11 @@ export interface QuizResultDto {
 export type ApiResult<T> =
   | { readonly success: true; readonly data: T }
   | { readonly success: false; readonly error: string };
+
+export interface QuizAnswer {
+  readonly questionId: number;
+  readonly questionText: string;
+  readonly userAnswer: string;
+  readonly acceptedAnswers: readonly string[];
+  readonly isCorrect: boolean;
+}

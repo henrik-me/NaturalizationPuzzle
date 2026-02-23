@@ -3,9 +3,11 @@ import type { QuestionDto } from '../types/api';
 import { getAllQuestions, get6520Questions } from '../services/questionService';
 import { useAppContext } from '../context/AppContext';
 import { QuizCard } from '../components/QuizCard';
+import { useProgress } from '../hooks/useProgress';
 
 export function StudyPage(): React.ReactNode {
   const { state } = useAppContext();
+  const { studiedQuestionIds, markStudied, studiedCount } = useProgress();
   const [questions, setQuestions] = useState<readonly QuestionDto[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,8 +28,12 @@ export function StudyPage(): React.ReactNode {
   }, [state.selectedStateId, filter]);
 
   const handleNext = useCallback((): void => {
+    const current = questions[currentIndex];
+    if (current) {
+      markStudied(current.id);
+    }
     setCurrentIndex(prev => (prev + 1) % questions.length);
-  }, [questions.length]);
+  }, [questions, currentIndex, markStudied]);
 
   if (!state.selectedStateId) {
     return (
@@ -53,9 +59,12 @@ export function StudyPage(): React.ReactNode {
   const currentQuestion = questions[currentIndex];
   if (!currentQuestion) return null;
 
+  const studiedInCurrentSet = questions.filter(q => studiedQuestionIds.includes(q.id)).length;
+  const isCurrentStudied = studiedQuestionIds.includes(currentQuestion.id);
+
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-gray-800">Study Mode</h2>
         <div className="flex gap-2">
           <button
@@ -81,6 +90,23 @@ export function StudyPage(): React.ReactNode {
             65/20 (20 Questions)
           </button>
         </div>
+      </div>
+
+      {/* Progress indicator */}
+      <div className="bg-white rounded-lg shadow-sm p-3 mb-6">
+        <div className="flex justify-between text-sm text-gray-600 mb-1">
+          <span>{studiedInCurrentSet} of {questions.length} studied</span>
+          <span>{studiedCount} total studied</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2">
+          <div
+            className="bg-blue-500 h-2 rounded-full transition-all"
+            style={{ width: `${(studiedInCurrentSet / questions.length) * 100}%` }}
+          />
+        </div>
+        {isCurrentStudied && (
+          <p className="text-xs text-blue-600 mt-1">✓ You've studied this question before</p>
+        )}
       </div>
 
       <div className="flex justify-center">

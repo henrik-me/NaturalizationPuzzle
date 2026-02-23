@@ -6,10 +6,13 @@ interface QuizCardProps {
   readonly onNext: () => void;
   readonly questionNumber: number;
   readonly totalQuestions: number;
+  readonly mode?: 'study' | 'quiz';
+  readonly onSubmitAnswer?: (answer: string) => void;
 }
 
-export function QuizCard({ question, onNext, questionNumber, totalQuestions }: QuizCardProps): React.ReactNode {
+export function QuizCard({ question, onNext, questionNumber, totalQuestions, mode = 'study', onSubmitAnswer }: QuizCardProps): React.ReactNode {
   const [showAnswer, setShowAnswer] = useState(false);
+  const [userAnswer, setUserAnswer] = useState('');
 
   const handleShowAnswer = useCallback((): void => {
     setShowAnswer(true);
@@ -17,19 +20,35 @@ export function QuizCard({ question, onNext, questionNumber, totalQuestions }: Q
 
   const handleNext = useCallback((): void => {
     setShowAnswer(false);
+    setUserAnswer('');
     onNext();
   }, [onNext]);
+
+  const handleSubmitAnswer = useCallback((): void => {
+    if (userAnswer.trim().length === 0) return;
+    onSubmitAnswer?.(userAnswer.trim());
+    setUserAnswer('');
+  }, [userAnswer, onSubmitAnswer]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent): void => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if (showAnswer) {
-        handleNext();
-      } else {
-        handleShowAnswer();
+      if (mode === 'study') {
+        if (showAnswer) {
+          handleNext();
+        } else {
+          handleShowAnswer();
+        }
       }
     }
-  }, [showAnswer, handleNext, handleShowAnswer]);
+  }, [mode, showAnswer, handleNext, handleShowAnswer]);
+
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent): void => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmitAnswer();
+    }
+  }, [handleSubmitAnswer]);
 
   return (
     <div
@@ -57,7 +76,33 @@ export function QuizCard({ question, onNext, questionNumber, totalQuestions }: Q
         {question.category} › {question.subCategory}
       </p>
 
-      {showAnswer ? (
+      {mode === 'quiz' ? (
+        <div className="space-y-3">
+          <label htmlFor="quiz-answer-input" className="block text-sm font-medium text-gray-700">
+            Your answer
+          </label>
+          <input
+            id="quiz-answer-input"
+            type="text"
+            value={userAnswer}
+            onChange={e => setUserAnswer(e.target.value)}
+            onKeyDown={handleInputKeyDown}
+            placeholder="Type your answer..."
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none text-gray-900"
+            autoComplete="off"
+            data-testid="quiz-answer-input"
+          />
+          <button
+            onClick={handleSubmitAnswer}
+            disabled={userAnswer.trim().length === 0}
+            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Submit your answer"
+            data-testid="submit-answer-btn"
+          >
+            Submit Answer
+          </button>
+        </div>
+      ) : showAnswer ? (
         <div aria-live="polite">
           <ul className="list-disc list-inside space-y-1 mb-6" role="list" aria-label="Accepted answers">
             {question.answers.map((answer, index) => (

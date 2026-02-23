@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QuizCard } from './QuizCard';
@@ -31,7 +31,7 @@ describe('QuizCard', () => {
     expect(screen.getByText('65/20')).toBeInTheDocument();
   });
 
-  it('does not show answers initially', () => {
+  it('does not show answers initially in study mode', () => {
     render(
       <QuizCard question={mockQuestion} onNext={() => {}} questionNumber={1} totalQuestions={128} />
     );
@@ -73,5 +73,36 @@ describe('QuizCard', () => {
     );
 
     expect(screen.getByText('American Government › Principles of American Government')).toBeInTheDocument();
+  });
+
+  it('shows text input in quiz mode', () => {
+    render(
+      <QuizCard question={mockQuestion} onNext={() => {}} questionNumber={1} totalQuestions={128} mode="quiz" />
+    );
+
+    expect(screen.getByTestId('quiz-answer-input')).toBeInTheDocument();
+    expect(screen.getByTestId('submit-answer-btn')).toBeInTheDocument();
+    expect(screen.queryByText('Show Answer')).not.toBeInTheDocument();
+  });
+
+  it('calls onSubmitAnswer with typed text in quiz mode', async () => {
+    const user = userEvent.setup();
+    const onSubmitAnswer = vi.fn();
+    render(
+      <QuizCard question={mockQuestion} onNext={() => {}} questionNumber={1} totalQuestions={128} mode="quiz" onSubmitAnswer={onSubmitAnswer} />
+    );
+
+    await user.type(screen.getByTestId('quiz-answer-input'), 'Republic');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+
+    expect(onSubmitAnswer).toHaveBeenCalledWith('Republic');
+  });
+
+  it('disables submit button when answer is empty in quiz mode', () => {
+    render(
+      <QuizCard question={mockQuestion} onNext={() => {}} questionNumber={1} totalQuestions={128} mode="quiz" />
+    );
+
+    expect(screen.getByTestId('submit-answer-btn')).toBeDisabled();
   });
 });

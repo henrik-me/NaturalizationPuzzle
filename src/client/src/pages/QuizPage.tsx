@@ -1,30 +1,36 @@
 import { useState, useCallback } from 'react';
-import type { QuestionDto } from '../types/api';
+import type { QuestionDto, QuizAnswer } from '../types/api';
 import { getAllQuestions, get6520Questions } from '../services/questionService';
 import { useAppContext } from '../context/AppContext';
 import { QuizCard } from '../components/QuizCard';
+import { checkAnswer } from '../utils/answerChecker';
+import { useProgress } from '../hooks/useProgress';
 
 interface QuizState {
   readonly questions: readonly QuestionDto[];
   readonly currentIndex: number;
-  readonly correctCount: number;
-  readonly incorrectCount: number;
+  readonly answers: readonly QuizAnswer[];
   readonly isComplete: boolean;
   readonly isStarted: boolean;
 }
 
 export function QuizPage(): React.ReactNode {
   const { state } = useAppContext();
+  const { addQuizResult } = useProgress();
   const [quizState, setQuizState] = useState<QuizState>({
     questions: [],
     currentIndex: 0,
-    correctCount: 0,
-    incorrectCount: 0,
+    answers: [],
     isComplete: false,
     isStarted: false,
   });
   const [is6520, setIs6520] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const passThreshold = is6520 ? 6 : 12;
+  const failThreshold = is6520 ? 5 : 9;
+  const correctCount = quizState.answers.filter(a => a.isCorrect).length;
+  const incorrectCount = quizState.answers.filter(a => !a.isCorrect).length;
 
   const startQuiz = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -39,23 +45,55 @@ export function QuizPage(): React.ReactNode {
     setQuizState({
       questions: shuffled,
       currentIndex: 0,
-      correctCount: 0,
-      incorrectCount: 0,
+      answers: [],
       isComplete: false,
       isStarted: true,
     });
     setIsLoading(false);
   }, [state.selectedStateId, is6520]);
 
-  const handleNext = useCallback((): void => {
+  const handleSubmitAnswer = useCallback((userAnswer: string): void => {
     setQuizState(prev => {
-      const nextIndex = prev.currentIndex + 1;
-      if (nextIndex >= prev.questions.length) {
-        return { ...prev, isComplete: true };
+      const question = prev.questions[prev.currentIndex];
+      if (!question) return prev;
+
+      const isCorrect = checkAnswer(userAnswer, question.answers);
+      const newAnswer: QuizAnswer = {
+        questionId: question.id,
+        questionText: question.text,
+        userAnswer,
+        acceptedAnswers: question.answers,
+        isCorrect,
+      };
+
+      const updatedAnswers = [...prev.answers, newAnswer];
+      const newCorrect = updatedAnswers.filter(a => a.isCorrect).length;
+      const newIncorrect = updatedAnswers.filter(a => !a.isCorrect).length;
+
+      // Early stop: passed or failed
+      const quizOver = newCorrect >= passThreshold
+        || newIncorrect >= failThreshold
+        || prev.currentIndex + 1 >= prev.questions.length;
+
+      if (quizOver) {
+        const mode = is6520 ? '6520' as const : 'standard' as const;
+        addQuizResult({
+          date: new Date().toISOString(),
+          mode,
+          correct: newCorrect,
+          total: updatedAnswers.length,
+          passed: newCorrect >= passThreshold,
+        });
       }
-      return { ...prev, currentIndex: nextIndex };
+
+      return {
+        ...prev,
+        answers: updatedAnswers,
+        currentIndex: quizOver ? prev.currentIndex : prev.currentIndex + 1,
+        isComplete: quizOver,
+      };
     });
-  }, []);
+  }, [passThreshold, failThreshold, is6520, addQuizResult]);
 
   if (!state.selectedStateId) {
     return (
@@ -117,20 +155,59 @@ export function QuizPage(): React.ReactNode {
   }
 
   if (quizState.isComplete) {
-    const passThreshold = is6520 ? 6 : 12;
+    const passed = correctCount >= passThreshold;
     return (
-      <main className="max-w-2xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-xl shadow-md p-6 text-center" aria-live="polite">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Quiz Complete!</h2>
-          <p className="text-lg mb-2">
-            You reviewed all {quizState.questions.length} questions.
-          </p>
-          <p className="text-sm text-gray-500 mb-6">
-            On the real test, you would need {passThreshold} correct to pass.
-          </p>
+      <main className="max-w-3xl mx-auto px-4 py-8">
+        <div className="bg-white rounded-xl shadow-md p-6" aria-live="polite">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Quiz Complete!</h2>
+            <div className={`inline-block px-6 py-3 rounded-lg text-lg font-bold ${
+              passed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}>
+              {passed ? '✓ PASSED' : '✗ FAILED'}
+            </div>
+            <p className="text-lg mt-3">
+              <span className="font-bold">{correctCount}</span> correct out of{' '}
+              <span className="font-bold">{quizState.answers.length}</span> answered
+              {' '}({passThreshold} needed to pass)
+            </p>
+          </div>
+
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Review Your Answers</h3>
+          <div className="space-y-4">
+            {quizState.answers.map((answer, index) => (
+              <div
+                key={answer.questionId}
+                className={`p-4 rounded-lg border-l-4 ${
+                  answer.isCorrect
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-red-500 bg-red-50'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <span className={`text-lg ${answer.isCorrect ? 'text-green-600' : 'text-red-600'}`} aria-hidden="true">
+                    {answer.isCorrect ? '✓' : '✗'}
+                  </span>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 text-sm">
+                      {index + 1}. {answer.questionText}
+                    </p>
+                    <p className={`text-sm mt-1 ${answer.isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                      <span className="font-medium">Your answer:</span> {answer.userAnswer}
+                    </p>
+                    <div className="text-sm text-gray-600 mt-1">
+                      <span className="font-medium">Accepted:</span>{' '}
+                      {answer.acceptedAnswers.join(' · ')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
           <button
-            onClick={() => setQuizState(prev => ({ ...prev, isStarted: false, isComplete: false }))}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors"
+            onClick={() => setQuizState(prev => ({ ...prev, isStarted: false, isComplete: false, answers: [] }))}
+            className="w-full mt-6 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors"
           >
             Try Again
           </button>
@@ -144,15 +221,37 @@ export function QuizPage(): React.ReactNode {
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">
         Quiz Mode {is6520 ? '(65/20)' : '(Standard)'}
       </h2>
+
+      {/* Score progress bar */}
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-6" aria-label="Quiz progress">
+        <div className="flex justify-between text-sm mb-2">
+          <span className="text-green-700 font-medium">✓ {correctCount} correct</span>
+          <span className="text-gray-500">{passThreshold} to pass</span>
+          <span className="text-red-700 font-medium">✗ {incorrectCount} wrong</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5 flex overflow-hidden">
+          <div
+            className="bg-green-500 h-2.5 transition-all"
+            style={{ width: `${(correctCount / quizState.questions.length) * 100}%` }}
+          />
+          <div
+            className="bg-red-500 h-2.5 transition-all"
+            style={{ width: `${(incorrectCount / quizState.questions.length) * 100}%` }}
+          />
+        </div>
+      </div>
+
       <div className="flex justify-center">
         <QuizCard
           question={currentQuestion}
-          onNext={handleNext}
+          onNext={() => {}}
           questionNumber={quizState.currentIndex + 1}
           totalQuestions={quizState.questions.length}
+          mode="quiz"
+          onSubmitAnswer={handleSubmitAnswer}
         />
       </div>
     </main>

@@ -27,8 +27,12 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - AppContext with useReducer for state management
 - Typed API client with ApiResult<T> union type
 - Service layer: questionService, stateService, quizService
-- Components: Navigation, OfflineBanner, StateSelector, QuizCard
-- Pages: StudyPage, QuizPage, SettingsPage
+- Components: Navigation, OfflineBanner, StateSelector, QuizCard (study + quiz modes)
+- Pages: StudyPage (with progress tracking), QuizPage (with scoring), SettingsPage
+- Quiz mode: typed answer input, no answer reveal until results, auto-grading with fuzzy matching
+- Quiz scoring: real-time pass/fail (12/20 standard, 6/10 for 65/20), early stop on pass/fail
+- Progress tracking: localStorage-based tracking of studied questions and quiz history via useProgress hook
+- Answer checking: case-insensitive normalized matching with substring and word-overlap strategies
 
 ### Tests (`tests/api/`)
 - xUnit project with 10 passing tests
@@ -38,8 +42,9 @@ Full-stack application scaffolded and building. Backend API is functional with s
 ### Tests (`src/client/` — co-located)
 - Vitest with jsdom, @testing-library/react, @testing-library/user-event
 - apiClient.test.ts: 5 tests (GET/POST success, error, network failure)
-- QuizCard.test.tsx: 6 tests (render, 65/20 badge, reveal/next, category)
+- QuizCard.test.tsx: 9 tests (render, 65/20 badge, reveal/next, category, quiz mode input, submit, disabled)
 - OfflineBanner.test.tsx: 1 test (hidden when online)
+- answerChecker.test.ts: 9 tests (exact match, case-insensitive, substring, parentheticals, empty, wrong answers)
 
 ### E2E Tests (`tests/e2e/`)
 - Playwright with Chromium, Page Object Model pattern
@@ -72,7 +77,5 @@ Full-stack application scaffolded and building. Backend API is functional with s
 ## Next Steps
 
 1. Add @axe-core/playwright for automated accessibility testing in E2E specs
-2. Add user progress tracking (track which questions have been studied/answered)
-3. Add quiz scoring with real-time pass/fail evaluation (stop at 12 correct or 9 wrong)
-4. Add search/filter by keyword within questions
-5. Add dark mode support
+2. Add search/filter by keyword within questions
+3. Add dark mode support

@@ -198,9 +198,24 @@ src/client/
 
 | Path | Page | Description |
 |------|------|-------------|
-| `/` | StudyPage | Browse and study all 128 civics questions |
-| `/quiz` | QuizPage | Take a practice quiz (standard or 65/20 mode) |
+| `/` | StudyPage | Browse and study all 128 civics questions, with progress tracking |
+| `/quiz` | QuizPage | Take a practice quiz with typed answers and real-time scoring |
 | `/settings` | SettingsPage | Select U.S. state, manage preferences |
+
+### Quiz Mode
+
+In quiz mode, the user types their answer for each question and submits it. **Answers are not revealed until the quiz is complete.** The quiz simulates the real USCIS test:
+
+- **Standard**: 20 questions, 12 correct to pass. Stops early at 12 correct or 9 wrong.
+- **65/20**: 10 questions, 6 correct to pass. Stops early at 6 correct or 5 wrong.
+
+After completion, a detailed results screen shows each question with the user's answer, accepted answers, and a correct/incorrect indicator alongside a pass/fail verdict.
+
+Answer checking uses case-insensitive, normalized fuzzy matching (substring + word overlap) to accommodate natural phrasing variations.
+
+### Study Progress
+
+The app tracks which questions you've studied and your quiz history in `localStorage`. The study page shows a progress bar indicating how many questions in the current set you've reviewed.
 
 ### PWA & Offline
 
