@@ -89,6 +89,7 @@ dotnet test --filter "DisplayName~Returns_questions_for_state"   # single test b
 - **Every change gets its own commit.** No batching unrelated changes.
 - **Functional changes and refactoring are always separate commits.** A refactoring commit message must start with `refactor:`. This makes it easy to distinguish code changes that alter behavior from those that improve structure.
 - Use [Conventional Commits](https://www.conventionalcommits.org/) prefixes: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`.
+- **Every commit message must fully capture the change made.** The subject line summarizes the intent; the body (if needed) lists specifics so the change is understandable without reading the diff.
 - Always include the trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
 
 ### Context File
