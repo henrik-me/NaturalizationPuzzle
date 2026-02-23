@@ -14,6 +14,7 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 | Backend API | .NET 9 Minimal APIs (C#) |
 | Database | SQLite via Entity Framework Core |
 | Testing | Vitest (frontend), xUnit (backend) |
+| E2E Testing | Playwright (via MCP server) |
 
 ### Solution Structure
 
@@ -24,7 +25,8 @@ NaturalizationPuzzle/
 │   └── api/             # .NET 9 Minimal API backend
 ├── tests/
 │   ├── client/          # Vitest frontend tests
-│   └── api/             # xUnit backend tests
+│   ├── api/             # xUnit backend tests
+│   └── e2e/             # Playwright E2E tests
 └── .github/
 ```
 
@@ -158,6 +160,51 @@ Update `CONTEXT.md` whenever significant progress is made. This ensures any new 
 - Users select their U.S. state on first launch (persisted to `localStorage` and synced to the backend when online).
 - State-specific answers (e.g., governor name, U.S. senators) are dynamically inserted into relevant questions.
 - The state selector must be accessible from settings at any time, not just first launch.
+
+### Error Handling
+
+**Frontend:**
+
+- Wrap all `fetch` calls in try/catch. Service functions must never throw raw fetch errors to components — translate them into typed result objects (e.g., `{ success: true, data: T } | { success: false, error: string }`).
+- Use an `ErrorBoundary` component at the route level to catch unexpected React render errors and show a user-friendly fallback.
+- Display toast notifications for transient errors (network timeouts, 5xx) and inline messages for validation errors (4xx).
+- When offline, suppress network errors silently and serve from cache — never show a network error if cached data is available.
+
+**Backend (.NET):**
+
+- Use a global exception handler middleware that catches unhandled exceptions, logs them, and returns a consistent `ProblemDetails` JSON response (RFC 9457).
+- Endpoint handlers return `Results.Ok()`, `Results.NotFound()`, `Results.BadRequest()`, etc. — never throw exceptions for expected conditions (e.g., "question not found" is a 404, not an exception).
+- Use `FluentValidation` or `DataAnnotations` for request validation. Return `Results.ValidationProblem()` with field-level error details.
+- Log errors with structured logging (`ILogger<T>`) including correlation IDs for traceability.
+
+### API Versioning
+
+- Use **URL path versioning**: `/api/v1/questions`, `/api/v2/questions`.
+- Version the API from the start — all endpoints live under `/api/v1/`.
+- Group versioned endpoints using `MapGroup("/api/v1")` in the endpoint mapping extensions.
+- When a breaking change is needed, add a new version group while keeping the old one functional until deprecated.
+- The frontend API service layer references the version in a single constant (`API_BASE = '/api/v1'`) so version bumps are a one-line change.
+
+### Accessibility (a11y)
+
+- Target **WCAG 2.1 AA** compliance.
+- All interactive elements must be keyboard-navigable. Quiz flows must be fully operable with Tab, Enter, Space, and arrow keys.
+- Use semantic HTML elements (`<main>`, `<nav>`, `<section>`, `<button>`) — not `<div>` with click handlers.
+- All images and icons require `alt` text or `aria-label`. Decorative icons use `aria-hidden="true"`.
+- Form inputs must have associated `<label>` elements (not just placeholder text).
+- Color must never be the sole indicator of state (e.g., correct/incorrect answers use icons + color + text).
+- Maintain a minimum contrast ratio of 4.5:1 for normal text and 3:1 for large text.
+- Quiz result announcements use `aria-live="polite"` regions so screen readers announce score changes.
+- Run `axe-core` accessibility checks in Playwright E2E tests via `@axe-core/playwright`.
+
+### Playwright E2E Testing
+
+- The Playwright MCP server is configured in `.vscode/mcp.json` for AI-driven browser automation and test generation.
+- E2E tests live in `tests/e2e/` and use the Page Object Model pattern.
+- Test files are named `*.spec.ts` (e.g., `quiz-flow.spec.ts`, `state-selection.spec.ts`).
+- Use stable selectors: `data-testid` attributes preferred over CSS classes or text content.
+- All tests must pass in headless mode for CI compatibility.
+- Include accessibility checks using `@axe-core/playwright` in critical user flows.
 
 ### Civics Test Domain
 
