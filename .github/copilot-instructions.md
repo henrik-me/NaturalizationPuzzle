@@ -105,16 +105,19 @@ Update `CONTEXT.md` whenever significant progress is made. This ensures any new 
 
 ### README File
 
-Maintain the `README.md` file in the repository root. When any of the following change, update the corresponding section in the README:
+Maintain the `README.md` file in the repository root. The README is the public-facing entry point for the project and **must always reflect the current state of the system**. Treat it as a living document — every change to the codebase that affects how the system works, how it is used, or how it is structured must be accompanied by a corresponding README update.
 
-- **API endpoints** (routes, methods, parameters) — update the API Endpoints tables.
-- **Frontend routes** (new pages, changed paths) — update the Routes table.
-- **System architecture** (new services, middleware, data flow changes) — update the system diagrams.
-- **Getting started** (ports, prerequisites, new build steps) — update the Getting Started section.
-- **Tech stack** (new dependencies, version bumps) — update the Tech Stack table.
-- **Test commands** (new test projects, changed scripts) — update the test-running sections.
+**Usage information** — The README must document how to install, configure, and run both the backend API and frontend client. When startup commands, ports, environment variables, prerequisites, or configuration change, update the Getting Started section immediately.
 
-The README is the public-facing entry point for the project — keep it accurate and in sync with the code.
+**System architecture** — The README contains system diagrams showing how the frontend, backend, service worker, and database interact. When new services, middleware, endpoints, components, or data flows are added or modified, update the relevant architecture diagrams to match.
+
+**API reference** — The README documents all API endpoints in tables (method, path, description). When endpoints are added, removed, renamed, or their parameters change, update the API Endpoints tables.
+
+**Frontend routes & features** — The README lists all client-side routes and major features (PWA, offline, state selection). When pages are added/removed or routes change, update the Routes table and feature descriptions.
+
+**Tech stack & dependencies** — When dependencies are added/upgraded or the tech stack changes, update the Tech Stack table.
+
+**Test commands** — When test projects are added or test scripts change, update the test-running sections.
 
 ### Async Everywhere
 
