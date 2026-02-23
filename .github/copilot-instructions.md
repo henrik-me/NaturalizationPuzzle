@@ -11,7 +11,7 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 | Frontend | React 19 + Vite + TypeScript |
 | Styling | Tailwind CSS v4 |
 | Offline/PWA | `vite-plugin-pwa` with Workbox |
-| Backend API | .NET 9 Minimal APIs (C#) |
+| Backend API | .NET 10 Minimal APIs (C#) |
 | Database | SQLite via Entity Framework Core |
 | Testing | Vitest (frontend), xUnit (backend) |
 | E2E Testing | Playwright (via MCP server) |
@@ -22,7 +22,7 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 NaturalizationPuzzle/
 ├── src/
 │   ├── client/          # React 19 + Vite frontend
-│   └── api/             # .NET 9 Minimal API backend
+│   └── api/             # .NET 10 Minimal API backend
 ├── tests/
 │   ├── client/          # Vitest frontend tests
 │   ├── api/             # xUnit backend tests
@@ -60,7 +60,7 @@ dotnet test --filter "DisplayName~Returns_questions_for_state"   # single test b
 ### Data Flow
 
 ```
-[React PWA] ──async fetch──▶ [.NET 9 Minimal API] ──async EF Core──▶ [SQLite]
+[React PWA] ──async fetch──▶ [.NET 10 Minimal API] ──async EF Core──▶ [SQLite]
      │                              │
      ▼                              ▼
 [Service Worker Cache]        [DI Container]
