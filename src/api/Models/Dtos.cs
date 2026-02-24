@@ -16,7 +16,7 @@ public sealed record UsStateDto(
     string Governor,
     string SenatorOne,
     string SenatorTwo,
-    string Representative);
+    IReadOnlyList<string> Representatives);
 
 public sealed record QuizStartRequest(
     int StateId,

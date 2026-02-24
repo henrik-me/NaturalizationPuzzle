@@ -15,7 +15,7 @@ export interface UsStateDto {
   readonly governor: string;
   readonly senatorOne: string;
   readonly senatorTwo: string;
-  readonly representative: string;
+  readonly representatives: readonly string[];
 }
 
 export interface QuizStartRequest {

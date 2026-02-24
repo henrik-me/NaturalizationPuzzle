@@ -12,16 +12,25 @@ public sealed class StateService(AppDbContext db) : IStateService
             .OrderBy(s => s.Name)
             .ToListAsync(cancellationToken);
 
-        return states.Select(MapToDto).ToList();
+        var representatives = await db.Representatives
+            .ToListAsync(cancellationToken);
+
+        return states.Select(s => MapToDto(s, representatives.Where(r => r.StateId == s.Id).ToList())).ToList();
     }
 
     public async Task<UsStateDto?> GetStateByIdAsync(int id, CancellationToken cancellationToken)
     {
         var state = await db.States.FindAsync([id], cancellationToken);
-        return state is null ? null : MapToDto(state);
+        if (state is null) return null;
+
+        var reps = await db.Representatives
+            .Where(r => r.StateId == id)
+            .ToListAsync(cancellationToken);
+
+        return MapToDto(state, reps);
     }
 
-    private static UsStateDto MapToDto(UsState state) => new(
+    private static UsStateDto MapToDto(UsState state, IReadOnlyList<Representative> representatives) => new(
         state.Id,
         state.Name,
         state.Abbreviation,
@@ -29,5 +38,5 @@ public sealed class StateService(AppDbContext db) : IStateService
         state.Governor,
         state.SenatorOne,
         state.SenatorTwo,
-        state.Representative);
+        representatives.Select(r => r.Name).ToList());
 }

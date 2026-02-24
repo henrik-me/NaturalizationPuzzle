@@ -8,6 +8,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Question> Questions => Set<Question>();
     public DbSet<Answer> Answers => Set<Answer>();
     public DbSet<UsState> States => Set<UsState>();
+    public DbSet<Representative> Representatives => Set<Representative>();
     public DbSet<QuizSession> QuizSessions => Set<QuizSession>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -38,6 +39,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasIndex(s => s.Abbreviation).IsUnique();
         });
 
+        modelBuilder.Entity<Representative>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Name).IsRequired().HasMaxLength(100);
+            entity.Property(r => r.District).IsRequired().HasMaxLength(20);
+        });
+
         modelBuilder.Entity<QuizSession>(entity =>
         {
             entity.HasKey(qs => qs.Id);
@@ -46,5 +54,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         });
 
         SeedData.Seed(modelBuilder);
+        RepresentativeSeedData.Seed(modelBuilder);
     }
 }

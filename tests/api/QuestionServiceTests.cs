@@ -77,7 +77,8 @@ public sealed class QuestionServiceTests : IDisposable
         var questions = await _sut.GetAllQuestionsAsync(100, CancellationToken.None);
 
         var q23 = questions.First(q => q.Id == 23);
-        Assert.Contains("John Smith and Mary Jones", q23.Answers);
+        Assert.Contains("John Smith", q23.Answers);
+        Assert.Contains("Mary Jones", q23.Answers);
 
         var q61 = questions.First(q => q.Id == 61);
         Assert.Contains("Jane Doe", q61.Answers);

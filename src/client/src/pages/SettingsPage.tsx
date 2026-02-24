@@ -17,7 +17,23 @@ export function SettingsPage(): React.ReactNode {
               <p><strong>Capital:</strong> {state.selectedState.capital}</p>
               <p><strong>Governor:</strong> {state.selectedState.governor}</p>
               <p><strong>Senators:</strong> {state.selectedState.senatorOne}, {state.selectedState.senatorTwo}</p>
-              <p><strong>Representative:</strong> {state.selectedState.representative}</p>
+              <p><strong>Representative{state.selectedState.representatives.length !== 1 ? 's' : ''}:</strong>{' '}
+                {state.selectedState.representatives.length <= 3
+                  ? state.selectedState.representatives.join(', ')
+                  : `${state.selectedState.representatives.length} members`}
+              </p>
+              {state.selectedState.representatives.length > 3 && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-blue-600 hover:underline text-xs">
+                    Show all {state.selectedState.representatives.length} representatives
+                  </summary>
+                  <ul className="mt-1 list-disc list-inside text-xs">
+                    {state.selectedState.representatives.map((rep, i) => (
+                      <li key={i}>{rep}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </div>
           )}
         </section>
