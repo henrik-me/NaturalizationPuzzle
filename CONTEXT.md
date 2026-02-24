@@ -49,6 +49,11 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - QuizCard.test.tsx: 9 tests (render, 65/20 badge, reveal/next, category, quiz mode input, submit, disabled)
 - OfflineBanner.test.tsx: 1 test (hidden when online)
 - answerChecker.test.ts: 9 tests (exact match, case-insensitive, substring, parentheticals, empty, wrong answers)
+- AppContext.test.tsx: 9 tests (default state, provider requirement, SET_STATE/SET_6520/SET_LOADING dispatch, state hydration from API, no-hydration without stateId, hydration failure, online/offline events)
+- StateSelector.test.tsx: 4 tests (loading state, dropdown rendering, dispatch on select, accessible label)
+- Navigation.test.tsx: 4 tests (menu items render, app title, nav landmark, correct routes)
+- ErrorBoundary.test.tsx: 3 tests (renders children, default fallback on error, custom fallback)
+- useProgress.test.ts: 6 tests (empty initial, mark studied + persist, no duplicates, quiz results + persist, load existing, corrupt data)
 
 ### E2E Tests (`tests/e2e/`)
 - Playwright with Chromium, Page Object Model pattern
