@@ -174,9 +174,17 @@ Maintain the `README.md` file in the repository root. The README is the public-f
 
 ### State Selection
 
-- Users select their U.S. state on first launch (persisted to `localStorage` and synced to the backend when online).
+- Users select their U.S. state on first launch (persisted to `localStorage` — client-side only, never sent to the backend).
+- On subsequent visits, the `AppProvider` hydrates the full state details (capital, governor, senators, representatives) from the API using the persisted state ID.
 - State-specific answers (e.g., governor name, U.S. senators) are dynamically inserted into relevant questions.
 - The state selector must be accessible from settings at any time, not just first launch.
+
+### Client-Side State & Persistence
+
+- **All user preferences and progress are stored exclusively in `localStorage`** — the backend is a read-only data source and never stores per-user state.
+- `selectedStateId` — the user's chosen U.S. state (persisted in `localStorage`, hydrated from API on load).
+- `naturalizationProgress` — study progress (studied question IDs) and quiz history (date, mode, score, pass/fail).
+- No server-side sessions, cookies, or user accounts exist. Clearing browser storage resets all user data.
 
 ### Error Handling
 

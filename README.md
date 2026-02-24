@@ -225,6 +225,19 @@ Answer checking uses case-insensitive, normalized fuzzy matching (substring + wo
 
 The app tracks which questions you've studied and your quiz history in `localStorage`. The study page shows a progress bar indicating how many questions in the current set you've reviewed.
 
+### Data Storage
+
+All user data is stored **client-side only** in the browser's `localStorage`. The backend API is a read-only data source — it never stores per-user state.
+
+| Data | Storage | Key | Details |
+|------|---------|-----|---------|
+| Selected state ID | `localStorage` | `selectedStateId` | Numeric ID of the user's chosen U.S. state. On page load, the app hydrates full state details (capital, governor, senators, representatives) from the API. |
+| Study progress | `localStorage` | `naturalizationProgress` | Studied question IDs and quiz history (date, mode, score, pass/fail). |
+| State details (capital, governor, senators, reps) | Backend API | — | Read-only, fetched from `/api/v1/states/{id}`. Cached by the service worker for offline use. |
+| Question data (128 questions) | Backend API | — | Read-only, fetched from `/api/v1/questions`. Cached by the service worker for offline use. |
+
+> **No server-side sessions, cookies, or user accounts exist.** Clearing browser storage resets all user data.
+
 ### PWA & Offline
 
 - **Service worker** (via `vite-plugin-pwa` + Workbox) precaches the app shell and static assets.
