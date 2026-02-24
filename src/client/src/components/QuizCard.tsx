@@ -68,11 +68,11 @@ export function QuizCard({ question, onNext, questionNumber, totalQuestions, mod
       </div>
 
       <p className="text-lg font-medium text-gray-900 mb-1">
-        <span className="text-gray-400 mr-2">#{question.id}</span>
+        <span className="text-gray-500 mr-2">#{question.id}</span>
         {question.text}
       </p>
 
-      <p className="text-xs text-gray-400 mb-4">
+      <p className="text-xs text-gray-500 mb-4">
         {question.category} › {question.subCategory}
       </p>
 

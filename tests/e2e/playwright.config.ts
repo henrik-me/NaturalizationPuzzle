@@ -21,7 +21,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'cd ../../src/api && dotnet run',
-      url: 'https://localhost:7256/api/v1/questions',
+      url: 'http://localhost:5099/api/v1/states',
       reuseExistingServer: !process.env.CI,
       timeout: 30000,
     },

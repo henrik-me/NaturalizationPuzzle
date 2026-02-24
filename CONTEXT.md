@@ -52,9 +52,11 @@ Full-stack application scaffolded and building. Backend API is functional with s
 
 ### E2E Tests (`tests/e2e/`)
 - Playwright with Chromium, Page Object Model pattern
-- SettingsPage/StudyPage page objects
+- @axe-core/playwright for WCAG 2.1 AA automated accessibility checks
+- SettingsPage/StudyPage/QuizPage page objects
 - state-selection.spec.ts: 2 tests (select state, persistence)
 - study-flow.spec.ts: 3 tests (display, reveal/advance, 65/20 filter)
+- accessibility.spec.ts: 7 tests (settings, settings+state, study, study+answer, quiz start, quiz in-progress, quiz typed answer)
 
 ### Error Handling
 - React ErrorBoundary wrapping Routes with user-friendly fallback
@@ -77,10 +79,8 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Playwright E2E tests require both .NET API and Vite dev server running (config handles auto-start)
 - State seed data uses "Varies by district" for multi-district states — a future enhancement could let users specify their congressional district
 - 3 House seats vacant in 119th Congress (CA-1, GA-14, NJ-11) — seeded as "Vacant", update when filled
-- No @axe-core/playwright integration yet for automated accessibility checks in E2E tests
 
 ## Next Steps
 
-1. Add @axe-core/playwright for automated accessibility testing in E2E specs
-2. Add search/filter by keyword within questions
-3. Add dark mode support
+1. Add search/filter by keyword within questions
+2. Add dark mode support

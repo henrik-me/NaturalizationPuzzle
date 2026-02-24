@@ -253,10 +253,12 @@ npm run lint
 ## E2E Tests (`tests/e2e/`)
 
 End-to-end tests use **Playwright** with Chromium and the **Page Object Model** pattern.
+Automated **WCAG 2.1 AA** accessibility checks are run via `@axe-core/playwright` on all critical flows.
 
 ```bash
 cd tests/e2e
-npx playwright test                        # run all E2E tests
+npx playwright test                        # run all E2E tests (12 tests)
+npx playwright test accessibility          # run accessibility checks only
 npx playwright test state-selection        # run a specific spec
 ```
 

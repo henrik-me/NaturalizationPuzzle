@@ -135,7 +135,7 @@ export function SettingsPage(): React.ReactNode {
                         <button
                           type="button"
                           onClick={() => { setEditingId(null); setNewName(''); }}
-                          className="text-amber-600 text-sm hover:underline"
+                          className="text-amber-800 text-sm hover:underline"
                         >
                           Cancel
                         </button>
@@ -143,7 +143,7 @@ export function SettingsPage(): React.ReactNode {
                     ) : (
                       <button
                         onClick={() => { setEditingId(seat.id); setNewName(''); }}
-                        className="text-amber-600 text-sm hover:underline focus:ring-2 focus:ring-amber-400 rounded"
+                        className="text-amber-800 text-sm hover:underline focus:ring-2 focus:ring-amber-400 rounded"
                       >
                         Update
                       </button>

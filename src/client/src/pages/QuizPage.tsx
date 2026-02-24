@@ -126,7 +126,7 @@ export function QuizPage(): React.ReactNode {
                 aria-pressed={!is6520}
               >
                 <div className="font-bold">Standard</div>
-                <div className="text-xs opacity-80">20 questions · 12 to pass</div>
+                <div className="text-xs opacity-90">20 questions · 12 to pass</div>
               </button>
               <button
                 onClick={() => setIs6520(true)}
@@ -138,14 +138,14 @@ export function QuizPage(): React.ReactNode {
                 aria-pressed={is6520}
               >
                 <div className="font-bold">65/20</div>
-                <div className="text-xs opacity-80">10 questions · 6 to pass</div>
+                <div className="text-xs opacity-90">10 questions · 6 to pass</div>
               </button>
             </div>
           </div>
           <button
             onClick={() => void startQuiz()}
             disabled={isLoading}
-            className="w-full bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:outline-none transition-colors disabled:opacity-50"
+            className="w-full bg-green-700 text-white py-3 rounded-lg font-medium hover:bg-green-800 focus:ring-2 focus:ring-green-500 focus:outline-none transition-colors disabled:opacity-50"
           >
             {isLoading ? 'Loading...' : 'Start Quiz'}
           </button>
