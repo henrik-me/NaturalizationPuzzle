@@ -26,7 +26,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Tailwind CSS v4 for styling
 - PWA via vite-plugin-pwa with service worker and runtime caching
 - React Router DOM (/, /quiz, /settings)
-- AppContext with useReducer for state management
+- AppContext with useReducer for state management (hydrates persisted state on load)
 - Typed API client with ApiResult<T> union type
 - Service layer: questionService, stateService, quizService
 - Components: Navigation, OfflineBanner, StateSelector, QuizCard (study + quiz modes)
