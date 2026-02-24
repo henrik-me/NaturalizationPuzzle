@@ -1,5 +1,5 @@
 import type { VacantSeatDto, RepresentativeDto } from '../types/api';
-import { apiGet, apiPut } from './apiClient';
+import { apiGet, apiPut, apiPost } from './apiClient';
 
 export async function getVacantSeats(stateId?: number): Promise<readonly VacantSeatDto[]> {
   const query = stateId != null ? `?stateId=${stateId}` : '';
@@ -13,4 +13,9 @@ export async function updateRepresentative(
 ): Promise<RepresentativeDto | null> {
   const result = await apiPut<RepresentativeDto>(`/representatives/${id}`, { name });
   return result.success ? result.data : null;
+}
+
+export async function resetRepresentatives(): Promise<number> {
+  const result = await apiPost<{ resetCount: number }>('/representatives/reset', {});
+  return result.success ? result.data.resetCount : 0;
 }

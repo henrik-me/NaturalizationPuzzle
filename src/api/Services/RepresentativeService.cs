@@ -38,4 +38,25 @@ public sealed class RepresentativeService(AppDbContext db) : IRepresentativeServ
 
         return new RepresentativeDto(rep.Id, rep.StateId, rep.District, rep.Name);
     }
+
+    public async Task<int> ResetToSeedDataAsync(CancellationToken cancellationToken)
+    {
+        var seedLookup = RepresentativeSeedData.SeedEntries.ToDictionary(s => s.Id, s => s.Name);
+        var allReps = await db.Representatives.ToListAsync(cancellationToken);
+        var resetCount = 0;
+
+        foreach (var rep in allReps)
+        {
+            if (seedLookup.TryGetValue(rep.Id, out var seedName) && rep.Name != seedName)
+            {
+                rep.Name = seedName;
+                resetCount++;
+            }
+        }
+
+        if (resetCount > 0)
+            await db.SaveChangesAsync(cancellationToken);
+
+        return resetCount;
+    }
 }

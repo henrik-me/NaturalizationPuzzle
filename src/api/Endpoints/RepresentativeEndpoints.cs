@@ -35,5 +35,14 @@ public static class RepresentativeEndpoints
             return updated is null ? Results.NotFound() : Results.Ok(updated);
         })
         .WithName("UpdateRepresentative");
+
+        group.MapPost("/reset", async (
+            IRepresentativeService repService,
+            CancellationToken cancellationToken) =>
+        {
+            var resetCount = await repService.ResetToSeedDataAsync(cancellationToken);
+            return Results.Ok(new { resetCount });
+        })
+        .WithName("ResetRepresentatives");
     }
 }

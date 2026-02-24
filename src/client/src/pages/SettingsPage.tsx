@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { StateSelector } from '../components/StateSelector';
 import { useAppContext } from '../context/AppContext';
-import { getVacantSeats, updateRepresentative } from '../services/representativeService';
+import { getVacantSeats, updateRepresentative, resetRepresentatives } from '../services/representativeService';
 import { getStateById } from '../services/stateService';
 import type { VacantSeatDto } from '../types/api';
 
@@ -40,6 +40,23 @@ export function SettingsPage(): React.ReactNode {
       }
     } else {
       setUpdateStatus('Failed to update representative.');
+    }
+  };
+
+  const handleReset = async (): Promise<void> => {
+    setUpdateStatus(null);
+    const count = await resetRepresentatives();
+    if (count > 0) {
+      setUpdateStatus(`Reset ${count} representative(s) to default values.`);
+      await fetchVacantSeats();
+      if (state.selectedStateId) {
+        const refreshed = await getStateById(state.selectedStateId);
+        if (refreshed) {
+          dispatch({ type: 'SET_STATE', stateId: state.selectedStateId, state: refreshed });
+        }
+      }
+    } else {
+      setUpdateStatus('All representatives already match default values.');
     }
   };
 
@@ -140,6 +157,22 @@ export function SettingsPage(): React.ReactNode {
             </div>
           </section>
         )}
+
+        <section>
+          <h3 className="text-lg font-semibold text-gray-700 mb-3">Representative Data</h3>
+          <p className="text-sm text-gray-600 mb-3">
+            If representative data has been modified, you can reset all entries back to the latest known values from the seed data.
+          </p>
+          <button
+            onClick={() => void handleReset()}
+            className="bg-gray-600 text-white px-4 py-2 rounded text-sm hover:bg-gray-700 focus:ring-2 focus:ring-gray-400"
+          >
+            Reset to defaults
+          </button>
+          {updateStatus && vacantSeats.length === 0 && (
+            <p className="mt-2 text-sm text-green-700" aria-live="polite">{updateStatus}</p>
+          )}
+        </section>
 
         <section>
           <h3 className="text-lg font-semibold text-gray-700 mb-3">Study Mode</h3>

@@ -5,9 +5,17 @@ namespace NaturalizationPuzzle.Api.Data;
 
 public static class RepresentativeSeedData
 {
+    private static readonly Lazy<IReadOnlyList<Representative>> _seedEntries = new(CreateSeedEntries);
+
+    public static IReadOnlyList<Representative> SeedEntries => _seedEntries.Value;
+
     public static void Seed(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Representative>().HasData(
+        modelBuilder.Entity<Representative>().HasData(SeedEntries);
+    }
+
+    private static IReadOnlyList<Representative> CreateSeedEntries() =>
+    [
             new Representative { Id = 1, StateId = 1, District = "1st", Name = "Barry Moore" },
             new Representative { Id = 2, StateId = 1, District = "2nd", Name = "Shomari Figures" },
             new Representative { Id = 3, StateId = 1, District = "3rd", Name = "Mike Rogers" },
@@ -444,6 +452,5 @@ public static class RepresentativeSeedData
             new Representative { Id = 433, StateId = 5, District = "1st", Name = "Vacant" },
             new Representative { Id = 434, StateId = 10, District = "14th", Name = "Vacant" },
             new Representative { Id = 435, StateId = 30, District = "11th", Name = "Vacant" }
-        );
-    }
+        ];
 }
