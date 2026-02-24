@@ -15,7 +15,9 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - .NET 10 Minimal API project with EF Core + SQLite
 - Models: Question, Answer, UsState, QuizSession + record DTOs
 - SeedData: all 128 USCIS 2025 civics questions with answers, categories, 65/20 designations
-- Services: QuestionService (state-specific answer resolution), StateService, QuizService
+- RepresentativeSeedData: all 435 U.S. House Representatives (119th Congress) by state and district
+- Models: Representative entity (Id, StateId, District, Name) for per-district House rep data
+- Services: QuestionService (state-specific answer resolution with per-rep data), StateService, QuizService
 - Endpoints: versioned under `/api/v1/` — questions, states, quiz
 - Program.cs: DI registration, CORS, auto-create DB on startup
 
@@ -72,6 +74,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 
 - Playwright E2E tests require both .NET API and Vite dev server running (config handles auto-start)
 - State seed data uses "Varies by district" for multi-district states — a future enhancement could let users specify their congressional district
+- 3 House seats vacant in 119th Congress (CA-1, GA-14, NJ-11) — update seed data when filled
 - No @axe-core/playwright integration yet for automated accessibility checks in E2E tests
 
 ## Next Steps

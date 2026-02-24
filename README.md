@@ -44,7 +44,8 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 │                     ┌──────────────┐                                │
 │                     │   SQLite     │                                │
 │                     │  (seeded     │                                │
-│                     │  128 Q&As)   │                                │
+│                     │  128 Q&As +  │                                │
+│                     │  435 reps)   │                                │
 │                     └──────────────┘                                │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -108,7 +109,7 @@ src/api/
 ```
 
 - **DI container** registers `QuestionService`, `StateService`, and `QuizService` as scoped.
-- **EF Core + SQLite** with all 128 USCIS civics questions seeded via migrations.
+- **EF Core + SQLite** with all 128 USCIS civics questions and 435 U.S. House Representatives (119th Congress) seeded on startup.
 - **Global exception handler** returns RFC 9457 `ProblemDetails` with correlation IDs.
 - **CORS** configured to allow the frontend origin (`http://localhost:5173`).
 
@@ -276,4 +277,4 @@ npx playwright test state-selection        # run a specific spec
 - **Standard test**: 20 questions asked, 12 correct to pass (stops at 12 correct or 9 wrong).
 - **65/20 rule**: applicants 65+ with 20+ years of residency study only 20 designated questions, are asked 10, and need 6 correct.
 - **Categories**: American Government (principles, system, rights/responsibilities), American History, and Integrated Civics (geography, symbols, holidays).
-- **State-specific answers**: governor, U.S. senators, and capital are dynamically resolved based on the user's selected state.
+- **State-specific answers**: governor, U.S. senators, U.S. House Representatives (all 435 by state/district), and capital are dynamically resolved based on the user's selected state.
