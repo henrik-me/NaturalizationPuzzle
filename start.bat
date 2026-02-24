@@ -8,9 +8,10 @@ echo.
 
 set API_DIR=%~dp0src\api
 set CLIENT_DIR=%~dp0src\client
-set API_PORT=5099
+set API_PORT=7075
+set API_HTTP_PORT=5099
 set CLIENT_PORT=5173
-set CLIENT_URL=http://localhost:%CLIENT_PORT%
+set CLIENT_URL=https://localhost:%CLIENT_PORT%
 
 :: Check prerequisites
 where dotnet >nul 2>&1
@@ -32,6 +33,10 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%API_PORT% " ^| findstr "LI
     echo        Killing process %%p on port %API_PORT%
     taskkill /PID %%p /F >nul 2>&1
 )
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%API_HTTP_PORT% " ^| findstr "LISTENING"') do (
+    echo        Killing process %%p on port %API_HTTP_PORT%
+    taskkill /PID %%p /F >nul 2>&1
+)
 for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%CLIENT_PORT% " ^| findstr "LISTENING"') do (
     echo        Killing process %%p on port %CLIENT_PORT%
     taskkill /PID %%p /F >nul 2>&1
@@ -39,8 +44,8 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":%CLIENT_PORT% " ^| findstr 
 timeout /t 2 /nobreak >nul
 
 :: Start the backend API
-echo [2/5] Starting backend API on port %API_PORT%...
-start "NatPuzzle API" /D "%API_DIR%" cmd /c "dotnet run"
+echo [2/5] Starting backend API on port %API_PORT% (HTTPS)...
+start "NatPuzzle API" /D "%API_DIR%" cmd /c "dotnet run --launch-profile https"
 
 :: Wait for the API to be ready before starting the frontend
 echo [3/5] Waiting for API to be ready...
@@ -52,7 +57,7 @@ if %ATTEMPTS% geq 30 (
 )
 timeout /t 1 /nobreak >nul
 set /a ATTEMPTS+=1
-curl -s -o nul -w "" http://localhost:%API_PORT%/api/v1/states >nul 2>&1
+curl -sk -o nul -w "" https://localhost:%API_PORT%/api/v1/states >nul 2>&1
 if errorlevel 1 goto :wait_api
 echo        API is ready.
 
@@ -71,7 +76,7 @@ if %ATTEMPTS% geq 30 (
 )
 timeout /t 1 /nobreak >nul
 set /a ATTEMPTS+=1
-curl -s -o nul -w "" %CLIENT_URL% >nul 2>&1
+curl -sk -o nul -w "" %CLIENT_URL% >nul 2>&1
 if errorlevel 1 goto :wait_loop
 
 echo.
@@ -82,7 +87,7 @@ start "" "%CLIENT_URL%"
 echo.
 echo ============================================
 echo  App running at: %CLIENT_URL%
-echo  API running at: http://localhost:%API_PORT%
+echo  API running at: https://localhost:%API_PORT%
 echo.
 echo  Close the "NatPuzzle API" and "NatPuzzle Client"
 echo  console windows to stop the servers.
