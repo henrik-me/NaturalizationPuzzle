@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
 import type { QuestionDto, UsStateDto } from '../types/api';
+import { getStateById } from '../services/stateService';
 
 interface AppState {
   readonly selectedStateId: number | null;
@@ -56,6 +57,18 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { readonly children: ReactNode }): ReactNode {
   const [state, dispatch] = useReducer(appReducer, initialState);
+
+  // Hydrate selectedState from API when a persisted stateId exists but state details are missing
+  useEffect(() => {
+    if (state.selectedStateId && !state.selectedState) {
+      void (async () => {
+        const fetched = await getStateById(state.selectedStateId as number);
+        if (fetched) {
+          dispatch({ type: 'SET_STATE', stateId: state.selectedStateId as number, state: fetched });
+        }
+      })();
+    }
+  }, [state.selectedStateId, state.selectedState, dispatch]);
 
   useEffect(() => {
     const handleOnline = (): void => dispatch({ type: 'SET_ONLINE', online: true });
