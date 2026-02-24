@@ -37,9 +37,10 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Answer checking: case-insensitive normalized matching with substring and word-overlap strategies
 
 ### Tests (`tests/api/`)
-- xUnit project with 10 passing tests
+- xUnit project with 22 passing tests
 - QuestionServiceTests: 6 tests (CRUD, filtering, state resolution)
 - QuizServiceTests: 4 tests (create, retrieve, modes)
+- RepresentativeSeedDataTests: 12 tests (count=435, all states covered, no duplicate districts, unique IDs, non-empty names, at-large states, per-state counts)
 
 ### Tests (`src/client/` — co-located)
 - Vitest with jsdom, @testing-library/react, @testing-library/user-event
@@ -74,7 +75,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 
 - Playwright E2E tests require both .NET API and Vite dev server running (config handles auto-start)
 - State seed data uses "Varies by district" for multi-district states — a future enhancement could let users specify their congressional district
-- 3 House seats vacant in 119th Congress (CA-1, GA-14, NJ-11) — update seed data when filled
+- 3 House seats vacant in 119th Congress (CA-1, GA-14, NJ-11) — seeded as "Vacant", update when filled
 - No @axe-core/playwright integration yet for automated accessibility checks in E2E tests
 
 ## Next Steps

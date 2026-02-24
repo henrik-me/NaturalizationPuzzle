@@ -439,7 +439,11 @@ public static class RepresentativeSeedData
             new Representative { Id = 429, StateId = 49, District = "6th", Name = "Glenn Grothman" },
             new Representative { Id = 430, StateId = 49, District = "7th", Name = "Thomas Tiffany" },
             new Representative { Id = 431, StateId = 49, District = "8th", Name = "Tony Wied" },
-            new Representative { Id = 432, StateId = 50, District = "At Large", Name = "Harriet Hageman" }
+            new Representative { Id = 432, StateId = 50, District = "At Large", Name = "Harriet Hageman" },
+            // Vacant seats in the 119th Congress
+            new Representative { Id = 433, StateId = 5, District = "1st", Name = "Vacant" },
+            new Representative { Id = 434, StateId = 10, District = "14th", Name = "Vacant" },
+            new Representative { Id = 435, StateId = 30, District = "11th", Name = "Vacant" }
         );
     }
 }
