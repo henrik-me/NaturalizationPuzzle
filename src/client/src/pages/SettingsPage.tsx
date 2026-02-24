@@ -1,8 +1,47 @@
+import { useState, useEffect, useCallback } from 'react';
 import { StateSelector } from '../components/StateSelector';
 import { useAppContext } from '../context/AppContext';
+import { getVacantSeats, updateRepresentative } from '../services/representativeService';
+import { getStateById } from '../services/stateService';
+import type { VacantSeatDto } from '../types/api';
 
 export function SettingsPage(): React.ReactNode {
   const { state, dispatch } = useAppContext();
+  const [vacantSeats, setVacantSeats] = useState<readonly VacantSeatDto[]>([]);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [newName, setNewName] = useState('');
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+
+  const fetchVacantSeats = useCallback(async (): Promise<void> => {
+    if (!state.selectedStateId) return;
+    const seats = await getVacantSeats(state.selectedStateId);
+    setVacantSeats(seats);
+  }, [state.selectedStateId]);
+
+  useEffect(() => {
+    void fetchVacantSeats();
+  }, [fetchVacantSeats]);
+
+  const handleUpdate = async (id: number): Promise<void> => {
+    if (!newName.trim()) return;
+    setUpdateStatus(null);
+    const updated = await updateRepresentative(id, newName.trim());
+    if (updated) {
+      setUpdateStatus(`Updated ${updated.district} district to ${updated.name}`);
+      setEditingId(null);
+      setNewName('');
+      await fetchVacantSeats();
+      // Refresh selected state data so the representative list updates
+      if (state.selectedStateId) {
+        const refreshed = await getStateById(state.selectedStateId);
+        if (refreshed) {
+          dispatch({ type: 'SET_STATE', stateId: state.selectedStateId, state: refreshed });
+        }
+      }
+    } else {
+      setUpdateStatus('Failed to update representative.');
+    }
+  };
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-8">
@@ -37,6 +76,70 @@ export function SettingsPage(): React.ReactNode {
             </div>
           )}
         </section>
+
+        {vacantSeats.length > 0 && (
+          <section aria-labelledby="vacant-seats-heading">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <h3 id="vacant-seats-heading" className="text-lg font-semibold text-amber-800 mb-2">
+                ⚠️ Vacant Seats Detected
+              </h3>
+              <p className="text-sm text-amber-700 mb-3">
+                {vacantSeats.length === 1
+                  ? 'There is 1 vacant House seat for your state. Would you like to update it?'
+                  : `There are ${vacantSeats.length} vacant House seats for your state. Would you like to update them?`}
+              </p>
+              <ul className="space-y-2">
+                {vacantSeats.map(seat => (
+                  <li key={seat.id} className="flex items-center gap-2 text-sm">
+                    <span className="font-medium text-amber-900">{seat.district} District:</span>
+                    {editingId === seat.id ? (
+                      <form
+                        className="flex items-center gap-2"
+                        onSubmit={e => { e.preventDefault(); void handleUpdate(seat.id); }}
+                      >
+                        <label htmlFor={`rep-name-${seat.id}`} className="sr-only">
+                          Representative name for {seat.district} district
+                        </label>
+                        <input
+                          id={`rep-name-${seat.id}`}
+                          type="text"
+                          value={newName}
+                          onChange={e => setNewName(e.target.value)}
+                          placeholder="Enter representative name"
+                          className="border border-amber-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          autoFocus
+                        />
+                        <button
+                          type="submit"
+                          className="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-700 focus:ring-2 focus:ring-amber-400"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setEditingId(null); setNewName(''); }}
+                          className="text-amber-600 text-sm hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        onClick={() => { setEditingId(seat.id); setNewName(''); }}
+                        className="text-amber-600 text-sm hover:underline focus:ring-2 focus:ring-amber-400 rounded"
+                      >
+                        Update
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {updateStatus && (
+                <p className="mt-2 text-sm text-green-700" aria-live="polite">{updateStatus}</p>
+              )}
+            </div>
+          </section>
+        )}
 
         <section>
           <h3 className="text-lg font-semibold text-gray-700 mb-3">Study Mode</h3>

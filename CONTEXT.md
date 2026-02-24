@@ -17,8 +17,8 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - SeedData: all 128 USCIS 2025 civics questions with answers, categories, 65/20 designations
 - RepresentativeSeedData: all 435 U.S. House Representatives (119th Congress) by state and district
 - Models: Representative entity (Id, StateId, District, Name) for per-district House rep data
-- Services: QuestionService (state-specific answer resolution with per-rep data), StateService, QuizService
-- Endpoints: versioned under `/api/v1/` — questions, states, quiz
+- Services: QuestionService (state-specific answer resolution with per-rep data), StateService, QuizService, RepresentativeService (vacant seat detection & update)
+- Endpoints: versioned under `/api/v1/` — questions, states, quiz, representatives
 - Program.cs: DI registration, CORS, auto-create DB on startup
 
 ### Frontend (`src/client/`)
@@ -37,10 +37,11 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Answer checking: case-insensitive normalized matching with substring and word-overlap strategies
 
 ### Tests (`tests/api/`)
-- xUnit project with 22 passing tests
+- xUnit project with 30 passing tests
 - QuestionServiceTests: 6 tests (CRUD, filtering, state resolution)
 - QuizServiceTests: 4 tests (create, retrieve, modes)
 - RepresentativeSeedDataTests: 12 tests (count=435, all states covered, no duplicate districts, unique IDs, non-empty names, at-large states, per-state counts)
+- RepresentativeServiceTests: 8 tests (vacant seat detection, update, persistence, refetch validation, state-filtered queries)
 
 ### Tests (`src/client/` — co-located)
 - Vitest with jsdom, @testing-library/react, @testing-library/user-event

@@ -43,3 +43,17 @@ export interface QuizAnswer {
   readonly acceptedAnswers: readonly string[];
   readonly isCorrect: boolean;
 }
+
+export interface VacantSeatDto {
+  readonly id: number;
+  readonly stateId: number;
+  readonly stateName: string;
+  readonly district: string;
+}
+
+export interface RepresentativeDto {
+  readonly id: number;
+  readonly stateId: number;
+  readonly district: string;
+  readonly name: string;
+}

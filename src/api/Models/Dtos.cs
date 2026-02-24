@@ -18,6 +18,21 @@ public sealed record UsStateDto(
     string SenatorTwo,
     IReadOnlyList<string> Representatives);
 
+public sealed record RepresentativeDto(
+    int Id,
+    int StateId,
+    string District,
+    string Name);
+
+public sealed record VacantSeatDto(
+    int Id,
+    int StateId,
+    string StateName,
+    string District);
+
+public sealed record UpdateRepresentativeRequest(
+    string Name);
+
 public sealed record QuizStartRequest(
     int StateId,
     bool Is6520Mode);

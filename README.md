@@ -140,6 +140,13 @@ All endpoints are versioned under `/api/v1/`.
 | `POST` | `/api/v1/quiz/start` | Start a new quiz session. Body: `QuizStartRequest`. Returns `201` with session. |
 | `GET` | `/api/v1/quiz/{sessionId}` | Get quiz session results by session ID. |
 
+#### Representatives
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/representatives/vacant` | Get all vacant House seats. Optional `?stateId=` filter. |
+| `PUT` | `/api/v1/representatives/{id}` | Update a representative's name. Body: `{ "name": "string" }`. |
+
 ### Running Backend Tests
 
 ```bash

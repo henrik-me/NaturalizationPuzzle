@@ -13,6 +13,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IQuestionService, QuestionService>();
 builder.Services.AddScoped<IStateService, StateService>();
 builder.Services.AddScoped<IQuizService, QuizService>();
+builder.Services.AddScoped<IRepresentativeService, RepresentativeService>();
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -42,6 +43,7 @@ app.UseHttpsRedirection();
 app.MapQuestionEndpoints();
 app.MapStateEndpoints();
 app.MapQuizEndpoints();
+app.MapRepresentativeEndpoints();
 
 using (var scope = app.Services.CreateScope())
 {
