@@ -21,8 +21,8 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 │  │  (services/) │                                                  │
 │  └──────┬───────┘                                                  │
 └─────────┼──────────────────────────────────────────────────────────┘
-          │  HTTP (fetch)
-          │  Proxied in dev: /api → localhost:5099
+          │  HTTPS (fetch)
+          │  Proxied in dev: /api → https://localhost:7075
           ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    .NET 10 Minimal API                               │
@@ -56,6 +56,7 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [Node.js 20+](https://nodejs.org/) with npm
+- **HTTPS dev certificate** (one-time setup): `dotnet dev-certs https --trust`
 
 ### Quick Start (Recommended)
 
@@ -72,10 +73,10 @@ Two console windows will open (one for the API, one for the frontend). Close the
 ```bash
 cd src/api
 dotnet restore
-dotnet run
+dotnet run --launch-profile https
 ```
 
-The API starts at **http://localhost:5099**. The SQLite database is created and seeded automatically on first run.
+The API starts at **https://localhost:7075** (with HTTP fallback at `http://localhost:5099`). The SQLite database is created and seeded automatically on first run.
 
 ### Start the Frontend
 
@@ -85,11 +86,11 @@ npm install
 npm run dev
 ```
 
-The dev server starts at **http://localhost:5173** and proxies `/api` requests to the backend.
+The dev server starts at **https://localhost:5173** and proxies `/api` requests to the backend. Your browser may show a certificate warning for the self-signed cert — accept it to proceed.
 
 ### Open the App
 
-Navigate to **http://localhost:5173** in your browser. Both servers must be running.
+Navigate to **https://localhost:5173** in your browser. Both servers must be running.
 
 ---
 
@@ -111,7 +112,7 @@ src/api/
 - **DI container** registers `QuestionService`, `StateService`, and `QuizService` as scoped.
 - **EF Core + SQLite** with all 128 USCIS civics questions and 435 U.S. House Representatives (119th Congress) seeded on startup.
 - **Global exception handler** returns RFC 9457 `ProblemDetails` with correlation IDs.
-- **CORS** configured to allow the frontend origin (`http://localhost:5173`).
+- **CORS** configured to allow the frontend origins (`https://localhost:5173` and `http://localhost:5173`).
 
 ### API Endpoints
 
@@ -194,7 +195,7 @@ src/client/
        │                          { success: true, data } | { success: false, error }
        │ fetch /api/v1/...
        ▼
-  Vite Dev Proxy ──────────▶ .NET API (localhost:5099)
+  Vite Dev Proxy ──────────▶ .NET API (https://localhost:7075)
        │
        │ (offline)
        ▼

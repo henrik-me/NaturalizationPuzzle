@@ -78,6 +78,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 | Tailwind CSS v4 | Utility-first styling, fast prototyping |
 | URL path API versioning (`/api/v1/`) | Simple, explicit, no header negotiation needed |
 | Conventional Commits | Clear commit history, separate functional from refactoring changes |
+| HTTPS in development | `@vitejs/plugin-basic-ssl` for Vite, .NET dev cert for API; ensures dev parity with production |
 
 ## Known Issues / Tech Debt
 
