@@ -351,6 +351,15 @@ Build and run the production image locally to validate before pushing to Azure. 
 
 #### Local Container Commands
 
+Batch wrappers for quick start/stop:
+
+```bash
+container-start.bat                  # Build image, start container, run health checks
+container-stop.bat                   # Stop container, verify port is free
+```
+
+Or use docker compose / individual commands directly:
+
 ```powershell
 # Build the production image
 docker build -t natpuzzle:local .
@@ -370,7 +379,7 @@ docker compose logs -f
 # Stop and clean up
 docker compose down
 
-# Automated validation (build + start + health check + stop)
+# Full automated validation (build + start + health check + stop — tears down after)
 .\container-test.ps1
 ```
 

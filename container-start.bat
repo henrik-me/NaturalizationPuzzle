@@ -1,0 +1,79 @@
+@echo off
+REM Builds and starts the Docker container, then runs health checks.
+REM The container stays running for manual testing at http://localhost:8080
+
+setlocal
+set IMAGE=natpuzzle:local
+set CONTAINER=natpuzzle-app
+set PORT=8080
+set TIMEOUT=60
+
+echo.
+echo ==> Building Docker image: %IMAGE%
+docker build -t %IMAGE% .
+if errorlevel 1 (
+    echo.
+    echo ERROR: Docker build failed
+    exit /b 1
+)
+
+echo.
+echo ==> Stopping any existing container
+docker rm -f %CONTAINER% >nul 2>&1
+
+echo.
+echo ==> Starting container: %CONTAINER% on port %PORT%
+docker run -d --name %CONTAINER% -p %PORT%:8080 ^
+    -e "ASPNETCORE_ENVIRONMENT=Production" ^
+    -e "ConnectionStrings__DefaultConnection=Data Source=/data/naturalization.db" ^
+    -v natpuzzle-data:/data ^
+    %IMAGE%
+if errorlevel 1 (
+    echo.
+    echo ERROR: Docker run failed
+    exit /b 1
+)
+
+echo.
+echo ==> Waiting for health endpoint (timeout: %TIMEOUT%s)
+set /a ELAPSED=0
+
+:healthloop
+if %ELAPSED% geq %TIMEOUT% goto healthfail
+timeout /t 2 /nobreak >nul
+set /a ELAPSED+=2
+curl -sf http://localhost:%PORT%/api/health >nul 2>&1
+if errorlevel 1 (
+    echo     Waiting... (%ELAPSED%s)
+    goto healthloop
+)
+
+REM Health endpoint responded, verify details
+echo.
+echo ==> Health check passed!
+curl -s http://localhost:%PORT%/api/health
+echo.
+
+REM Smoke test — static files
+echo.
+echo ==> Verifying static file serving
+curl -sf -o nul -w "  HTTP status: %%{http_code}\n" http://localhost:%PORT%/
+if errorlevel 1 (
+    echo   WARNING: Static files not responding
+) else (
+    echo   Static files: OK
+)
+
+echo.
+echo Container is running at http://localhost:%PORT%
+echo Use container-stop.bat to stop it.
+exit /b 0
+
+:healthfail
+echo.
+echo ERROR: Health check failed after %TIMEOUT%s
+echo.
+echo Container logs:
+docker logs %CONTAINER%
+docker rm -f %CONTAINER% >nul 2>&1
+exit /b 1
