@@ -324,6 +324,138 @@ npx playwright test state-selection        # run a specific spec
 
 ---
 
+## Deployment Architecture
+
+The app is containerized and deployed to **Azure Container Apps** (Consumption plan). The same Docker image used locally is what runs in production — local container testing serves as a pre-production validation gate.
+
+### Local Container Deployment
+
+Build and run the production image locally to validate before pushing to Azure. The container serves both the React SPA and .NET API from the same origin, exactly as in production.
+
+```
+  docker compose up
+        │
+        ▼
+  ┌─────────────────────────────────────────┐
+  │  Docker Container (same image as prod)  │
+  │                                         │
+  │  .NET 10 Runtime                        │
+  │  ├─ Static files (wwwroot/) → React SPA │
+  │  ├─ /api/v1/* → Minimal API             │
+  │  ├─ /api/health → Health check          │
+  │  └─ SQLite DB (volume mount)            │
+  │                                         │
+  │  Port 8080 → http://localhost:8080      │
+  └─────────────────────────────────────────┘
+```
+
+#### Local Container Commands
+
+```powershell
+# Build the production image
+docker build -t natpuzzle:local .
+
+# Run with docker compose (volume mount for DB persistence)
+docker compose up -d
+
+# Verify health
+curl http://localhost:8080/api/health
+
+# Open in browser for manual testing
+start http://localhost:8080
+
+# View logs
+docker compose logs -f
+
+# Stop and clean up
+docker compose down
+
+# Automated validation (build + start + health check + stop)
+.\container-test.ps1
+```
+
+### Production Architecture (Azure Container Apps)
+
+```
+  GitHub Actions
+       │
+       ▼
+  ┌──────────┐     ┌───────────────┐     ┌──────────────────────────────────┐
+  │ Build &  │────▶│ Push image to │────▶│ Azure Container Apps             │
+  │ Test     │     │ ACR           │     │ (Consumption plan)               │
+  └──────────┘     └───────────────┘     │                                  │
+                                         │  Revision N (active, 100%)       │
+                                         │  ┌────────────────────────────┐  │
+  Browser (PWA) ──HTTPS──────────────────▶  │  .NET 10 Container        │  │
+                                         │  │  ├─ wwwroot/ (React SPA)  │  │
+                                         │  │  ├─ /api/v1/* (API)       │  │
+                                         │  │  └─ /api/health           │  │
+                                         │  └────────────┬───────────────┘  │
+                                         │               │                  │
+                                         │  ┌────────────▼───────────────┐  │
+                                         │  │  Azure File Share          │  │
+                                         │  │  naturalization.db         │  │
+                                         │  └────────────────────────────┘  │
+                                         │                                  │
+                                         │  Application Insights            │
+                                         └──────────────────────────────────┘
+```
+
+**Request routing**: Container Apps ingress terminates TLS and forwards requests to the container on port 8080. Requests to `/api/*` are handled by the .NET Minimal API. All other requests fall through to the React SPA via `MapFallbackToFile("index.html")`, enabling client-side routing.
+
+**Revision-based deployments**: Each deploy creates a new revision. Traffic can be split between revisions for blue/green validation, and previous revisions can be instantly reactivated for rollback.
+
+### CI/CD Pipeline
+
+```
+  Push to main
+       │
+       ▼
+  ┌─────────────────┐     ┌───────────────┐     ┌──────────────────┐     ┌──────────────┐
+  │ Build & Test     │────▶│ Build & Push  │────▶│ Deploy Revision  │────▶│ Health Check │
+  │                  │     │ Docker Image  │     │                  │     │ /api/health  │
+  │ • npm build      │     │               │     │ az containerapp  │     │              │
+  │ • npm test       │     │ docker build  │     │   update         │     │ ✓ API up     │
+  │ • dotnet build   │     │ docker push   │     │   --image ...    │     │ ✓ DB ok      │
+  │ • dotnet test    │     │   → ACR       │     │                  │     │ ✓ 128 Qs     │
+  │                  │     │               │     │                  │     │              │
+  └─────────────────┘     └───────────────┘     └──────────────────┘     │ On failure:  │
+                                                                          │ reactivate   │
+                                                                          │ prev revision│
+                                                                          └──────────────┘
+```
+
+### Hosting Decision
+
+Three options were evaluated. **Azure Container Apps** was chosen for its cost efficiency, local validation story, and revision-based deployments.
+
+| | App Service S1 | App Service B1 | Container Apps ⭐ |
+|---|---|---|---|
+| **Monthly cost** | ~$73 | ~$13 | ~$6–11 |
+| **Staging/pre-prod** | ✅ Deployment slots | ❌ Not available on B1 | ✅ Local Docker + revision-based |
+| **Zero-downtime deploy** | ✅ Slot swap | ❌ Brief restart | ✅ Revision traffic split |
+| **Instant rollback** | ✅ Re-swap | ❌ Redeploy ~2-3 min | ✅ Reactivate old revision |
+| **Local validation** | ❌ Different runtime | ❌ Different runtime | ✅ Same container image |
+| **Cold starts** | None | None | ⚠️ 2-5s from scale-to-zero |
+| **Scale to zero** | ❌ Always running | ❌ Always running | ✅ $0 when idle |
+| **Custom domains + SSL** | ✅ | ✅ | ✅ (ingress config) |
+
+> **Note**: App Service B1 does **not** support deployment slots — that requires Standard S1 (~$73/mo). Container Apps provides equivalent functionality (revision-based blue/green) at a fraction of the cost.
+
+### Azure Resources
+
+All resources in the `NaturalizationPuzzle` resource group:
+
+| Resource | SKU | Monthly Cost |
+|----------|-----|-------------|
+| Container Apps Environment | Consumption (180K vCPU-s, 2M requests free) | ~$0–5 |
+| Container Registry | Basic | ~$5 |
+| Storage Account + File Share | Standard LRS | ~$1 |
+| Application Insights | Free tier (5 GB/mo ingest) | $0 |
+| **Total** | | **~$6–11/mo** |
+
+---
+
 ## Civics Test Domain
 
 - **128 questions** in the 2025 USCIS civics test study pool.

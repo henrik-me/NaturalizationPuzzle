@@ -92,54 +92,58 @@ Full-stack application scaffolded and building. Backend API is functional with s
 
 ## Azure Hosting Plan
 
+### Decision: Azure Container Apps (Consumption Plan)
+
+Containerized deployment chosen over App Service for cost efficiency, local validation, and revision-based deployments.
+
+> **Correction**: The original plan proposed App Service B1 (~$13/mo) with deployment slots, but B1 does **not** support deployment slots — those require Standard S1 (~$73/mo). Container Apps provides equivalent functionality (revision-based blue/green) at lower cost.
+
 ### Architecture
 
-Single Azure App Service (Linux, .NET 10) serving both the API and the React static files. All resources in the `NaturalizationPuzzle` resource group.
-
 ```
-Browser (PWA) ──HTTPS──▶ Azure App Service
-                          ├─ /api/v1/*  → Minimal API
-                          ├─ /api/health → Health check
-                          ├─ /*         → React static files (wwwroot/)
-                          └─ SQLite DB  (/home/data/ persistent storage)
-```
-
-**Deployment slots**: Basic B1 tier provides a staging slot for pre-production validation at no extra cost (~$13/mo total).
-
-### Deployment Pipeline
-
-```
-Push to main → Build & Test → Deploy to Staging → Validate Staging
-  → ⏳ Manual Approval (GitHub Environment protection) → Swap to Production → Validate Production
+Browser (PWA) ──HTTPS──▶ Azure Container Apps (Consumption)
+                          ├─ .NET 10 Container
+                          │   ├─ /api/v1/*  → Minimal API
+                          │   ├─ /api/health → Health check
+                          │   └─ /*         → React static files (wwwroot/)
+                          └─ Azure File Share
+                              └─ naturalization.db (persistent)
 ```
 
-- Automated health checks validate each deployment (staging and production)
-- Manual approval gate pauses the pipeline until a reviewer signs off
-- Slot swap is zero-downtime and instantly reversible
+**Local validation**: The same Docker image runs locally via `docker compose up` on port 8080, providing a pre-production validation gate without a cloud staging slot.
 
 ### Azure Resources (all in `NaturalizationPuzzle` resource group)
 
 | Resource | SKU | Cost |
 |----------|-----|------|
-| App Service Plan | Basic B1 (Linux) | ~$13/mo |
-| App Service | 1 app + staging slot | included |
+| Container Apps Environment | Consumption (180K vCPU-s, 2M req free) | ~$0–5/mo |
+| Container Registry | Basic | ~$5/mo |
+| Storage Account + File Share | Standard LRS | ~$1/mo |
 | Application Insights | Free tier (5 GB/mo) | $0 |
+| **Total** | | **~$6–11/mo** |
 
-### Implementation Steps
+### Implementation (Two Phases)
 
-1. Configure API to serve frontend static files (`UseStaticFiles` + `MapFallbackToFile`)
-2. Make SQLite DB path configurable (appsettings, not hardcoded)
-3. Add `appsettings.Production.json` (connection string, CORS, logging)
-4. Add `/api/health` endpoint (API running, DB accessible, question count)
-5. Create combined build/publish script (npm build → copy dist/ → dotnet publish)
-6. Provision Azure infrastructure (Bicep/CLI: resource group, plan, app, slot, insights)
-7. Create GitHub Actions CI/CD workflow (build → staging → validate → approve → swap → validate)
-8. Verify PWA caching works in production
+**Phase 1 — Local Container Setup** (in progress):
+1. Add `/api/health` endpoint (API running, DB accessible, question count)
+2. Configure .NET to serve React static files (`UseStaticFiles` + `MapFallbackToFile`)
+3. Add `appsettings.Production.json` (configurable DB path, CORS, logging)
+4. Create multi-stage Dockerfile (node build → dotnet publish → aspnet runtime)
+5. Create `docker-compose.yml` for local container testing
+6. Create `.dockerignore`
+7. Create `container-test.ps1` automated validation script
+8. Verify PWA caching works in container
+
+**Phase 2 — Azure Deployment** (blocked on Phase 1):
+1. Create Bicep templates (Container Apps Environment, ACR, File Share, App Insights)
+2. Create GitHub Actions CI/CD workflow (build → test → docker build → push ACR → deploy revision → health check)
+3. Configure custom domain + TLS ingress
 
 ## Next Steps
 
-1. Add dark mode support
-2. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
-3. Add congressional district selector for multi-district states (currently shows all reps)
-4. Add tests for StudyPage keyword search feature
-5. Implement Azure hosting plan (see above)
+1. **Containerized local deployment** (Phase 1) — in progress
+2. **Azure Container Apps deployment** (Phase 2) — blocked on Phase 1
+3. Add dark mode support
+4. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
+5. Add congressional district selector for multi-district states (currently shows all reps)
+6. Add tests for StudyPage keyword search feature
