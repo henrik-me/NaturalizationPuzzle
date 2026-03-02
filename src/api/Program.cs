@@ -40,10 +40,15 @@ app.UseExceptionHandler();
 app.UseCors();
 app.UseHttpsRedirection();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapQuestionEndpoints();
 app.MapStateEndpoints();
 app.MapQuizEndpoints();
 app.MapRepresentativeEndpoints();
+app.MapHealthEndpoints();
+app.MapFallbackToFile("index.html");
 
 using (var scope = app.Services.CreateScope())
 {
