@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Full-stack application scaffolded and building. Backend API is functional with seeded data and passing tests. Frontend builds with PWA support. Ready for integration testing and end-to-end wiring.
+Full-stack application scaffolded and building. Backend API is functional with seeded data and passing tests. Frontend builds with PWA support. Containerized deployment (Phase 1) complete — Dockerfile, docker-compose, and validation script ready for local testing. Phase 2 (Azure Container Apps deployment) is next.
 
 ## What Has Been Implemented
 
@@ -12,6 +12,10 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - `CONTEXT.md` — project context and decision log
 - `servers.ps1` — PowerShell server management script (start/stop/status) with process state files, window title tagging, and multi-strategy process discovery
 - `servers-start.bat` / `servers-stop.bat` / `servers-status.bat` — batch wrappers for `servers.ps1`
+- `Dockerfile` — multi-stage build (node frontend → dotnet publish → aspnet runtime)
+- `docker-compose.yml` — local container testing with volume mount for SQLite, port 8080
+- `.dockerignore` — excludes build artifacts, tests, docs, dev files
+- `container-test.ps1` — automated container validation (build, start, health check, smoke test, cleanup)
 
 ### Backend (`src/api/`)
 - .NET 10 Minimal API project with EF Core + SQLite
@@ -20,8 +24,9 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - RepresentativeSeedData: all 435 U.S. House Representatives (119th Congress) by state and district
 - Models: Representative entity (Id, StateId, District, Name) for per-district House rep data
 - Services: QuestionService (state-specific answer resolution with per-rep data), StateService, QuizService, RepresentativeService (vacant seat detection & update)
-- Endpoints: versioned under `/api/v1/` — questions, states, quiz, representatives
-- Program.cs: DI registration, CORS, auto-create DB on startup
+- Endpoints: versioned under `/api/v1/` — questions, states, quiz, representatives, health
+- Program.cs: DI registration, CORS, static file serving, SPA fallback, auto-create DB on startup
+- `appsettings.Production.json` — production logging configuration
 
 ### Frontend (`src/client/`)
 - React 19 + Vite + TypeScript (strict mode)
@@ -124,15 +129,15 @@ Browser (PWA) ──HTTPS──▶ Azure Container Apps (Consumption)
 
 ### Implementation (Two Phases)
 
-**Phase 1 — Local Container Setup** (in progress):
-1. Add `/api/health` endpoint (API running, DB accessible, question count)
-2. Configure .NET to serve React static files (`UseStaticFiles` + `MapFallbackToFile`)
-3. Add `appsettings.Production.json` (configurable DB path, CORS, logging)
-4. Create multi-stage Dockerfile (node build → dotnet publish → aspnet runtime)
-5. Create `docker-compose.yml` for local container testing
-6. Create `.dockerignore`
-7. Create `container-test.ps1` automated validation script
-8. Verify PWA caching works in container
+**Phase 1 — Local Container Setup** ✅ complete:
+1. ✅ Add `/api/health` endpoint (API running, DB accessible, question count)
+2. ✅ Configure .NET to serve React static files (`UseStaticFiles` + `MapFallbackToFile`)
+3. ✅ Add `appsettings.Production.json` (production logging config)
+4. ✅ Create multi-stage Dockerfile (node build → dotnet publish → aspnet runtime)
+5. ✅ Create `docker-compose.yml` for local container testing
+6. ✅ Create `.dockerignore`
+7. ✅ Create `container-test.ps1` automated validation script
+8. Verify PWA caching works in container (requires Docker Desktop running)
 
 **Phase 2 — Azure Deployment** (blocked on Phase 1):
 1. Create Bicep templates (Container Apps Environment, ACR, File Share, App Insights)
@@ -141,8 +146,8 @@ Browser (PWA) ──HTTPS──▶ Azure Container Apps (Consumption)
 
 ## Next Steps
 
-1. **Containerized local deployment** (Phase 1) — in progress
-2. **Azure Container Apps deployment** (Phase 2) — blocked on Phase 1
+1. ~~**Containerized local deployment** (Phase 1)~~ ✅ complete
+2. **Azure Container Apps deployment** (Phase 2) — ready to start
 3. Add dark mode support
 4. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
 5. Add congressional district selector for multi-district states (currently shows all reps)
