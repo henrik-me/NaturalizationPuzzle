@@ -54,47 +54,44 @@ export function QuizPage(): React.ReactNode {
   }, [state.selectedStateId, is6520]);
 
   const handleSubmitAnswer = useCallback((userAnswer: string): void => {
-    setQuizState(prev => {
-      const question = prev.questions[prev.currentIndex];
-      if (!question) return prev;
+    const question = quizState.questions[quizState.currentIndex];
+    if (!question) return;
 
-      const isCorrect = checkAnswer(userAnswer, question.answers);
-      const newAnswer: QuizAnswer = {
-        questionId: question.id,
-        questionText: question.text,
-        userAnswer,
-        acceptedAnswers: question.answers,
-        isCorrect,
-      };
+    const isCorrect = checkAnswer(userAnswer, question.answers);
+    const newAnswer: QuizAnswer = {
+      questionId: question.id,
+      questionText: question.text,
+      userAnswer,
+      acceptedAnswers: question.answers,
+      isCorrect,
+    };
 
-      const updatedAnswers = [...prev.answers, newAnswer];
-      const newCorrect = updatedAnswers.filter(a => a.isCorrect).length;
-      const newIncorrect = updatedAnswers.filter(a => !a.isCorrect).length;
+    const updatedAnswers = [...quizState.answers, newAnswer];
+    const newCorrect = updatedAnswers.filter(a => a.isCorrect).length;
+    const newIncorrect = updatedAnswers.filter(a => !a.isCorrect).length;
 
-      // Early stop: passed or failed
-      const quizOver = newCorrect >= passThreshold
-        || newIncorrect >= failThreshold
-        || prev.currentIndex + 1 >= prev.questions.length;
+    // Early stop: passed or failed
+    const quizOver = newCorrect >= passThreshold
+      || newIncorrect >= failThreshold
+      || quizState.currentIndex + 1 >= quizState.questions.length;
 
-      if (quizOver) {
-        const mode = is6520 ? '6520' as const : 'standard' as const;
-        addQuizResult({
-          date: new Date().toISOString(),
-          mode,
-          correct: newCorrect,
-          total: updatedAnswers.length,
-          passed: newCorrect >= passThreshold,
-        });
-      }
+    if (quizOver) {
+      addQuizResult({
+        date: new Date().toISOString(),
+        mode: is6520 ? '6520' as const : 'standard' as const,
+        correct: newCorrect,
+        total: updatedAnswers.length,
+        passed: newCorrect >= passThreshold,
+      });
+    }
 
-      return {
-        ...prev,
-        answers: updatedAnswers,
-        currentIndex: quizOver ? prev.currentIndex : prev.currentIndex + 1,
-        isComplete: quizOver,
-      };
+    setQuizState({
+      ...quizState,
+      answers: updatedAnswers,
+      currentIndex: quizOver ? quizState.currentIndex : quizState.currentIndex + 1,
+      isComplete: quizOver,
     });
-  }, [passThreshold, failThreshold, is6520, addQuizResult]);
+  }, [quizState, passThreshold, failThreshold, is6520, addQuizResult]);
 
   if (!state.selectedStateId) {
     return (
