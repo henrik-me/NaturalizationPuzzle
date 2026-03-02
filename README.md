@@ -68,6 +68,29 @@ start.bat
 
 Two console windows will open (one for the API, one for the frontend). Close them to stop the servers.
 
+### Server Management Scripts
+
+For more control, use the PowerShell-based server management scripts. These persist process state in `.servers/*.json` files and tag each server window with a title (`NatPuzzle-API` / `NatPuzzle-Client`) so services can be found even if the controlling terminal crashes.
+
+```powershell
+.\servers.ps1 start                 # Start both servers + open browser
+.\servers.ps1 start -NoBrowser      # Start without opening browser
+.\servers.ps1 start -Service api    # Start only the API
+.\servers.ps1 stop                  # Stop all servers
+.\servers.ps1 stop -Service client  # Stop only the frontend
+.\servers.ps1 status                # Show server status, PIDs, and ports
+```
+
+Batch wrappers are also available for convenience:
+
+```bash
+servers-start.bat                   # Same as: .\servers.ps1 start
+servers-stop.bat                    # Same as: .\servers.ps1 stop
+servers-status.bat                  # Same as: .\servers.ps1 status
+```
+
+**Process recovery:** If the controlling terminal crashes, `servers.ps1` can still find running services using three discovery strategies (in order): state file PIDs → window title matching → port listener detection.
+
 ### Start the Backend API
 
 ```bash

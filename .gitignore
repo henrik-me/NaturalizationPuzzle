@@ -42,3 +42,6 @@ test-results/
 *.db
 *.db-shm
 *.db-wal
+
+# Server state (managed by servers.ps1)
+.servers/

@@ -10,6 +10,8 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - `.vscode/mcp.json` — Playwright MCP server configuration
 - `.gitignore` — covers .NET, Node, IDE, and OS artifacts
 - `CONTEXT.md` — project context and decision log
+- `servers.ps1` — PowerShell server management script (start/stop/status) with process state files, window title tagging, and multi-strategy process discovery
+- `servers-start.bat` / `servers-stop.bat` / `servers-status.bat` — batch wrappers for `servers.ps1`
 
 ### Backend (`src/api/`)
 - .NET 10 Minimal API project with EF Core + SQLite
