@@ -1,0 +1,180 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useProgress } from '../hooks/useProgress';
+import type { QuizHistoryEntry } from '../hooks/useProgress';
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function computeStats(history: readonly QuizHistoryEntry[]): {
+  readonly total: number;
+  readonly passed: number;
+  readonly passRate: number;
+  readonly bestScore: string | null;
+  readonly currentStreak: number;
+} {
+  if (history.length === 0) {
+    return { total: 0, passed: 0, passRate: 0, bestScore: null, currentStreak: 0 };
+  }
+
+  const passed = history.filter(e => e.passed).length;
+  const passRate = Math.round((passed / history.length) * 100);
+
+  let bestPct = 0;
+  let bestEntry: QuizHistoryEntry | null = null;
+  for (const entry of history) {
+    const pct = entry.total > 0 ? entry.correct / entry.total : 0;
+    if (pct > bestPct) {
+      bestPct = pct;
+      bestEntry = entry;
+    }
+  }
+  const bestScore = bestEntry ? `${bestEntry.correct}/${bestEntry.total}` : null;
+
+  let currentStreak = 0;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].passed) currentStreak++;
+    else break;
+  }
+
+  return { total: history.length, passed, passRate, bestScore, currentStreak };
+}
+
+export function HistoryPage(): React.ReactNode {
+  const { quizHistory, clearQuizHistory } = useProgress();
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const stats = computeStats(quizHistory);
+  const sortedHistory = [...quizHistory].reverse();
+
+  const handleClear = (): void => {
+    clearQuizHistory();
+    setShowConfirm(false);
+  };
+
+  if (quizHistory.length === 0) {
+    return (
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6">Quiz History</h2>
+        <div className="bg-white rounded-xl shadow-md p-6 text-center">
+          <p className="text-gray-500 mb-4">You haven't taken any quizzes yet.</p>
+          <Link
+            to="/quiz"
+            className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 focus:ring-2 focus:ring-blue-500"
+          >
+            Start a Quiz
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="max-w-2xl mx-auto px-4 py-8">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6">Quiz History</h2>
+
+      <div className="bg-white rounded-xl shadow-md p-6 space-y-6">
+        <section aria-labelledby="stats-heading">
+          <h3 id="stats-heading" className="text-lg font-semibold text-gray-700 mb-3">Summary</h3>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="bg-blue-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-blue-800">{stats.total}</p>
+              <p className="text-xs text-blue-600">Quizzes Taken</p>
+            </div>
+            <div className="bg-green-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-green-800">{stats.passRate}%</p>
+              <p className="text-xs text-green-600">Pass Rate</p>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-purple-800">{stats.bestScore ?? '–'}</p>
+              <p className="text-xs text-purple-600">Best Score</p>
+            </div>
+            <div className="bg-amber-50 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-amber-800">{stats.currentStreak}</p>
+              <p className="text-xs text-amber-600">Pass Streak</p>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="history-heading">
+          <h3 id="history-heading" className="text-lg font-semibold text-gray-700 mb-3">All Attempts</h3>
+          <ol className="space-y-3" aria-label="Quiz attempt history">
+            {sortedHistory.map((entry, index) => (
+              <li
+                key={`${entry.date}-${index}`}
+                className="flex items-center justify-between bg-gray-50 rounded-lg p-4"
+              >
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-gray-800">
+                    {formatDate(entry.date)}
+                  </span>
+                  <span className="inline-flex items-center gap-2">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                      entry.mode === '6520'
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {entry.mode === '6520' ? '65/20' : 'Standard'}
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-bold text-gray-800">
+                    {entry.correct}/{entry.total}
+                  </span>
+                  <span className={`text-sm font-semibold ${
+                    entry.passed ? 'text-green-700' : 'text-red-700'
+                  }`} aria-label={entry.passed ? 'Passed' : 'Failed'}>
+                    {entry.passed ? '✓ Pass' : '✗ Fail'}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section>
+          {showConfirm ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4" role="alert">
+              <p className="text-sm text-red-800 mb-3">
+                Are you sure? This will permanently delete all quiz history.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleClear}
+                  className="bg-red-600 text-white px-4 py-2 rounded text-sm hover:bg-red-700 focus:ring-2 focus:ring-red-500"
+                >
+                  Yes, clear history
+                </button>
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-200 focus:ring-2 focus:ring-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="text-red-600 text-sm hover:underline focus:ring-2 focus:ring-red-500 rounded px-2 py-1"
+            >
+              Clear quiz history
+            </button>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}

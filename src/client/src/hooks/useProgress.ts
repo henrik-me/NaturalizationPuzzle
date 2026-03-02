@@ -15,11 +15,20 @@ export interface QuizHistoryEntry {
 
 const STORAGE_KEY = 'naturalizationProgress';
 
+function isStudyProgress(value: unknown): value is StudyProgress {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return Array.isArray(obj.studiedQuestionIds) && Array.isArray(obj.quizHistory);
+}
+
 function loadProgress(): StudyProgress {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored) as StudyProgress;
+      const parsed: unknown = JSON.parse(stored);
+      if (isStudyProgress(parsed)) {
+        return parsed;
+      }
     }
   } catch {
     // ignore corrupt data
@@ -36,8 +45,9 @@ export function useProgress(): {
   readonly quizHistory: readonly QuizHistoryEntry[];
   readonly markStudied: (questionId: number) => void;
   readonly addQuizResult: (entry: QuizHistoryEntry) => void;
+  readonly clearQuizHistory: () => void;
   readonly studiedCount: number;
-} {
+}{
   const [progress, setProgress] = useState<StudyProgress>(loadProgress);
 
   const markStudied = useCallback((questionId: number): void => {
@@ -63,11 +73,20 @@ export function useProgress(): {
     });
   }, []);
 
+  const clearQuizHistory = useCallback((): void => {
+    setProgress(prev => {
+      const updated = { ...prev, quizHistory: [] };
+      saveProgress(updated);
+      return updated;
+    });
+  }, []);
+
   return {
     studiedQuestionIds: progress.studiedQuestionIds,
     quizHistory: progress.quizHistory,
     markStudied,
     addQuizResult,
+    clearQuizHistory,
     studiedCount: progress.studiedQuestionIds.length,
   };
 }

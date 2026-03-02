@@ -10,9 +10,10 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 │                                                                     │
 │  ┌──────────────┐   ┌──────────────┐   ┌─────────────────────────┐ │
 │  │  React 19    │   │  React Router│   │  Service Worker         │ │
-│  │  + TypeScript│──▶│  (3 routes)  │   │  (Workbox / PWA)        │ │
+│  │  + TypeScript│──▶│  (4 routes)  │   │  (Workbox / PWA)        │ │
 │  │  + Tailwind  │   │  / /quiz     │   │  • precaches app shell  │ │
-│  │    CSS v4    │   │    /settings │   │  • stale-while-revalidate│ │
+│  │    CSS v4    │   │    /history  │   │  • stale-while-revalidate│ │
+│  │              │   │    /settings │   │    for /api/v1/*        │ │
 │  └──────┬───────┘   └──────────────┘   │    for /api/v1/*        │ │
 │         │                              └────────────┬────────────┘ │
 │         ▼                                           │              │
@@ -193,6 +194,7 @@ src/client/
 │   ├── pages/              # Route-level views
 │   │   ├── StudyPage.tsx   #   / — browse & study questions
 │   │   ├── QuizPage.tsx    #   /quiz — timed quiz mode
+│   │   ├── HistoryPage.tsx #   /history — quiz attempt history & stats
 │   │   └── SettingsPage.tsx#   /settings — state selector & preferences
 │   ├── components/         # Reusable UI (QuizCard, Navigation, StateSelector, etc.)
 │   ├── services/           # API client layer (never call fetch from components)
@@ -232,6 +234,7 @@ src/client/
 |------|------|-------------|
 | `/` | StudyPage | Browse and study all 128 civics questions, with keyword search and progress tracking |
 | `/quiz` | QuizPage | Take a practice quiz with typed answers and real-time scoring |
+| `/history` | HistoryPage | View all past quiz attempts with summary stats (pass rate, best score, streak) and clear history |
 | `/settings` | SettingsPage | Select U.S. state, manage preferences |
 
 ### Quiz Mode
@@ -248,6 +251,8 @@ Answer checking uses case-insensitive, normalized fuzzy matching (substring + wo
 ### Study Progress
 
 The app tracks which questions you've studied and your quiz history in `localStorage`. The study page shows a progress bar indicating how many questions in the current set you've reviewed.
+
+The **History page** (`/history`) shows all past quiz attempts in reverse chronological order with summary statistics: total quizzes taken, pass rate, best score, and current pass streak. Each entry shows the date, quiz mode (Standard/65/20), score, and pass/fail result. Users can clear their quiz history with a confirmation dialog (study progress is preserved).
 
 A **keyword search box** lets you filter questions by typing words that appear in the question text, answers, category, or subcategory (e.g., "amendment", "president", "1776"). The search works with all-word matching, combines with the 65/20 filter, and operates entirely client-side. When no questions match, a clear-search prompt is shown.
 

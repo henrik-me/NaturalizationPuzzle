@@ -27,15 +27,16 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - React 19 + Vite + TypeScript (strict mode)
 - Tailwind CSS v4 for styling
 - PWA via vite-plugin-pwa with service worker and runtime caching
-- React Router DOM (/, /quiz, /settings)
+- React Router DOM (/, /quiz, /history, /settings)
 - AppContext with useReducer for state management (hydrates persisted state on load)
 - Typed API client with ApiResult<T> union type
 - Service layer: questionService, stateService, quizService
 - Components: Navigation, OfflineBanner, StateSelector, QuizCard (study + quiz modes)
-- Pages: StudyPage (with progress tracking and keyword search/filter), QuizPage (with scoring), SettingsPage
+- Pages: StudyPage (with progress tracking and keyword search/filter), QuizPage (with scoring), HistoryPage (quiz attempt history with summary stats), SettingsPage
 - Quiz mode: typed answer input, no answer reveal until results, auto-grading with fuzzy matching
 - Quiz scoring: real-time pass/fail (12/20 standard, 6/10 for 65/20), early stop on pass/fail
 - Progress tracking: localStorage-based tracking of studied questions and quiz history via useProgress hook
+- Quiz history page: summary stats (total quizzes, pass rate, best score, current streak), reverse-chronological attempt list, clear history with confirmation
 - Answer checking: case-insensitive normalized matching with substring and word-overlap strategies
 
 ### Tests (`tests/api/`)
@@ -54,8 +55,9 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - AppContext.test.tsx: 9 tests (default state, provider requirement, SET_STATE/SET_6520/SET_LOADING dispatch, state hydration from API, no-hydration without stateId, hydration failure, online/offline events)
 - StateSelector.test.tsx: 4 tests (loading state, dropdown rendering, dispatch on select, accessible label)
 - Navigation.test.tsx: 4 tests (menu items render, app title, nav landmark, correct routes)
+- HistoryPage.test.tsx: 8 tests (empty state, renders entries, newest first, summary stats, confirm dialog, cancel clear, clear history, accessible labels)
 - ErrorBoundary.test.tsx: 3 tests (renders children, default fallback on error, custom fallback)
-- useProgress.test.ts: 6 tests (empty initial, mark studied + persist, no duplicates, quiz results + persist, load existing, corrupt data)
+- useProgress.test.ts: 7 tests (empty initial, mark studied + persist, no duplicates, quiz results + persist, load existing, corrupt data, clear quiz history preserving studied)
 
 ### E2E Tests (`tests/e2e/`)
 - Playwright with Chromium, Page Object Model pattern
@@ -139,6 +141,5 @@ Push to main → Build & Test → Deploy to Staging → Validate Staging
 1. Add dark mode support
 2. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
 3. Add congressional district selector for multi-district states (currently shows all reps)
-4. Add quiz history page (data already tracked in localStorage)
-5. Add tests for StudyPage keyword search feature
-6. Implement Azure hosting plan (see above)
+4. Add tests for StudyPage keyword search feature
+5. Implement Azure hosting plan (see above)

@@ -5,6 +5,7 @@ import { Navigation } from './components/Navigation';
 import { OfflineBanner } from './components/OfflineBanner';
 import { StudyPage } from './pages/StudyPage';
 import { QuizPage } from './pages/QuizPage';
+import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 export function App(): React.ReactNode {
@@ -18,6 +19,7 @@ export function App(): React.ReactNode {
             <Routes>
               <Route path="/" element={<StudyPage />} />
               <Route path="/quiz" element={<QuizPage />} />
+              <Route path="/history" element={<HistoryPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Routes>
           </ErrorBoundary>

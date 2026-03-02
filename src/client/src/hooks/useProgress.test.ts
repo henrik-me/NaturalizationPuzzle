@@ -86,4 +86,30 @@ describe('useProgress', () => {
     expect(result.current.studiedQuestionIds).toEqual([]);
     expect(result.current.quizHistory).toEqual([]);
   });
+
+  it('clears quiz history while preserving studied questions', () => {
+    const existingProgress = {
+      studiedQuestionIds: [1, 2, 3],
+      quizHistory: [
+        { date: '2026-01-01', mode: 'standard', correct: 12, total: 20, passed: true },
+        { date: '2026-01-02', mode: '6520', correct: 5, total: 10, passed: false },
+      ],
+    };
+    localStorage.setItem('naturalizationProgress', JSON.stringify(existingProgress));
+
+    const { result } = renderHook(() => useProgress());
+
+    expect(result.current.quizHistory).toHaveLength(2);
+
+    act(() => {
+      result.current.clearQuizHistory();
+    });
+
+    expect(result.current.quizHistory).toEqual([]);
+    expect(result.current.studiedQuestionIds).toEqual([1, 2, 3]);
+
+    const stored = JSON.parse(localStorage.getItem('naturalizationProgress')!);
+    expect(stored.quizHistory).toEqual([]);
+    expect(stored.studiedQuestionIds).toEqual([1, 2, 3]);
+  });
 });

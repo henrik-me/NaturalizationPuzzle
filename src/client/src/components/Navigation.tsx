@@ -17,6 +17,7 @@ export function Navigation(): React.ReactNode {
         <div className="flex gap-2" role="menubar">
           <NavLink to="/" className={linkClass} role="menuitem">Study</NavLink>
           <NavLink to="/quiz" className={linkClass} role="menuitem">Quiz</NavLink>
+          <NavLink to="/history" className={linkClass} role="menuitem">History</NavLink>
           <NavLink to="/settings" className={linkClass} role="menuitem">Settings</NavLink>
         </div>
       </div>
