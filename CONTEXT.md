@@ -32,7 +32,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Typed API client with ApiResult<T> union type
 - Service layer: questionService, stateService, quizService
 - Components: Navigation, OfflineBanner, StateSelector, QuizCard (study + quiz modes)
-- Pages: StudyPage (with progress tracking), QuizPage (with scoring), SettingsPage
+- Pages: StudyPage (with progress tracking and keyword search/filter), QuizPage (with scoring), SettingsPage
 - Quiz mode: typed answer input, no answer reveal until results, auto-grading with fuzzy matching
 - Quiz scoring: real-time pass/fail (12/20 standard, 6/10 for 65/20), early stop on pass/fail
 - Progress tracking: localStorage-based tracking of studied questions and quiz history via useProgress hook
@@ -90,5 +90,4 @@ Full-stack application scaffolded and building. Backend API is functional with s
 
 ## Next Steps
 
-1. Add search/filter by keyword within questions
-2. Add dark mode support
+1. Add dark mode support

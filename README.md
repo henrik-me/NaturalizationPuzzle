@@ -230,7 +230,7 @@ src/client/
 
 | Path | Page | Description |
 |------|------|-------------|
-| `/` | StudyPage | Browse and study all 128 civics questions, with progress tracking |
+| `/` | StudyPage | Browse and study all 128 civics questions, with keyword search and progress tracking |
 | `/quiz` | QuizPage | Take a practice quiz with typed answers and real-time scoring |
 | `/settings` | SettingsPage | Select U.S. state, manage preferences |
 
@@ -248,6 +248,8 @@ Answer checking uses case-insensitive, normalized fuzzy matching (substring + wo
 ### Study Progress
 
 The app tracks which questions you've studied and your quiz history in `localStorage`. The study page shows a progress bar indicating how many questions in the current set you've reviewed.
+
+A **keyword search box** lets you filter questions by typing words that appear in the question text, answers, category, or subcategory (e.g., "amendment", "president", "1776"). The search works with all-word matching, combines with the 65/20 filter, and operates entirely client-side. When no questions match, a clear-search prompt is shown.
 
 ### Data Storage
 
