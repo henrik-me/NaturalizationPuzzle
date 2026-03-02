@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vs
+.vscode
+*.user
+*.suo
+
+# .NET build artifacts
+**/bin/
+**/obj/
+
+# Node
+**/node_modules/
+
+# Test projects
+tests/
+
+# Dev server state
+.servers/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation & scripts
+*.md
+*.bat
+*.sln
+servers.ps1
+container-test.ps1
+
+# SQLite databases (seeded at startup)
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# OS files
+Thumbs.db
+.DS_Store
