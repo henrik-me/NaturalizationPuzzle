@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import type { QuestionDto } from '../types/api';
 import { getAllQuestions, get6520Questions } from '../services/questionService';
 import { useAppContext } from '../context/AppContext';
@@ -59,7 +60,7 @@ export function StudyPage(): React.ReactNode {
         <h2 className="text-2xl font-bold text-gray-800 mb-4">Welcome!</h2>
         <p className="text-gray-600">
           Please select your state in{' '}
-          <a href="/settings" className="text-blue-600 underline">Settings</a>
+          <Link to="/settings" className="text-blue-600 underline">Settings</Link>
           {' '}to get started.
         </p>
       </div>
