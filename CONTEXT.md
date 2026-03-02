@@ -88,6 +88,52 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - State seed data uses "Varies by district" for multi-district states — a future enhancement could let users specify their congressional district
 - 3 House seats vacant in 119th Congress (CA-1, GA-14, NJ-11) — seeded as "Vacant", update when filled
 
+## Azure Hosting Plan
+
+### Architecture
+
+Single Azure App Service (Linux, .NET 10) serving both the API and the React static files. All resources in the `NaturalizationPuzzle` resource group.
+
+```
+Browser (PWA) ──HTTPS──▶ Azure App Service
+                          ├─ /api/v1/*  → Minimal API
+                          ├─ /api/health → Health check
+                          ├─ /*         → React static files (wwwroot/)
+                          └─ SQLite DB  (/home/data/ persistent storage)
+```
+
+**Deployment slots**: Basic B1 tier provides a staging slot for pre-production validation at no extra cost (~$13/mo total).
+
+### Deployment Pipeline
+
+```
+Push to main → Build & Test → Deploy to Staging → Validate Staging
+  → ⏳ Manual Approval (GitHub Environment protection) → Swap to Production → Validate Production
+```
+
+- Automated health checks validate each deployment (staging and production)
+- Manual approval gate pauses the pipeline until a reviewer signs off
+- Slot swap is zero-downtime and instantly reversible
+
+### Azure Resources (all in `NaturalizationPuzzle` resource group)
+
+| Resource | SKU | Cost |
+|----------|-----|------|
+| App Service Plan | Basic B1 (Linux) | ~$13/mo |
+| App Service | 1 app + staging slot | included |
+| Application Insights | Free tier (5 GB/mo) | $0 |
+
+### Implementation Steps
+
+1. Configure API to serve frontend static files (`UseStaticFiles` + `MapFallbackToFile`)
+2. Make SQLite DB path configurable (appsettings, not hardcoded)
+3. Add `appsettings.Production.json` (connection string, CORS, logging)
+4. Add `/api/health` endpoint (API running, DB accessible, question count)
+5. Create combined build/publish script (npm build → copy dist/ → dotnet publish)
+6. Provision Azure infrastructure (Bicep/CLI: resource group, plan, app, slot, insights)
+7. Create GitHub Actions CI/CD workflow (build → staging → validate → approve → swap → validate)
+8. Verify PWA caching works in production
+
 ## Next Steps
 
 1. Add dark mode support
@@ -95,4 +141,4 @@ Full-stack application scaffolded and building. Backend API is functional with s
 3. Add congressional district selector for multi-district states (currently shows all reps)
 4. Add quiz history page (data already tracked in localStorage)
 5. Add tests for StudyPage keyword search feature
-6. Host the application in Azure
+6. Implement Azure hosting plan (see above)
