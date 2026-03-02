@@ -91,3 +91,8 @@ Full-stack application scaffolded and building. Backend API is functional with s
 ## Next Steps
 
 1. Add dark mode support
+2. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
+3. Add congressional district selector for multi-district states (currently shows all reps)
+4. Add quiz history page (data already tracked in localStorage)
+5. Add tests for StudyPage keyword search feature
+6. Host the application in Azure
