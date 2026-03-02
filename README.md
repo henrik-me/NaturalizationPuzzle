@@ -391,7 +391,7 @@ docker compose down
        ▼
   ┌──────────┐     ┌───────────────┐     ┌──────────────────────────────────┐
   │ Build &  │────▶│ Push image to │────▶│ Azure Container Apps             │
-  │ Test     │     │ ACR           │     │ (Consumption plan)               │
+  │ Test     │     │ GHCR          │     │ (Consumption plan)               │
   └──────────┘     └───────────────┘     │                                  │
                                          │  Revision N (active, 100%)       │
                                          │  ┌────────────────────────────┐  │
@@ -399,16 +399,18 @@ docker compose down
                                          │  │  ├─ wwwroot/ (React SPA)  │  │
                                          │  │  ├─ /api/v1/* (API)       │  │
                                          │  │  └─ /api/health           │  │
-                                         │  └────────────┬───────────────┘  │
-                                         │               │                  │
-                                         │  ┌────────────▼───────────────┐  │
-                                         │  │  Azure File Share          │  │
-                                         │  │  naturalization.db         │  │
                                          │  └────────────────────────────┘  │
+                                         │                                  │
+                                         │  SQLite (seeded at startup,      │
+                                         │   ephemeral — read-only data)    │
                                          │                                  │
                                          │  Application Insights            │
                                          └──────────────────────────────────┘
 ```
+
+**Image registry**: GitHub Container Registry (GHCR) — free, integrated with GitHub Actions. No Azure Container Registry (ACR) needed.
+
+**Storage**: No persistent storage required. The SQLite database contains only read-only seed data (128 questions, 50 states, 435 representatives) and is recreated identically on every container start.
 
 **Request routing**: Container Apps ingress terminates TLS and forwards requests to the container on port 8080. Requests to `/api/*` are handled by the .NET Minimal API. All other requests fall through to the React SPA via `MapFallbackToFile("index.html")`, enabling client-side routing.
 
@@ -426,7 +428,7 @@ docker compose down
   │ • npm build      │     │               │     │ az containerapp  │     │              │
   │ • npm test       │     │ docker build  │     │   update         │     │ ✓ API up     │
   │ • dotnet build   │     │ docker push   │     │   --image ...    │     │ ✓ DB ok      │
-  │ • dotnet test    │     │   → ACR       │     │                  │     │ ✓ 128 Qs     │
+  │ • dotnet test    │     │   → GHCR      │     │                  │     │ ✓ 128 Qs     │
   │                  │     │               │     │                  │     │              │
   └─────────────────┘     └───────────────┘     └──────────────────┘     │ On failure:  │
                                                                           │ reactivate   │
@@ -440,7 +442,7 @@ Three options were evaluated. **Azure Container Apps** was chosen for its cost e
 
 | | App Service S1 | App Service B1 | Container Apps ⭐ |
 |---|---|---|---|
-| **Monthly cost** | ~$73 | ~$13 | ~$6–11 |
+| **Monthly cost** | ~$73 | ~$13 | ~$0–5 |
 | **Staging/pre-prod** | ✅ Deployment slots | ❌ Not available on B1 | ✅ Local Docker + revision-based |
 | **Zero-downtime deploy** | ✅ Slot swap | ❌ Brief restart | ✅ Revision traffic split |
 | **Instant rollback** | ✅ Re-swap | ❌ Redeploy ~2-3 min | ✅ Reactivate old revision |
@@ -458,10 +460,32 @@ All resources in the `NaturalizationPuzzle` resource group:
 | Resource | SKU | Monthly Cost |
 |----------|-----|-------------|
 | Container Apps Environment | Consumption (180K vCPU-s, 2M requests free) | ~$0–5 |
-| Container Registry | Basic | ~$5 |
-| Storage Account + File Share | Standard LRS | ~$1 |
 | Application Insights | Free tier (5 GB/mo ingest) | $0 |
-| **Total** | | **~$6–11/mo** |
+| **Total** | | **~$0–5/mo** |
+
+Cost is purely usage-based. **$0/mo when the app has no traffic** (scale-to-zero). No container registry cost (GHCR is free). No storage cost (read-only seeded data, no persistence needed).
+
+### Application Insights — Observability
+
+Application Insights (free tier, 5 GB/mo ingest) provides production observability:
+
+| Telemetry | What's Collected | Where to View (Azure Portal) |
+|-----------|-----------------|------------------------------|
+| **Requests** | Every HTTP request — duration, status code, URL, success/failure | Application Insights → Performance |
+| **Failures** | Unhandled exceptions with full stack traces, error rates | Application Insights → Failures |
+| **Dependencies** | Outbound calls (SQLite/EF Core queries) — duration, success | Application Insights → Performance → Dependencies |
+| **Traces / Logs** | `ILogger` output with structured logging and correlation IDs | Application Insights → Transaction search, or Logs (KQL) |
+| **Live Metrics** | Real-time request rate, failure rate, CPU/memory (1s latency) | Application Insights → Live Metrics Stream |
+| **Metrics** | CPU, memory, request count, response time, active containers | Application Insights → Metrics explorer |
+
+**Access path**: Azure Portal → Resource Group `NaturalizationPuzzle` → Application Insights → choose a blade.
+
+**Custom queries** via KQL in the Logs blade, e.g.:
+```kusto
+requests
+| where resultCode >= 500
+| summarize count() by bin(timestamp, 1h)
+```
 
 ---
 

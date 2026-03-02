@@ -111,23 +111,41 @@ Browser (PWA) ──HTTPS──▶ Azure Container Apps (Consumption)
                           │   ├─ /api/v1/*  → Minimal API
                           │   ├─ /api/health → Health check
                           │   └─ /*         → React static files (wwwroot/)
-                          └─ Azure File Share
-                              └─ naturalization.db (persistent)
+                          └─ SQLite DB (seeded at startup, ephemeral)
 ```
 
 **Local validation**: The same Docker image runs locally via `docker compose up` on port 8080, providing a pre-production validation gate without a cloud staging slot.
+
+**Image registry**: GitHub Container Registry (GHCR) — free, integrated with GitHub Actions. No Azure Container Registry needed.
+
+**Storage**: No persistent storage required. The SQLite database contains only read-only seed data (128 questions, 50 states, 435 representatives) and is recreated identically on every container start via `EnsureCreatedAsync()`.
 
 ### Azure Resources (all in `NaturalizationPuzzle` resource group)
 
 | Resource | SKU | Cost |
 |----------|-----|------|
 | Container Apps Environment | Consumption (180K vCPU-s, 2M req free) | ~$0–5/mo |
-| Container Registry | Basic | ~$5/mo |
-| Storage Account + File Share | Standard LRS | ~$1/mo |
 | Application Insights | Free tier (5 GB/mo) | $0 |
-| **Total** | | **~$6–11/mo** |
+| **Total** | | **~$0–5/mo** |
 
-### Implementation (Two Phases)
+Cost is purely usage-based. **$0/mo when the app has no traffic** (scale-to-zero).
+
+### Application Insights — Observability
+
+Application Insights (free tier, 5 GB/mo ingest) provides production observability via the Azure Portal:
+
+| Telemetry | What's Collected | Where to View |
+|-----------|-----------------|---------------|
+| **Requests** | Every HTTP request — duration, status code, URL, success/failure | Portal → Application Insights → Performance |
+| **Failures** | Unhandled exceptions with full stack traces, error rates | Portal → Failures → drill into exception details |
+| **Dependencies** | Outbound calls (SQLite queries via EF Core) — duration, success | Portal → Performance → Dependencies |
+| **Traces / Logs** | ILogger output (structured logging with correlation IDs) | Portal → Transaction search, or Logs (KQL queries) |
+| **Live Metrics** | Real-time request rate, failure rate, CPU/memory (1-second latency) | Portal → Live Metrics Stream |
+| **Metrics** | CPU, memory, request count, response time, active containers | Portal → Metrics explorer, or pin to Dashboards |
+
+**How to access**: Azure Portal → Resource Group `NaturalizationPuzzle` → Application Insights resource → choose a blade (Performance, Failures, Logs, Live Metrics). Use KQL queries in the Logs blade for custom analysis (e.g., `requests | where resultCode >= 500 | summarize count() by bin(timestamp, 1h)`).
+
+### Implementation (Three Phases)
 
 **Phase 1 — Local Container Setup** ✅ complete:
 1. ✅ Add `/api/health` endpoint (API running, DB accessible, question count)
@@ -137,18 +155,25 @@ Browser (PWA) ──HTTPS──▶ Azure Container Apps (Consumption)
 5. ✅ Create `docker-compose.yml` for local container testing
 6. ✅ Create `.dockerignore`
 7. ✅ Create `container-test.ps1` automated validation script
-8. Verify PWA caching works in container (requires Docker Desktop running)
+8. ✅ Create `container-start.bat` / `container-stop.bat` convenience scripts
 
-**Phase 2 — Azure Deployment** (blocked on Phase 1):
-1. Create Bicep templates (Container Apps Environment, ACR, File Share, App Insights)
-2. Create GitHub Actions CI/CD workflow (build → test → docker build → push ACR → deploy revision → health check)
+**Phase 2 — GitHub CI/CD** (local changes + GitHub Actions):
+1. Add Application Insights SDK to the .NET API
+2. Create GitHub Actions CI/CD workflow (build → test → docker build → push to GHCR)
+3. Update README and CONTEXT.md
+
+**Phase 3 — Azure Deployment** (Azure infrastructure):
+1. Create Bicep templates (Container Apps Environment, Application Insights)
+2. Deploy container from GHCR to Container Apps
 3. Configure custom domain + TLS ingress
+4. Update README and CONTEXT.md
 
 ## Next Steps
 
 1. ~~**Containerized local deployment** (Phase 1)~~ ✅ complete
-2. **Azure Container Apps deployment** (Phase 2) — ready to start
-3. Add dark mode support
-4. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
-5. Add congressional district selector for multi-district states (currently shows all reps)
-6. Add tests for StudyPage keyword search feature
+2. **GitHub CI/CD** (Phase 2) — ready to start
+3. **Azure Container Apps deployment** (Phase 3)
+4. Add dark mode support
+5. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
+6. Add congressional district selector for multi-district states (currently shows all reps)
+7. Add tests for StudyPage keyword search feature
