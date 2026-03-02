@@ -108,13 +108,16 @@ function Test-Pid([int]$Id) {
 }
 
 function Test-Port([int]$Port) {
+    # Synchronous connect — TcpClient(hostname, port) resolves and tries
+    # all addresses for 'localhost' (IPv4 127.0.0.1 and IPv6 ::1).
+    # Connection refused returns immediately; open port connects instantly.
     try {
-        $tcp = [System.Net.Sockets.TcpClient]::new()
-        $null = $tcp.ConnectAsync('localhost', $Port).Wait(1000)
-        $ok = $tcp.Connected
+        $tcp = [System.Net.Sockets.TcpClient]::new('localhost', $Port)
         $tcp.Dispose()
-        $ok
-    } catch { $false }
+        $true
+    } catch {
+        $false
+    }
 }
 
 function Find-PidByPort([int]$Port) {
@@ -122,6 +125,13 @@ function Find-PidByPort([int]$Port) {
         $conn = Get-NetTCPConnection -LocalPort $Port -State Listen `
                     -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($conn) { return $conn.OwningProcess }
+    } catch { }
+    # Fallback: parse netstat if Get-NetTCPConnection failed
+    try {
+        $line = netstat -ano 2>$null |
+            Select-String "^\s+TCP\s+.*:$Port\s+.*LISTENING\s+(\d+)" |
+            Select-Object -First 1
+        if ($line) { return [int]$line.Matches[0].Groups[1].Value }
     } catch { }
     $null
 }
@@ -181,8 +191,8 @@ function Start-ServiceByName([string]$Name) {
 
     $found = Find-Service $Name
     if ($found.Found) {
-        $pid = if ($found.ServicePid) { $found.ServicePid } else { $found.WrapperPid }
-        Write-Host "already running (PID $pid, via $($found.Source))" -ForegroundColor Green
+        $runPid = if ($found.ServicePid) { $found.ServicePid } else { $found.WrapperPid }
+        Write-Host "already running (PID $runPid, via $($found.Source))" -ForegroundColor Green
         # Re-save state so it's current
         if ($found.Source -ne 'state file') {
             Save-ServiceState $Name @{
