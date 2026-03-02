@@ -12,15 +12,20 @@ export function SettingsPage(): React.ReactNode {
   const [newName, setNewName] = useState('');
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
 
-  const fetchVacantSeats = useCallback(async (): Promise<void> => {
+  useEffect(() => {
+    if (!state.selectedStateId) return;
+    let cancelled = false;
+    getVacantSeats(state.selectedStateId).then(seats => {
+      if (!cancelled) setVacantSeats(seats);
+    });
+    return () => { cancelled = true; };
+  }, [state.selectedStateId]);
+
+  const refreshVacantSeats = useCallback(async (): Promise<void> => {
     if (!state.selectedStateId) return;
     const seats = await getVacantSeats(state.selectedStateId);
     setVacantSeats(seats);
   }, [state.selectedStateId]);
-
-  useEffect(() => {
-    void fetchVacantSeats();
-  }, [fetchVacantSeats]);
 
   const handleUpdate = async (id: number): Promise<void> => {
     if (!newName.trim()) return;
@@ -30,7 +35,7 @@ export function SettingsPage(): React.ReactNode {
       setUpdateStatus(`Updated ${updated.district} district to ${updated.name}`);
       setEditingId(null);
       setNewName('');
-      await fetchVacantSeats();
+      await refreshVacantSeats();
       // Refresh selected state data so the representative list updates
       if (state.selectedStateId) {
         const refreshed = await getStateById(state.selectedStateId);
@@ -48,7 +53,7 @@ export function SettingsPage(): React.ReactNode {
     const count = await resetRepresentatives();
     if (count > 0) {
       setUpdateStatus(`Reset ${count} representative(s) to default values.`);
-      await fetchVacantSeats();
+      await refreshVacantSeats();
       if (state.selectedStateId) {
         const refreshed = await getStateById(state.selectedStateId);
         if (refreshed) {
