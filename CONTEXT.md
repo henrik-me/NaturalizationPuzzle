@@ -160,7 +160,8 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 **Phase 2 — GitHub CI/CD** (local changes + GitHub Actions):
 1. Add Application Insights SDK to the .NET API
 2. Create GitHub Actions CI/CD workflow (build → test → docker build → push to GHCR)
-3. Update README and CONTEXT.md
+3. Validate offline PWA capabilities (load app → stop container → confirm app still works)
+4. Update README and CONTEXT.md
 
 **Phase 3 — Azure Deployment** (Azure infrastructure):
 1. Create Bicep templates (Container Apps Environment, Application Insights)
