@@ -43,6 +43,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Progress tracking: localStorage-based tracking of studied questions and quiz history via useProgress hook
 - Quiz history page: summary stats (total quizzes, pass rate, best score, current streak), reverse-chronological attempt list, clear history with confirmation
 - Answer checking: case-insensitive normalized matching with substring and word-overlap strategies
+- Cache warm-up: useWarmUpCache hook eagerly fetches all API endpoints on mount for offline readiness
 
 ### Tests (`tests/api/`)
 - xUnit project with 30 passing tests
@@ -63,6 +64,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - HistoryPage.test.tsx: 8 tests (empty state, renders entries, newest first, summary stats, confirm dialog, cancel clear, clear history, accessible labels)
 - ErrorBoundary.test.tsx: 3 tests (renders children, default fallback on error, custom fallback)
 - useProgress.test.ts: 7 tests (empty initial, mark studied + persist, no duplicates, quiz results + persist, load existing, corrupt data, clear quiz history preserving studied)
+- useWarmUpCache.test.ts: 3 tests (fetches without stateId, fetches with stateId, runs only once)
 
 ### E2E Tests (`tests/e2e/`)
 - Playwright with Chromium, Page Object Model pattern
@@ -70,6 +72,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - SettingsPage/StudyPage/QuizPage page objects
 - state-selection.spec.ts: 2 tests (select state, persistence)
 - study-flow.spec.ts: 3 tests (display, reveal/advance, 65/20 filter)
+- offline.spec.ts: 5 tests (study offline, answers offline, navigation offline, quiz load offline, offline banner)
 - accessibility.spec.ts: 7 tests (settings, settings+state, study, study+answer, quiz start, quiz in-progress, quiz typed answer)
 
 ### Error Handling
