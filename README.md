@@ -273,8 +273,28 @@ All user data is stored **client-side only** in the browser's `localStorage`. Th
 
 - **Service worker** (via `vite-plugin-pwa` + Workbox) precaches the app shell and static assets.
 - **API responses** for questions and states are cached with a **stale-while-revalidate** strategy.
-- After the first load, the app is **fully functional offline** — all 128 questions are available from cache.
+- A **cache warm-up hook** (`useWarmUpCache`) runs on app mount and eagerly fetches all API endpoints, ensuring offline readiness regardless of which page the user visits first.
+- After the first load, the app is **fully functional offline** — all 128 questions, state data, and quiz functionality are available from cache.
 - An **OfflineBanner** component shows when the network is unavailable.
+
+#### Validating Offline Capabilities
+
+**Automated (Playwright):**
+
+```bash
+cd tests/e2e
+npx playwright test offline                    # run offline E2E tests
+```
+
+**Manual validation:**
+
+1. Run `container-start.bat` (or `docker compose up -d`)
+2. Open `http://localhost:8080` — browse any page (warm-up runs automatically)
+3. Run `container-stop.bat` (or `docker compose down`)
+4. Reload the browser — the app should still load and function fully
+5. Verify: study questions display, quiz can start, navigation works, OfflineBanner shows
+6. Check DevTools → Application → Service Workers → status is "activated"
+7. Check DevTools → Application → Cache Storage → `questions-cache` and `states-cache` have entries
 
 ### Running Frontend Tests
 
