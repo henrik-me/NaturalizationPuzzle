@@ -3,7 +3,7 @@ REM Builds and starts the Docker container, then runs health checks.
 REM If the container is already running, prompts for rebuild or just runs checks.
 REM The container stays running for manual testing at http://localhost:8080
 
-setlocal
+setlocal enabledelayedexpansion
 set IMAGE=natpuzzle:local
 set CONTAINER=natpuzzle-app
 set PORT=8080
@@ -15,21 +15,16 @@ if errorlevel 1 goto build
 
 REM Container exists — check if it's running
 for /f %%i in ('docker inspect --format "{{.State.Running}}" %CONTAINER% 2^>nul') do set RUNNING=%%i
-if "%RUNNING%"=="true" (
-    echo.
-    echo Container %CONTAINER% is already running on port %PORT%.
-    echo.
-    set /p REBUILD="Rebuild and restart? [y/N] "
-    if /i "!REBUILD!"=="y" (
-        goto build
-    ) else (
-        goto healthcheck
-    )
-)
+if not "%RUNNING%"=="true" goto build
+
+echo.
+echo Container %CONTAINER% is already running on port %PORT%.
+echo.
+set /p REBUILD="Rebuild and restart? [y/N] "
+if /i "!REBUILD!"=="y" goto build
+goto healthcheck
 
 :build
-setlocal enabledelayedexpansion
-
 echo.
 echo ==^> Building Docker image: %IMAGE%
 docker build -t %IMAGE% .
@@ -56,24 +51,21 @@ if errorlevel 1 (
     exit /b 1
 )
 
-endlocal
-
 :healthcheck
 echo.
 echo ==^> Waiting for health endpoint (timeout: %TIMEOUT%s)
 set /a ELAPSED=0
 
 :healthloop
-if %ELAPSED% geq %TIMEOUT% goto healthfail
+if !ELAPSED! geq %TIMEOUT% goto healthfail
 timeout /t 2 /nobreak >nul
 set /a ELAPSED+=2
 curl -sf http://localhost:%PORT%/api/health >nul 2>&1
-if errorlevel 1 (
-    echo     Waiting... (%ELAPSED%s)
-    goto healthloop
-)
+if not errorlevel 1 goto healthpassed
+echo     Waiting... [!ELAPSED!s]
+goto healthloop
 
-REM Health endpoint responded, verify details
+:healthpassed
 echo.
 echo ==^> Health check passed!
 curl -s http://localhost:%PORT%/api/health
@@ -82,7 +74,8 @@ echo.
 REM Smoke test — static files
 echo.
 echo ==^> Verifying static file serving
-curl -sf -o nul -w "  HTTP status: %%{http_code}\n" http://localhost:%PORT%/
+curl -sf -o nul -w "  HTTP status: %%{http_code}" http://localhost:%PORT%/
+echo.
 if errorlevel 1 (
     echo   WARNING: Static files not responding
 ) else (

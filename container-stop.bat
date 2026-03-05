@@ -5,7 +5,7 @@ setlocal
 set CONTAINER=natpuzzle-app
 
 echo.
-echo ==> Stopping container: %CONTAINER%
+echo ==^> Stopping container: %CONTAINER%
 docker stop %CONTAINER% >nul 2>&1
 docker rm -f %CONTAINER% >nul 2>&1
 
@@ -23,7 +23,7 @@ if errorlevel 1 (
 
 REM Show that nothing is listening on port 8080
 echo.
-echo ==> Verifying port 8080 is free
+echo ==^> Verifying port 8080 is free
 curl -sf http://localhost:8080/api/health >nul 2>&1
 if errorlevel 1 (
     echo   Port 8080: free
