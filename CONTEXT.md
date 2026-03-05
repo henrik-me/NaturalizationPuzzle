@@ -16,6 +16,8 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - `docker-compose.yml` — local container testing with volume mount for SQLite, port 8080
 - `.dockerignore` — excludes build artifacts, tests, docs, dev files
 - `container-test.ps1` — automated container validation (build, start, health check, smoke test, cleanup)
+- `container-start.bat` — builds/starts container with running detection, health check, smoke test
+- `container-stop.bat` — stops container and verifies port is free
 
 ### Backend (`src/api/`)
 - .NET 10 Minimal API project with EF Core + SQLite
@@ -25,7 +27,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Models: Representative entity (Id, StateId, District, Name) for per-district House rep data
 - Services: QuestionService (state-specific answer resolution with per-rep data), StateService, QuizService, RepresentativeService (vacant seat detection & update)
 - Endpoints: versioned under `/api/v1/` — questions, states, quiz, representatives, health
-- Program.cs: DI registration, CORS, static file serving, SPA fallback, auto-create DB on startup
+- Program.cs: DI registration, CORS, static file serving, SPA fallback, auto-create DB on startup, HTTPS redirect (dev only)
 - `appsettings.Production.json` — production logging configuration
 
 ### Frontend (`src/client/`)
@@ -163,8 +165,10 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 **Phase 2 — GitHub CI/CD** (local changes + GitHub Actions):
 1. Add Application Insights SDK to the .NET API
 2. Create GitHub Actions CI/CD workflow (build → test → docker build → push to GHCR)
-3. Validate offline PWA capabilities (load app → stop container → confirm app still works)
-4. Update README and CONTEXT.md
+3. ✅ Cache warm-up hook (`useWarmUpCache`) — eagerly fetches all API endpoints on mount
+4. ✅ Playwright offline E2E tests — 5 tests verifying study, quiz, navigation, banner offline
+5. ✅ Manual offline validation steps documented in README
+6. Update README and CONTEXT.md
 
 **Phase 3 — Azure Deployment** (Azure infrastructure):
 1. Create Bicep templates (Container Apps Environment, Application Insights)
@@ -175,7 +179,7 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 ## Next Steps
 
 1. ~~**Containerized local deployment** (Phase 1)~~ ✅ complete
-2. **GitHub CI/CD** (Phase 2) — ready to start
+2. **GitHub CI/CD** (Phase 2) — offline validation ✅, App Insights SDK + GitHub Actions workflow remaining
 3. **Azure Container Apps deployment** (Phase 3)
 4. Add dark mode support
 5. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
