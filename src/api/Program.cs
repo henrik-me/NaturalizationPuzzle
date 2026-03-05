@@ -1,3 +1,4 @@
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using NaturalizationPuzzle.Api.Data;
 using NaturalizationPuzzle.Api.Endpoints;
@@ -5,6 +6,11 @@ using NaturalizationPuzzle.Api.Middleware;
 using NaturalizationPuzzle.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+if (!string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+{
+    builder.Services.AddOpenTelemetry().UseAzureMonitor();
+}
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")
