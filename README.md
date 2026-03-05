@@ -1,5 +1,7 @@
 # NaturalizationPuzzle
 
+[![CI/CD](https://github.com/henrik-me/NaturalizationPuzzle/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/henrik-me/NaturalizationPuzzle/actions/workflows/ci-cd.yml)
+
 A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-question pool). Users select their U.S. state to get customized, state-specific answers (e.g., governor, senators). The app works **fully offline** after the first load.
 
 ## System Architecture
@@ -339,6 +341,8 @@ npx playwright test state-selection        # run a specific spec
 | Offline/PWA | `vite-plugin-pwa` with Workbox |
 | Backend API | .NET 10 Minimal APIs (C#) |
 | Database | SQLite via Entity Framework Core |
+| Observability | Azure Monitor OpenTelemetry (Application Insights) |
+| CI/CD | GitHub Actions → GHCR |
 | Testing | Vitest (frontend), xUnit (backend) |
 | E2E Testing | Playwright |
 
@@ -438,22 +442,36 @@ docker compose down
 
 ### CI/CD Pipeline
 
+The pipeline is implemented in `.github/workflows/ci-cd.yml`:
+
 ```
-  Push to main
-       │
-       ▼
-  ┌─────────────────┐     ┌───────────────┐     ┌──────────────────┐     ┌──────────────┐
-  │ Build & Test     │────▶│ Build & Push  │────▶│ Deploy Revision  │────▶│ Health Check │
-  │                  │     │ Docker Image  │     │                  │     │ /api/health  │
-  │ • npm build      │     │               │     │ az containerapp  │     │              │
-  │ • npm test       │     │ docker build  │     │   update         │     │ ✓ API up     │
-  │ • dotnet build   │     │ docker push   │     │   --image ...    │     │ ✓ DB ok      │
-  │ • dotnet test    │     │   → GHCR      │     │                  │     │ ✓ 128 Qs     │
-  │                  │     │               │     │                  │     │              │
-  └─────────────────┘     └───────────────┘     └──────────────────┘     │ On failure:  │
-                                                                          │ reactivate   │
-                                                                          │ prev revision│
-                                                                          └──────────────┘
+  Push to main/master           Pull Request
+       │                             │
+       ▼                             ▼
+  ┌─────────────────┐          ┌─────────────────┐
+  │ Build & Test     │          │ Build & Test     │  ← PR validation only
+  │                  │          │                  │
+  │ • dotnet restore │          │ (same steps)     │
+  │ • dotnet build   │          └─────────────────┘
+  │ • dotnet test    │
+  │ • npm ci         │
+  │ • npm run lint   │
+  │ • npm run build  │
+  │ • npm test       │
+  └────────┬─────────┘
+           │
+           ▼
+  ┌───────────────────┐     ┌──────────────────┐     ┌──────────────┐
+  │ Build & Push      │────▶│ Deploy Revision  │────▶│ Health Check │
+  │ Docker Image      │     │ (Phase 3)        │     │ /api/health  │
+  │                   │     │                  │     │              │
+  │ docker build      │     │ az containerapp  │     │ ✓ API up     │
+  │ docker push → GHCR│     │   update         │     │ ✓ DB ok      │
+  │                   │     │   --image ...    │     │ ✓ 128 Qs     │
+  │ Tags:             │     │                  │     │              │
+  │ • commit SHA      │     │                  │     │ On failure:  │
+  │ • latest          │     │                  │     │ rollback     │
+  └───────────────────┘     └──────────────────┘     └──────────────┘
 ```
 
 ### Hosting Decision

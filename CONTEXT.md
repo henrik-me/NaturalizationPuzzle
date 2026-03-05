@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Full-stack application scaffolded and building. Backend API is functional with seeded data and passing tests. Frontend builds with PWA support. Containerized deployment (Phase 1) complete — Dockerfile, docker-compose, and validation script ready for local testing. Phase 2 (Azure Container Apps deployment) is next.
+Full-stack application scaffolded and building. Backend API is functional with seeded data and passing tests. Frontend builds with PWA support. Containerized deployment (Phase 1) complete. Phase 2 (CI/CD) complete — Application Insights SDK integrated, GitHub Actions workflow created (build, test, docker push to GHCR). Phase 3 (Azure Container Apps deployment) is next.
 
 ## What Has Been Implemented
 
@@ -18,6 +18,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - `container-test.ps1` — automated container validation (build, start, health check, smoke test, cleanup)
 - `container-start.bat` — builds/starts container with running detection, health check, smoke test
 - `container-stop.bat` — stops container and verifies port is free
+- `.github/workflows/ci-cd.yml` — GitHub Actions CI/CD (build, test, docker build, push to GHCR)
 
 ### Backend (`src/api/`)
 - .NET 10 Minimal API project with EF Core + SQLite
@@ -27,8 +28,8 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Models: Representative entity (Id, StateId, District, Name) for per-district House rep data
 - Services: QuestionService (state-specific answer resolution with per-rep data), StateService, QuizService, RepresentativeService (vacant seat detection & update)
 - Endpoints: versioned under `/api/v1/` — questions, states, quiz, representatives, health
-- Program.cs: DI registration, CORS, static file serving, SPA fallback, auto-create DB on startup, HTTPS redirect (dev only)
-- `appsettings.Production.json` — production logging configuration
+- Program.cs: DI registration, CORS, static file serving, SPA fallback, auto-create DB on startup, HTTPS redirect (dev only), Application Insights via OpenTelemetry (conditional)
+- `appsettings.Production.json` — production logging configuration (includes Azure Monitor log levels)
 
 ### Frontend (`src/client/`)
 - React 19 + Vite + TypeScript (strict mode)
@@ -162,13 +163,13 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 7. ✅ Create `container-test.ps1` automated validation script
 8. ✅ Create `container-start.bat` / `container-stop.bat` convenience scripts
 
-**Phase 2 — GitHub CI/CD** (local changes + GitHub Actions):
-1. Add Application Insights SDK to the .NET API
-2. Create GitHub Actions CI/CD workflow (build → test → docker build → push to GHCR)
+**Phase 2 — GitHub CI/CD** ✅ complete:
+1. ✅ Add Application Insights SDK to the .NET API (`Azure.Monitor.OpenTelemetry.AspNetCore`)
+2. ✅ Create GitHub Actions CI/CD workflow (build → test → docker build → push to GHCR)
 3. ✅ Cache warm-up hook (`useWarmUpCache`) — eagerly fetches all API endpoints on mount
 4. ✅ Playwright offline E2E tests — 5 tests verifying study, quiz, navigation, banner offline
 5. ✅ Manual offline validation steps documented in README
-6. Update README and CONTEXT.md
+6. ✅ Update README and CONTEXT.md
 
 **Phase 3 — Azure Deployment** (Azure infrastructure):
 1. Create Bicep templates (Container Apps Environment, Application Insights)
@@ -179,7 +180,7 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 ## Next Steps
 
 1. ~~**Containerized local deployment** (Phase 1)~~ ✅ complete
-2. **GitHub CI/CD** (Phase 2) — offline validation ✅, App Insights SDK + GitHub Actions workflow remaining
+2. ~~**GitHub CI/CD** (Phase 2)~~ ✅ complete — App Insights SDK + GitHub Actions workflow
 3. **Azure Container Apps deployment** (Phase 3)
 4. Add dark mode support
 5. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
