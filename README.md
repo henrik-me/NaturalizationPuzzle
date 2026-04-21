@@ -3,7 +3,6 @@
 [![CI/CD](https://github.com/henrik-me/NaturalizationPuzzle/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/henrik-me/NaturalizationPuzzle/actions/workflows/ci-cd.yml)
 [![CodeQL](https://github.com/henrik-me/NaturalizationPuzzle/actions/workflows/codeql.yml/badge.svg)](https://github.com/henrik-me/NaturalizationPuzzle/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![GHCR](https://img.shields.io/badge/container-ghcr.io-2088FF?logo=github)](https://github.com/henrik-me/NaturalizationPuzzle/pkgs/container/naturalizationpuzzle)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Node 22](https://img.shields.io/badge/Node-22-339933?logo=node.js)](https://nodejs.org/)
 
