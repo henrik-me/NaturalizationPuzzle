@@ -47,9 +47,11 @@ servers-start.bat     # uses servers.ps1
 **Backend (xUnit):**
 
 ```bash
-cd src/api
+# from repo root — discovers all test projects via the solution
 dotnet test
 ```
+
+The xUnit project lives in `tests/api/`; running `dotnet test` from `src/api/` would only target the API project and execute zero tests.
 
 **Frontend (Vitest):**
 
