@@ -92,6 +92,14 @@ dotnet test --filter "DisplayName~Returns_questions_for_state"   # single test b
 - **Every commit message must fully capture the change made.** The subject line summarizes the intent; the body (if needed) lists specifics so the change is understandable without reading the diff.
 - Always include the trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
 
+### Code Review
+
+- **Every change must receive a local GPT-5.4 review of the final diff before it is pushed or opened as a PR. No exceptions** — this applies to features, fixes, refactors, dependency bumps, infrastructure, workflows, scripts, **and documentation-only changes**.
+- Perform the review by invoking the code-review sub-agent (e.g. `rubber-duck`) with `model: "gpt-5.4"`. The sub-agent counts as a local review.
+- For **non-trivial** changes (multi-file, architectural, security-sensitive, or dependency/infra), also do a **plan review** with GPT-5.4 *before* implementing. Plan review may be skipped only for trivial changes (single small edit, typo fix, renaming).
+- The review must cover correctness, security, edge cases, and blast radius. Adopt findings that prevent bugs, regressions, or merging a broken change. A finding may be dismissed only when clearly non-blocking; record a one-line rationale for each dismissed finding.
+- When summarizing review outcomes to the user, be concise: state the key findings and how you addressed each. Do not copy the critique verbatim.
+
 ### Context File
 
 Maintain a `CONTEXT.md` file in the repository root. This file captures:
