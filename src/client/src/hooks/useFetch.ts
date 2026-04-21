@@ -23,7 +23,7 @@ export function useFetch<T>(fetchFn: () => Promise<ApiResult<T>>, deps: readonly
       setError(result.error);
     }
     setIsLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
   }, deps);
 
   useEffect(() => {
