@@ -449,33 +449,59 @@ docker compose down
 The pipeline is implemented in `.github/workflows/ci-cd.yml`:
 
 ```
-  Push to main/master           Pull Request
+  Push to master                Pull Request
        │                             │
        ▼                             ▼
   ┌─────────────────┐          ┌─────────────────┐
   │ Build & Test     │          │ Build & Test     │  ← PR validation only
   │                  │          │                  │
-  │ • dotnet restore │          │ (same steps)     │
-  │ • dotnet build   │          └─────────────────┘
-  │ • dotnet test    │
-  │ • npm ci         │
-  │ • npm run lint   │
-  │ • npm run build  │
+  │ • dotnet build   │          │ (same steps)     │
+  │ • dotnet test    │          └─────────────────┘
+  │ • npm lint       │
+  │ • npm build      │
   │ • npm test       │
   └────────┬─────────┘
            │
            ▼
-  ┌───────────────────┐     ┌──────────────────┐     ┌──────────────┐
-  │ Build & Push      │────▶│ Deploy Revision  │────▶│ Health Check │
-  │ Docker Image      │     │ (Phase 3)        │     │ /api/health  │
-  │                   │     │                  │     │              │
-  │ docker build      │     │ az containerapp  │     │ ✓ API up     │
-  │ docker push → GHCR│     │   update         │     │ ✓ DB ok      │
-  │                   │     │   --image ...    │     │ ✓ 128 Qs     │
-  │ Tags:             │     │                  │     │              │
-  │ • commit SHA      │     │                  │     │ On failure:  │
-  │ • latest          │     │                  │     │ rollback     │
-  └───────────────────┘     └──────────────────┘     └──────────────┘
+  ┌─────────────────────┐     ┌─────────────────────────┐
+  │ Docker Build & Push │────▶│ Image Smoke Test        │
+  │                     │     │                         │
+  │ • Build image       │     │ • docker run image      │
+  │ • Push to GHCR      │     │ • curl /api/health      │
+  │ • Tags: SHA, latest │     │ • assert 128 questions  │
+  └─────────────────────┘     │ • curl /api/v1/states   │
+                              └────────────┬────────────┘
+                                           │
+                                           ▼
+                              ┌─────────────────────────┐
+                              │ Deploy Plan (what-if)   │  ← Surfaces infra
+                              │                         │     diff in job log
+                              │ az deployment           │
+                              │   sub what-if           │
+                              └────────────┬────────────┘
+                                           │
+                              ╔════════════▼════════════╗
+                              ║  🛑 MANUAL APPROVAL      ║  ← `production` env
+                              ║   (henrik-me only)       ║     required reviewer
+                              ╚════════════╤════════════╝
+                                           │
+                                           ▼
+                              ┌─────────────────────────┐
+                              │ Deploy Apply            │
+                              │                         │
+                              │ • az deployment         │
+                              │     sub create (Bicep)  │
+                              │ • az containerapp       │
+                              │     update --image SHA  │
+                              │ • Wait for healthy      │
+                              │     revision            │
+                              │ • Smoke-test FQDN       │
+                              │                         │
+                              │ On failure: old         │
+                              │ revision keeps traffic  │
+                              │ (auto rollback via      │
+                              │ liveness probes)        │
+                              └─────────────────────────┘
 ```
 
 ### Hosting Decision
@@ -497,15 +523,70 @@ Three options were evaluated. **Azure Container Apps** was chosen for its cost e
 
 ### Azure Resources
 
-All resources in the `NaturalizationPuzzle` resource group:
+All resources in resource group `rg-naturalizationpuzzle-prod`:
 
-| Resource | SKU | Monthly Cost |
-|----------|-----|-------------|
-| Container Apps Environment | Consumption (180K vCPU-s, 2M requests free) | ~$0–5 |
-| Application Insights | Free tier (5 GB/mo ingest) | $0 |
-| **Total** | | **~$0–5/mo** |
+| Resource | Name | SKU | Monthly Cost |
+|----------|------|-----|-------------|
+| Resource Group | `rg-naturalizationpuzzle-prod` | — | $0 |
+| Log Analytics workspace | `log-natpuzzle-prod` | PerGB2018 (30-day retention) | included |
+| Application Insights | `appi-natpuzzle-prod` | Workspace-based, free tier (5 GB/mo) | $0 |
+| Container Apps Environment | `cae-natpuzzle-prod` | Consumption (180K vCPU-s, 2M req free) | ~$0–5 |
+| Container App | `ca-natpuzzle-prod` | 0.5 vCPU / 1 GiB, min 0 / max 2 replicas | included |
+| **Total** | | | **~$0–5/mo** |
 
 Cost is purely usage-based. **$0/mo when the app has no traffic** (scale-to-zero). No container registry cost (GHCR is free). No storage cost (read-only seeded data, no persistence needed).
+
+Infrastructure as code lives in `infra/` (Bicep modules), with `azure.yaml` enabling `azd up` for local provisioning.
+
+### Azure Deployment
+
+#### Production URL
+
+`https://ca-natpuzzle-prod.<env-suffix>.westus2.azurecontainerapps.io`
+
+(The `<env-suffix>` portion is generated by Azure when the Container Apps Environment is created. Look it up via `az containerapp show -n ca-natpuzzle-prod -g rg-naturalizationpuzzle-prod --query properties.configuration.ingress.fqdn -o tsv`.)
+
+#### Deploy a new version
+
+Just push to `master`. The pipeline:
+1. Builds and tests the code.
+2. Builds the Docker image and pushes to GHCR (private package).
+3. Smoke-tests the image (runs the container, curls `/api/health` and key endpoints).
+4. Runs `az deployment sub what-if` and prints the planned infra diff.
+5. **Pauses for your approval** in the Actions UI (the `production` environment requires `henrik-me` to approve).
+6. After approval: applies the Bicep deployment, updates the Container App image, waits for the new revision to become healthy, smoke-tests the live FQDN.
+
+If the new revision fails liveness/readiness probes, Container Apps **automatically keeps the previous revision serving traffic** (zero user impact).
+
+#### Rollback
+
+For bugs that pass health checks but are still wrong, run the rollback workflow from the Actions UI:
+
+1. Go to **Actions → Rollback Container App → Run workflow**.
+2. Provide the target revision name (find it via Azure Portal → Container App → Revision management, or `az containerapp revision list -n ca-natpuzzle-prod -g rg-naturalizationpuzzle-prod -o table`).
+3. Approve when prompted (same `production` gate).
+
+The workflow activates the chosen revision and routes 100% of traffic to it. Old images stay in GHCR indefinitely, so any past revision can be reactivated.
+
+Equivalent manual commands:
+
+```powershell
+az containerapp revision list -n ca-natpuzzle-prod -g rg-naturalizationpuzzle-prod -o table
+az containerapp revision activate   -n ca-natpuzzle-prod -g rg-naturalizationpuzzle-prod --revision <prev>
+az containerapp ingress traffic set -n ca-natpuzzle-prod -g rg-naturalizationpuzzle-prod --revision-weight <prev>=100
+```
+
+#### One-time setup (already done)
+
+This is documented for future reference. None of these need to be re-run for normal operation.
+
+| Item | How |
+|---|---|
+| Resource group + all infra | `az deployment sub create --location westus2 --template-file infra/main.bicep --parameters infra/main.parameters.json --parameters ghcrPullToken=<pat>` |
+| GHCR PAT (private image pull) | Classic PAT with only `read:packages` scope, stored as the `GHCR_PULL_TOKEN` secret on the `production` GitHub environment. **Rotate before its 1-year expiry.** |
+| GitHub Environment `production` | Created via `gh api PUT /repos/.../environments/production` with `henrik-me` as required reviewer and `master` branch policy. |
+| Azure OIDC for GitHub Actions | AAD app `github-actions-NaturalizationPuzzle` with two federated credentials: `repo:henrik-me/NaturalizationPuzzle:environment:production` (for `deploy-apply` / `rollback`) and `repo:henrik-me/NaturalizationPuzzle:ref:refs/heads/master` (for `deploy-plan`). Contributor role on `rg-naturalizationpuzzle-prod`. |
+| Repo / env variables | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (set at both repo and `production` env scope so plan job and apply job can both read them). |
 
 ### Application Insights — Observability
 

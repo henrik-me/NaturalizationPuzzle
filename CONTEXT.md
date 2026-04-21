@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Full-stack application scaffolded and building. Backend API is functional with seeded data and passing tests. Frontend builds with PWA support. Containerized deployment (Phase 1) complete. Phase 2 (CI/CD) complete — Application Insights SDK integrated, GitHub Actions workflow created (build, test, docker push to GHCR). Phase 3 (Azure Container Apps deployment) is next.
+Full-stack application scaffolded and building. Backend API is functional with seeded data and passing tests. Frontend builds with PWA support. Phase 1 (containerization) ✅, Phase 2 (CI/CD + App Insights) ✅, Phase 3 (Azure Container Apps deployment) ✅. Live in production at `https://ca-natpuzzle-prod.wittyisland-552f7b95.westus2.azurecontainerapps.io`.
 
 ## What Has Been Implemented
 
@@ -171,11 +171,15 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 5. ✅ Manual offline validation steps documented in README
 6. ✅ Update README and CONTEXT.md
 
-**Phase 3 — Azure Deployment** (Azure infrastructure):
-1. Create Bicep templates (Container Apps Environment, Application Insights)
-2. Deploy container from GHCR to Container Apps
-3. Configure custom domain + TLS ingress
-4. Update README and CONTEXT.md
+**Phase 3 — Azure Deployment** ✅ complete:
+1. ✅ Bicep templates in `infra/` (Log Analytics, App Insights workspace-based, Container Apps Environment, Container App with liveness/readiness/startup probes on `/api/health`, private GHCR pull via Container App secret).
+2. ✅ Deployed to `westus2` in resource group `rg-naturalizationpuzzle-prod`. Live at `https://ca-natpuzzle-prod.wittyisland-552f7b95.westus2.azurecontainerapps.io`.
+3. ✅ App Insights telemetry verified (requests, dependencies, probes flowing).
+4. ✅ Pipeline gates added: `image-smoke-test` (runs container, curls health + endpoints) and `deploy-plan` (`az deployment sub what-if` printed in job summary).
+5. ✅ `deploy-apply` job gated by GitHub `production` environment with `henrik-me` as required reviewer.
+6. ✅ OIDC federated credentials for GitHub Actions (no long-lived secrets in the pipeline). AAD app `github-actions-NaturalizationPuzzle`.
+7. ✅ One-click rollback via `.github/workflows/rollback.yml` (also gated by `production`).
+8. ✅ Container Apps revision model provides automatic rollback: failed revisions never receive traffic.
 
 **Phase 4 — Make Repository Public** ✅ complete:
 
@@ -219,16 +223,17 @@ Repo settings (configured via `gh api`):
 25. ✅ Tag ruleset `release-tag-protection` on `refs/tags/v*` and `refs/tags/release-*`: block create/update/delete. Bypass: Repository admin role.
 
 Deferred / handled outside Phase 4:
-- **GHCR package visibility** — owned by Phase 3 (deployment); will be flipped to public there.
+- **GHCR package visibility** — intentionally kept **private**. Container App pulls the image using a GHCR PAT stored as the `GHCR_PULL_TOKEN` secret on the `production` GitHub environment, flowed through Bicep as a `@secure()` parameter into a Container App secret.
 - **Fork PR workflow approval** — the `actions/permissions/fork-pr-workflows` API endpoint is org-only; for personal repos this requires a UI click in Settings → Actions → General → "Fork pull request workflows from outside collaborators" → "Require approval for all outside collaborators". Mitigation in place: default `GITHUB_TOKEN` is read-only and "Actions can approve PRs" is off, so fork PR runs cannot exfiltrate secrets or self-approve.
 
 ## Next Steps
 
 1. ~~**Containerized local deployment** (Phase 1)~~ ✅ complete
-2. ~~**GitHub CI/CD** (Phase 2)~~ ✅ complete — App Insights SDK + GitHub Actions workflow
-3. **Azure Container Apps deployment** (Phase 3) — in progress
+2. ~~**GitHub CI/CD** (Phase 2)~~ ✅ complete
+3. ~~**Azure Container Apps deployment** (Phase 3)~~ ✅ complete
 4. ~~**Make repository public** (Phase 4)~~ ✅ complete
-5. Add dark mode support
-6. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
-7. Add congressional district selector for multi-district states (currently shows all reps)
-8. Add tests for StudyPage keyword search feature
+5. **Custom domain + managed TLS cert** (Phase 5 candidate)
+6. Add dark mode support
+7. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
+8. Add congressional district selector for multi-district states (currently shows all reps)
+9. Add tests for StudyPage keyword search feature
