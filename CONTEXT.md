@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Full-stack application scaffolded and building. Backend API is functional with seeded data and passing tests. Frontend builds with PWA support. Phase 1 (containerization) ✅, Phase 2 (CI/CD + App Insights) ✅, Phase 3 (Azure Container Apps deployment) ✅. Live in production at `https://ca-natpuzzle-prod.wittyisland-552f7b95.westus2.azurecontainerapps.io`.
+Full-stack application scaffolded and building. Backend API is functional with seeded data and passing tests. Frontend builds with PWA support. Phase 1 (containerization) ✅, Phase 2 (CI/CD + App Insights) ✅, Phase 3 (Azure Container Apps deployment) ✅. Live in production at **https://np.metzger.dk** (custom domain with Azure-managed TLS; default FQDN `https://ca-natpuzzle-prod.wittyisland-552f7b95.westus2.azurecontainerapps.io` also works).
 
 ## What Has Been Implemented
 
@@ -173,7 +173,7 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 
 **Phase 3 — Azure Deployment** ✅ complete:
 1. ✅ Bicep templates in `infra/` (Log Analytics, App Insights workspace-based, Container Apps Environment, Container App with liveness/readiness/startup probes on `/api/health`, private GHCR pull via Container App secret).
-2. ✅ Deployed to `westus2` in resource group `rg-naturalizationpuzzle-prod`. Live at `https://ca-natpuzzle-prod.wittyisland-552f7b95.westus2.azurecontainerapps.io`.
+2. ✅ Deployed to `westus2` in resource group `rg-naturalizationpuzzle-prod`. Default FQDN `https://ca-natpuzzle-prod.wittyisland-552f7b95.westus2.azurecontainerapps.io`; **custom domain `https://np.metzger.dk`** with Azure-managed TLS (env-level managed certificate `np-metzger-dk`, SNI binding, auto-renewing). DNS records (CNAME `np` + TXT `asuid.np`) hosted at one.com.
 3. ✅ App Insights telemetry verified (requests, dependencies, probes flowing).
 4. ✅ Pipeline gates added: `image-smoke-test` (runs container, curls health + endpoints) and `deploy-plan` (`az deployment sub what-if` printed in job summary).
 5. ✅ `deploy-apply` job gated by GitHub `production` environment with `henrik-me` as required reviewer.
