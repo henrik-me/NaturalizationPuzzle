@@ -29,7 +29,7 @@ Out of scope:
 
 ## Supported Versions
 
-Only the latest commit on the default branch (`master`) is supported. Fixes are applied there and released as new container images.
+Only the latest commit on the default branch (`main`) is supported. Fixes are applied there and released as new container images.
 
 ## Data handling
 
