@@ -1,6 +1,11 @@
 # NaturalizationPuzzle
 
 [![CI/CD](https://github.com/henrik-me/NaturalizationPuzzle/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/henrik-me/NaturalizationPuzzle/actions/workflows/ci-cd.yml)
+[![CodeQL](https://github.com/henrik-me/NaturalizationPuzzle/actions/workflows/codeql.yml/badge.svg)](https://github.com/henrik-me/NaturalizationPuzzle/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![GHCR](https://img.shields.io/badge/container-ghcr.io-2088FF?logo=github)](https://github.com/henrik-me/NaturalizationPuzzle/pkgs/container/naturalizationpuzzle)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![Node 22](https://img.shields.io/badge/Node-22-339933?logo=node.js)](https://nodejs.org/)
 
 A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-question pool). Users select their U.S. state to get customized, state-specific answers (e.g., governor, senators). The app works **fully offline** after the first load.
 
@@ -534,3 +539,23 @@ requests
 - **65/20 rule**: applicants 65+ with 20+ years of residency study only 20 designated questions, are asked 10, and need 6 correct.
 - **Categories**: American Government (principles, system, rights/responsibilities), American History, and Integrated Civics (geography, symbols, holidays).
 - **State-specific answers**: governor, U.S. senators, U.S. House Representatives (all 435 by state/district), and capital are dynamically resolved based on the user's selected state.
+
+---
+
+## Content Attribution
+
+The 2025 USCIS civics test questions and official answers are works of the U.S. federal government and are in the public domain under [17 U.S.C. § 105](https://www.law.cornell.edu/uscode/text/17/105). Source: [USCIS Citizenship Resource Center](https://www.uscis.gov/citizenship).
+
+State-level data (governors, senators) and U.S. House Representatives (119th Congress) are sourced from public government records.
+
+## Contributing
+
+Contributions are welcome. Please read:
+
+- [**CONTRIBUTING.md**](./CONTRIBUTING.md) — dev setup, test commands, coding conventions, commit discipline, PR process.
+- [**CODE_OF_CONDUCT.md**](./CODE_OF_CONDUCT.md) — the Contributor Covenant we follow.
+- [**SECURITY.md**](./SECURITY.md) — how to report a vulnerability privately.
+
+## License
+
+This project is licensed under the [MIT License](./LICENSE).
