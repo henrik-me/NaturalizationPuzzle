@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a defect or unexpected behavior
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! Please fill out the sections below so we can reproduce the issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: Describe the unexpected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered list of steps to reproduce the bug.
+      placeholder: |
+        1. Go to ...
+        2. Click on ...
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Frontend (React PWA)
+        - Backend (.NET API)
+        - Offline / service worker
+        - Quiz / study flow
+        - State selection / representatives
+        - Build / CI / Docker
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit SHA
+      placeholder: e.g. v1.2.3 or main@abc1234
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, OS, .NET/Node versions, deployment (local / container / Azure).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      render: shell
