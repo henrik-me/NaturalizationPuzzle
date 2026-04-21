@@ -1,0 +1,19 @@
+# Azure Developer CLI (azd) project manifest for NaturalizationPuzzle.
+# Provisions infra via Bicep and deploys the GHCR image to Azure Container Apps.
+# https://aka.ms/azd
+name: naturalizationpuzzle
+metadata:
+  template: naturalizationpuzzle@1.0.0
+infra:
+  provider: bicep
+  path: infra
+  module: main
+services:
+  api:
+    project: ./src/api
+    language: csharp
+    host: containerapp
+    docker:
+      remoteBuild: true
+      registry: ghcr.io/henrik-me
+      image: naturalizationpuzzle

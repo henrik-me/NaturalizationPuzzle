@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "_comment": "ghcrPullToken is intentionally omitted; it must be supplied at deploy time via --parameters ghcrPullToken=<value>.",
+  "parameters": {
+    "location": {
+      "value": "westus2"
+    },
+    "environmentName": {
+      "value": "prod"
+    },
+    "containerImage": {
+      "value": "ghcr.io/henrik-me/naturalizationpuzzle:latest"
+    },
+    "ghcrUsername": {
+      "value": "henrik-me"
+    }
+  }
+}
