@@ -223,8 +223,13 @@ Repo settings (configured via `gh api`):
 25. ✅ Tag ruleset `release-tag-protection` on `refs/tags/v*` and `refs/tags/release-*`: block create/update/delete. Bypass: Repository admin role.
 
 Deferred / handled outside Phase 4:
+Deferred / handled outside Phase 4:
 - **GHCR package visibility** — intentionally kept **private**. Container App pulls the image using a GHCR PAT stored as the `GHCR_PULL_TOKEN` secret on the `production` GitHub environment, flowed through Bicep as a `@secure()` parameter into a Container App secret.
-- **Fork PR workflow approval** — the `actions/permissions/fork-pr-workflows` API endpoint is org-only; for personal repos this requires a UI click in Settings → Actions → General → "Fork pull request workflows from outside collaborators" → "Require approval for all outside collaborators". Mitigation in place: default `GITHUB_TOKEN` is read-only and "Actions can approve PRs" is off, so fork PR runs cannot exfiltrate secrets or self-approve.
+- **Fork PR workflow approval ("require approval for all outside collaborators")** — **not available for personal-account repositories.** This UI toggle and the matching `actions/permissions/fork-pr-workflows` API endpoint exist only for organization-owned repos and enterprise accounts. Personal repos get a fixed GitHub default: workflow runs from **first-time contributors** require manual approval; subsequent runs from the same contributor are auto-approved. To get the explicit "approve all outside collaborator runs" toggle, the repo would need to be transferred to a (free) GitHub Organization. Residual risk on this personal repo is mitigated by:
+  - Default `GITHUB_TOKEN` workflow permissions = read-only (no write tokens leak to fork PRs).
+  - "Allow Actions to create and approve pull requests" = off (a fork PR cannot self-approve).
+  - Branch ruleset on `main` requires PR + approval + status checks (a fork PR cannot land code without admin sign-off).
+  - Concurrency group on CI cancels superseded fork-PR runs.
 
 ## Next Steps
 
