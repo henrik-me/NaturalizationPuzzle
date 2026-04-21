@@ -10,6 +10,11 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Vite 8.x is blocked by @tailwindcss/vite peer range (accepts ^5.2 || ^6 || ^7).
+      # Re-enable when the Tailwind Vite plugin adds Vite 8 support.
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
     labels:
       - "dependencies"
       - "frontend"
@@ -54,6 +59,12 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # Node major bumps are controlled manually — only bump when a new LTS is declared
+      # (currently Node 22 is LTS; Node 24 becomes LTS 2026-10). Non-LTS majors (23, 25)
+      # must never ship in the production image.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
     labels:
       - "dependencies"
       - "docker"
