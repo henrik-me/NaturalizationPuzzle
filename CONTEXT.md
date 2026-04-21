@@ -177,37 +177,57 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 3. Configure custom domain + TLS ingress
 4. Update README and CONTEXT.md
 
-**Phase 4 — Make Repository Public** (open-source release):
+**Phase 4 — Make Repository Public** ✅ complete:
 
-Audit completed: no `.env` files, no hard-coded secrets, no connection strings, no API keys in source or config. `appsettings*.json` contain only logging config. CI/CD workflow uses `secrets.GITHUB_TOKEN` (auto-provided) — no custom secrets yet.
+Repository is public at https://github.com/henrik-me/NaturalizationPuzzle. Default branch renamed `master` → `main`.
 
-Required before flipping visibility to public:
+Community health & legal:
+1. ✅ `LICENSE` (MIT, © 2025 henrik-me)
+2. ✅ `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1)
+3. ✅ `CONTRIBUTING.md` (setup, tests, Conventional Commits, Co-authored-by trailer, PR process)
+4. ✅ `SECURITY.md` (private vulnerability reporting via GitHub Security tab)
 
-1. **Add `LICENSE`** — MIT license (chosen: permissive, simple, compatible with dependencies).
-2. **Add `CODE_OF_CONDUCT.md`** — Contributor Covenant v2.1 (GitHub standard).
-3. **Add `CONTRIBUTING.md`** — how to set up dev environment, run tests, commit conventions (Conventional Commits + Co-authored-by trailer), PR process.
-4. **Add `SECURITY.md`** — vulnerability reporting process (private security advisories via GitHub).
-5. **Add `.github/ISSUE_TEMPLATE/`** — `bug_report.md`, `feature_request.md`, and `config.yml`.
-6. **Add `.github/PULL_REQUEST_TEMPLATE.md`** — checklist (tests pass, docs updated, CONTEXT.md updated, single-purpose commit).
-7. **Add `.github/dependabot.yml`** — weekly updates for npm, nuget, github-actions, docker.
-8. **Update `README.md`** — add badges (CI status, license, GHCR image), attribution note for USCIS question content (public domain — U.S. federal government work, 17 U.S.C. § 105), link to LICENSE/CONTRIBUTING/SECURITY.
-9. **Verify git history** — run secret scan locally (e.g., `gitleaks detect`) to confirm no historical leaks before going public.
-10. **Enable GitHub repo settings** (post-flip):
-    - Secret scanning + push protection (free for public repos)
-    - Dependabot alerts + security updates
-    - Private vulnerability reporting
-    - Branch protection on `main` (require CI green, require PR review, no force push)
-    - (Optional) `CODEOWNERS` file for auto-review routing
-11. **Make GHCR package public** — after first public push, set the `naturalizationpuzzle` package visibility to public at `github.com/users/<owner>/packages/container/naturalizationpuzzle/settings`, otherwise `docker pull` will 404 for external users.
-12. **Flip repository visibility** to public (Settings → Danger Zone → Change visibility).
-13. Update README and CONTEXT.md.
+GitHub templates & automation:
+5. ✅ `.github/ISSUE_TEMPLATE/{bug_report,feature_request,config}.yml` — blank issues disabled
+6. ✅ `.github/PULL_REQUEST_TEMPLATE.md`
+7. ✅ `.github/dependabot.yml` — weekly npm / nuget / github-actions / docker, grouped minor+patch
+8. ✅ `.github/CODEOWNERS` — `@henrik-me` default reviewer
+
+CI hardening & code scanning:
+9. ✅ `.github/workflows/codeql.yml` — CodeQL for `csharp` + `javascript-typescript`
+10. ✅ `ci-cd.yml` — `concurrency` group cancels superseded runs
+
+README polish:
+11. ✅ Badges (CI/CD, CodeQL, License, .NET 10, Node 22)
+12. ✅ Content Attribution (USCIS = U.S. federal public domain, 17 U.S.C. § 105)
+13. ✅ Links to LICENSE / CONTRIBUTING / SECURITY / CODE_OF_CONDUCT
+
+Verification:
+14. ✅ `gitleaks detect` on full history — clean (exit 0)
+15. ✅ CI green on `main` (Build & Test, CodeQL csharp, CodeQL js/ts)
+
+Repo settings (configured via `gh api`):
+16. ✅ Visibility: **public**
+17. ✅ Description + topics (`uscis`, `civics`, `naturalization`, `pwa`, `offline-first`, `dotnet`, `react`, `typescript`)
+18. ✅ Wiki + Projects disabled (reduce surface area)
+19. ✅ Secret scanning + push protection enabled
+20. ✅ Dependabot alerts + automated security updates enabled
+21. ✅ Private vulnerability reporting enabled
+22. ✅ Default `GITHUB_TOKEN` workflow permissions: **read-only**
+23. ✅ "Allow Actions to create and approve PRs": **off**
+24. ✅ Branch ruleset `main-protection` on `~DEFAULT_BRANCH`: require PR + 1 approval, dismiss stale, require code-owner review, require status checks (Build & Test, Analyze csharp, Analyze javascript-typescript), require linear history, block force push and deletion. Bypass: Repository admin role.
+25. ✅ Tag ruleset `release-tag-protection` on `refs/tags/v*` and `refs/tags/release-*`: block create/update/delete. Bypass: Repository admin role.
+
+Deferred / handled outside Phase 4:
+- **GHCR package visibility** — owned by Phase 3 (deployment); will be flipped to public there.
+- **Fork PR workflow approval** — the `actions/permissions/fork-pr-workflows` API endpoint is org-only; for personal repos this requires a UI click in Settings → Actions → General → "Fork pull request workflows from outside collaborators" → "Require approval for all outside collaborators". Mitigation in place: default `GITHUB_TOKEN` is read-only and "Actions can approve PRs" is off, so fork PR runs cannot exfiltrate secrets or self-approve.
 
 ## Next Steps
 
 1. ~~**Containerized local deployment** (Phase 1)~~ ✅ complete
 2. ~~**GitHub CI/CD** (Phase 2)~~ ✅ complete — App Insights SDK + GitHub Actions workflow
-3. **Azure Container Apps deployment** (Phase 3)
-4. **Make repository public** (Phase 4) — license, community health files, security hardening
+3. **Azure Container Apps deployment** (Phase 3) — in progress
+4. ~~**Make repository public** (Phase 4)~~ ✅ complete
 5. Add dark mode support
 6. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
 7. Add congressional district selector for multi-district states (currently shows all reps)
