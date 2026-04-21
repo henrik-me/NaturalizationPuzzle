@@ -237,8 +237,10 @@ Deferred / handled outside Phase 4:
 2. ~~**GitHub CI/CD** (Phase 2)~~ ✅ complete
 3. ~~**Azure Container Apps deployment** (Phase 3)~~ ✅ complete
 4. ~~**Make repository public** (Phase 4)~~ ✅ complete
-5. **Custom domain + managed TLS cert** (Phase 5 candidate)
-6. Add dark mode support
-7. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
-8. Add congressional district selector for multi-district states (currently shows all reps)
-9. Add tests for StudyPage keyword search feature
+5. ~~**Resolve 18 Dependabot security alerts** (Phase 5)~~ ✅ complete — merged as `002d823` via PR #24 on 2026-04-21. Bumped `vite` to 7.3.2 + added scoped npm override `@rollup/plugin-terser → serialize-javascript: 7.0.5`. All 18 alerts auto-closed (0 open / 24 fixed). Plan + diff both reviewed with GPT-5.4.
+6. **Resolve outstanding Dependabot version-bump PRs** (Phase 6) — 9 open non-security bump PRs remain, including major bumps (Vite 8, Test.Sdk 18, node 25-alpine) that need individual triage.
+7. **Custom domain + managed TLS cert** (handled by Phase 3 agent — `np.metzger.dk` in flight)
+8. Add dark mode support
+9. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
+10. Add congressional district selector for multi-district states (currently shows all reps)
+11. Add tests for StudyPage keyword search feature
