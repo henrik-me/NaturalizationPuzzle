@@ -245,8 +245,7 @@ Deferred / handled outside Phase 4:
    - **Blocked bumps**: Vite 8 (blocked by `@tailwindcss/vite` peer range ^5‖^6‖^7) and Node 25-alpine (non-LTS). Both ignored in `.github/dependabot.yml` (commit `9784380`) — #12 and #22 auto-closed.
    - **Validation technique**: for workflow-touching batches (#31, #32), push-only CI jobs (`docker-build-push`, `image-smoke-test`) were validated by temporarily adding the feature branch to `on.push.branches`, pushing, observing a green run, then dropping the TEMP commit before opening the PR. Deploy jobs stayed guarded by `ref == main` and correctly skipped. For #33 (non-workflow-touching), standard PR CI plus local `npm ci`/build/lint/test served as authoritative validation.
    - All PRs received GPT-5.4 plan + diff reviews. As of 2026-04-21, 0 open Dependabot PRs and 0 open security alerts.
-7. **Custom domain + managed TLS cert** (handled by Phase 3 agent — `np.metzger.dk` in flight)
-8. Add dark mode support
-9. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
-10. Add congressional district selector for multi-district states (currently shows all reps)
-11. Add tests for StudyPage keyword search feature
+7. Add dark mode support
+8. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
+9. Add congressional district selector for multi-district states (currently shows all reps)
+10. Add tests for StudyPage keyword search feature
