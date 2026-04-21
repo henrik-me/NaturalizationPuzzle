@@ -1,0 +1,3 @@
+# Default reviewer for all changes.
+# Used by branch protection "Require review from Code Owners".
+*       @henrik-me
