@@ -177,12 +177,38 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 3. Configure custom domain + TLS ingress
 4. Update README and CONTEXT.md
 
+**Phase 4 — Make Repository Public** (open-source release):
+
+Audit completed: no `.env` files, no hard-coded secrets, no connection strings, no API keys in source or config. `appsettings*.json` contain only logging config. CI/CD workflow uses `secrets.GITHUB_TOKEN` (auto-provided) — no custom secrets yet.
+
+Required before flipping visibility to public:
+
+1. **Add `LICENSE`** — MIT license (chosen: permissive, simple, compatible with dependencies).
+2. **Add `CODE_OF_CONDUCT.md`** — Contributor Covenant v2.1 (GitHub standard).
+3. **Add `CONTRIBUTING.md`** — how to set up dev environment, run tests, commit conventions (Conventional Commits + Co-authored-by trailer), PR process.
+4. **Add `SECURITY.md`** — vulnerability reporting process (private security advisories via GitHub).
+5. **Add `.github/ISSUE_TEMPLATE/`** — `bug_report.md`, `feature_request.md`, and `config.yml`.
+6. **Add `.github/PULL_REQUEST_TEMPLATE.md`** — checklist (tests pass, docs updated, CONTEXT.md updated, single-purpose commit).
+7. **Add `.github/dependabot.yml`** — weekly updates for npm, nuget, github-actions, docker.
+8. **Update `README.md`** — add badges (CI status, license, GHCR image), attribution note for USCIS question content (public domain — U.S. federal government work, 17 U.S.C. § 105), link to LICENSE/CONTRIBUTING/SECURITY.
+9. **Verify git history** — run secret scan locally (e.g., `gitleaks detect`) to confirm no historical leaks before going public.
+10. **Enable GitHub repo settings** (post-flip):
+    - Secret scanning + push protection (free for public repos)
+    - Dependabot alerts + security updates
+    - Private vulnerability reporting
+    - Branch protection on `main` (require CI green, require PR review, no force push)
+    - (Optional) `CODEOWNERS` file for auto-review routing
+11. **Make GHCR package public** — after first public push, set the `naturalizationpuzzle` package visibility to public at `github.com/users/<owner>/packages/container/naturalizationpuzzle/settings`, otherwise `docker pull` will 404 for external users.
+12. **Flip repository visibility** to public (Settings → Danger Zone → Change visibility).
+13. Update README and CONTEXT.md.
+
 ## Next Steps
 
 1. ~~**Containerized local deployment** (Phase 1)~~ ✅ complete
 2. ~~**GitHub CI/CD** (Phase 2)~~ ✅ complete — App Insights SDK + GitHub Actions workflow
 3. **Azure Container Apps deployment** (Phase 3)
-4. Add dark mode support
-5. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
-6. Add congressional district selector for multi-district states (currently shows all reps)
-7. Add tests for StudyPage keyword search feature
+4. **Make repository public** (Phase 4) — license, community health files, security hardening
+5. Add dark mode support
+6. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
+7. Add congressional district selector for multi-district states (currently shows all reps)
+8. Add tests for StudyPage keyword search feature
