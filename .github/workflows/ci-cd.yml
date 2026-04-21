@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: henrik-me/naturalizationpuzzle
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -91,7 +91,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix=
+            type=sha,prefix=,priority=1000
             type=raw,value=latest
 
       - name: Build and push
