@@ -238,7 +238,13 @@ Deferred / handled outside Phase 4:
 3. ~~**Azure Container Apps deployment** (Phase 3)~~ ✅ complete
 4. ~~**Make repository public** (Phase 4)~~ ✅ complete
 5. ~~**Resolve 18 Dependabot security alerts** (Phase 5)~~ ✅ complete — merged as `002d823` via PR #24 on 2026-04-21. Bumped `vite` to 7.3.2 + added scoped npm override `@rollup/plugin-terser → serialize-javascript: 7.0.5`. All 18 alerts auto-closed (0 open / 24 fixed). Plan + diff both reviewed with GPT-5.4.
-6. **Resolve outstanding Dependabot version-bump PRs** (Phase 6) — 9 open non-security bump PRs remain, including major bumps (Vite 8, Test.Sdk 18, node 25-alpine) that need individual triage.
+6. ~~**Resolve outstanding Dependabot version-bump PRs** (Phase 6)~~ ✅ complete — 3 merged PRs on 2026-04-21 closed 13 Dependabot PRs and hardened `dependabot.yml`:
+   - **PR #31** (`a35923c`) — 5 GitHub Actions bumps: `checkout 4→6`, `setup-dotnet 4→5`, `docker/login 3→4`, `docker/metadata 5→6`, `docker/build-push 6→7` (#7 #8 #9 #10 #11).
+   - **PR #32** (`e75a316`) — .NET test stack: `Microsoft.NET.Test.Sdk 17→18`, `xunit.v3 3.0→3.2.2`, EF Core + Mvc.Testing `10.0.3→10.0.7`, `AspNetCore.OpenApi` RC→10.0.7 stable (#21 #23; #25 auto-closed as subset).
+   - **PR #33** (`0cf3aa2`) — client devDeps: `eslint 9→10`, `jsdom 28→29`, `globals 16→17`, `eslint-plugin-react-hooks 7.0→7.1.1` (requires added `react-hooks/use-memo` suppression in `useFetch.ts`), plus react 19.2.5 patch + minor-patch group (#26 #27 #28 #29 #30).
+   - **Blocked bumps**: Vite 8 (blocked by `@tailwindcss/vite` peer range ^5‖^6‖^7) and Node 25-alpine (non-LTS). Both ignored in `.github/dependabot.yml` (commit `9784380`) — #12 and #22 auto-closed.
+   - **Validation technique**: for workflow-touching batches (#31, #32), push-only CI jobs (`docker-build-push`, `image-smoke-test`) were validated by temporarily adding the feature branch to `on.push.branches`, pushing, observing a green run, then dropping the TEMP commit before opening the PR. Deploy jobs stayed guarded by `ref == main` and correctly skipped. For #33 (non-workflow-touching), standard PR CI plus local `npm ci`/build/lint/test served as authoritative validation.
+   - All PRs received GPT-5.4 plan + diff reviews. As of 2026-04-21, 0 open Dependabot PRs and 0 open security alerts.
 7. **Custom domain + managed TLS cert** (handled by Phase 3 agent — `np.metzger.dk` in flight)
 8. Add dark mode support
 9. Add category-based filtering on the Study Page (API endpoint exists, not wired to UI)
