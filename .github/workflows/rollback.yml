@@ -1,0 +1,78 @@
+name: Rollback Container App
+
+# Manual rollback: route 100% of traffic to a previous revision of the
+# Azure Container App. Gated by the `production` environment so it requires
+# a required-reviewer approval (same as deploy).
+#
+# Usage:
+#   1. Find the target revision name in `Azure Portal -> Container App -> Revision management`
+#      or via:  az containerapp revision list -n ca-natpuzzle-prod -g rg-naturalizationpuzzle-prod -o table
+#   2. Run this workflow with `revision_name` set to that name. Approve when prompted.
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision_name:
+        description: "Revision name to roll back to (e.g. ca-natpuzzle-prod--abc1234)."
+        required: true
+        type: string
+
+jobs:
+  rollback:
+    name: Rollback to previous revision
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.activate.outputs.app-url }}
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Activate target revision and route 100% traffic
+        id: activate
+        env:
+          REVISION: ${{ inputs.revision_name }}
+        run: |
+          set -euo pipefail
+          RG=rg-naturalizationpuzzle-prod
+          APP=ca-natpuzzle-prod
+
+          echo "Verifying revision '$REVISION' exists..."
+          az containerapp revision show --name "$APP" --resource-group "$RG" --revision "$REVISION" \
+            --query "{name:name, active:properties.active, health:properties.healthState}" -o json
+
+          echo "Activating revision (no-op if already active)..."
+          az containerapp revision activate --name "$APP" --resource-group "$RG" --revision "$REVISION" -o none || true
+
+          echo "Routing 100% traffic to $REVISION..."
+          az containerapp ingress traffic set --name "$APP" --resource-group "$RG" \
+            --revision-weight "$REVISION=100" -o none
+
+          FQDN=$(az containerapp show --name "$APP" --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv)
+          URL="https://$FQDN"
+
+          echo "Verifying app responds..."
+          for i in $(seq 1 12); do
+            if curl -fsS "$URL/api/health" >/tmp/health.json; then
+              cat /tmp/health.json
+              break
+            fi
+            sleep 5
+          done
+
+          {
+            echo "## ↩️ Rolled back"
+            echo ""
+            echo "- **Active revision:** \`$REVISION\`"
+            echo "- **URL:** $URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "app-url=$URL" >> "$GITHUB_OUTPUT"

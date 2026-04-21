@@ -70,6 +70,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+      image-digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout
@@ -92,9 +95,209 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  image-smoke-test:
+    name: Image Smoke Test
+    needs: docker-build-push
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run image and probe health
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker-build-push.outputs.image-tag }}
+        run: |
+          set -euo pipefail
+          echo "Smoke-testing image: $IMAGE"
+          docker pull "$IMAGE"
+          docker run -d --name smoke -p 8080:8080 \
+            -e ASPNETCORE_ENVIRONMENT=Production \
+            "$IMAGE"
+
+          echo "Waiting for /api/health..."
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/api/health >/tmp/health.json 2>/dev/null; then
+              echo "Health OK after ${i}s:"
+              cat /tmp/health.json
+              break
+            fi
+            sleep 1
+            if [ "$i" = "30" ]; then
+              echo "::error::Health check did not succeed within 30s"
+              docker logs smoke || true
+              exit 1
+            fi
+          done
+
+          echo "Asserting healthy + non-zero question count..."
+          jq -e '.status == "healthy" and .database == true and .questionCount > 0' /tmp/health.json
+
+          echo "Asserting /api/v1/states returns non-empty array..."
+          curl -fsS http://localhost:8080/api/v1/states | jq -e 'length >= 50'
+
+          echo "Asserting /api/v1/questions returns non-empty array..."
+          curl -fsS http://localhost:8080/api/v1/questions | jq -e 'length >= 100'
+
+          echo "Smoke test passed."
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f smoke || true
+
+  deploy-plan:
+    name: Deploy Plan (what-if)
+    needs: image-smoke-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: What-if deployment preview
+        env:
+          IMAGE_TAG: ${{ needs.docker-build-push.outputs.image-tag }}
+        run: |
+          set -euo pipefail
+          # Use a placeholder for the GHCR token in what-if since the real secret
+          # is environment-scoped and not available here. What-if still surfaces
+          # all infra changes — only the secret value is shown as ******* either
+          # way, which is exactly what we want.
+          az deployment sub what-if \
+            --location westus2 \
+            --name "whatif-${GITHUB_SHA::7}" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.parameters.json \
+            --parameters ghcrPullToken="placeholder-not-used-in-whatif" \
+            --parameters containerImage="ghcr.io/${{ github.repository_owner }}/naturalizationpuzzle:${IMAGE_TAG}" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-apply:
+    name: Deploy Apply (gated)
+    needs: [docker-build-push, deploy-plan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.app-url }}
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy infrastructure (Bicep)
+        env:
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+          IMAGE_TAG: ${{ needs.docker-build-push.outputs.image-tag }}
+        run: |
+          set -euo pipefail
+          az deployment sub create \
+            --location westus2 \
+            --name "natpuzzle-prod-${GITHUB_SHA::7}-${GITHUB_RUN_NUMBER}" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.parameters.json \
+            --parameters ghcrPullToken="$GHCR_PULL_TOKEN" \
+            --parameters containerImage="ghcr.io/${{ github.repository_owner }}/naturalizationpuzzle:${IMAGE_TAG}" \
+            -o none
+
+      - name: Update Container App image and wait for healthy revision
+        id: deploy
+        env:
+          IMAGE_TAG: ${{ needs.docker-build-push.outputs.image-tag }}
+        run: |
+          set -euo pipefail
+          RG=rg-naturalizationpuzzle-prod
+          APP=ca-natpuzzle-prod
+          IMAGE="ghcr.io/${{ github.repository_owner }}/naturalizationpuzzle:${IMAGE_TAG}"
+
+          echo "Updating $APP -> $IMAGE"
+          az containerapp update \
+            --name "$APP" \
+            --resource-group "$RG" \
+            --image "$IMAGE" \
+            -o none
+
+          REV=$(az containerapp show --name "$APP" --resource-group "$RG" --query properties.latestRevisionName -o tsv)
+          echo "Latest revision: $REV"
+
+          echo "Waiting for revision to become healthy (up to 5 min)..."
+          for i in $(seq 1 60); do
+            STATE=$(az containerapp revision show --name "$APP" --resource-group "$RG" --revision "$REV" --query "{prov:properties.provisioningState, health:properties.healthState, replicas:properties.replicas}" -o json)
+            echo "[$i] $STATE"
+            PROV=$(echo "$STATE" | jq -r .prov)
+            HEALTH=$(echo "$STATE" | jq -r .health)
+            if [ "$PROV" = "Provisioned" ] && { [ "$HEALTH" = "Healthy" ] || [ "$HEALTH" = "None" ]; }; then
+              echo "Revision provisioned (health=$HEALTH)."
+              break
+            fi
+            if [ "$PROV" = "Failed" ]; then
+              echo "::error::Revision provisioning failed."
+              exit 1
+            fi
+            sleep 5
+          done
+
+          FQDN=$(az containerapp show --name "$APP" --resource-group "$RG" --query properties.configuration.ingress.fqdn -o tsv)
+          URL="https://$FQDN"
+
+          echo "Smoke-testing deployed app: $URL/api/health"
+          for i in $(seq 1 30); do
+            if curl -fsS "$URL/api/health" >/tmp/health.json; then
+              cat /tmp/health.json
+              jq -e '.status == "healthy" and .questionCount > 0' /tmp/health.json
+              break
+            fi
+            sleep 5
+            if [ "$i" = "30" ]; then
+              echo "::error::Deployed app health check failed."
+              exit 1
+            fi
+          done
+
+          {
+            echo "## ✅ Deployed"
+            echo ""
+            echo "- **Revision:** \`$REV\`"
+            echo "- **URL:** $URL"
+            echo "- **Image:** \`$IMAGE\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "app-url=$URL" >> "$GITHUB_OUTPUT"
+          echo "revision=$REV" >> "$GITHUB_OUTPUT"
