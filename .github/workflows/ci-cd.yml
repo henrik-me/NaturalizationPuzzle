@@ -300,24 +300,65 @@ jobs:
           URL="https://$FQDN"
 
           echo "Smoke-testing deployed app: $URL/api/health"
+          HEALTHY=0
           for i in $(seq 1 30); do
-            if curl -fsS "$URL/api/health" >/tmp/health.json; then
+            if curl -fsS "$URL/api/health" >/tmp/health.json \
+              && jq -e '.status == "healthy" and .questionCount > 0' /tmp/health.json >/dev/null; then
               cat /tmp/health.json
-              jq -e '.status == "healthy" and .questionCount > 0' /tmp/health.json
+              HEALTHY=1
               break
             fi
             sleep 5
-            if [ "$i" = "30" ]; then
-              echo "::error::Deployed app health check failed."
+          done
+          if [ "$HEALTHY" != "1" ]; then
+            echo "::error::Deployed app health check failed after 30 attempts."
+            cat /tmp/health.json 2>/dev/null || true
+            exit 1
+          fi
+
+          # Custom-domain probe. Expected hostname is sourced from infra parameters
+          # (the source of truth for what *should* be bound) — NOT from the live app
+          # state, because if a future deploy wipes the binding the live state would
+          # be empty and the check would silently skip. We additionally assert the
+          # binding is present on the Container App.
+          EXPECTED_HOSTNAME=$(jq -r '.parameters.customDomain.value // ""' infra/main.parameters.json)
+          if [ -n "$EXPECTED_HOSTNAME" ]; then
+            BOUND_HOSTNAME=$(az containerapp show --name "$APP" --resource-group "$RG" --query "properties.configuration.ingress.customDomains[?name=='$EXPECTED_HOSTNAME'].name | [0]" -o tsv 2>/dev/null || true)
+            if [ "$BOUND_HOSTNAME" != "$EXPECTED_HOSTNAME" ]; then
+              echo "::error::Expected custom domain '$EXPECTED_HOSTNAME' is NOT bound on $APP after deploy. Bicep customDomains binding was not applied."
+              az containerapp show --name "$APP" --resource-group "$RG" --query "properties.configuration.ingress.customDomains" -o json || true
               exit 1
             fi
-          done
+
+            CUSTOM_URL="https://$EXPECTED_HOSTNAME"
+            echo "Smoke-testing custom domain: $CUSTOM_URL/api/health"
+            CUSTOM_HEALTHY=0
+            for i in $(seq 1 30); do
+              if curl -fsS "$CUSTOM_URL/api/health" >/tmp/health-custom.json \
+                && jq -e '.status == "healthy" and .questionCount > 0' /tmp/health-custom.json >/dev/null; then
+                cat /tmp/health-custom.json
+                CUSTOM_HEALTHY=1
+                break
+              fi
+              sleep 5
+            done
+            if [ "$CUSTOM_HEALTHY" != "1" ]; then
+              echo "::error::Custom-domain health check failed for $EXPECTED_HOSTNAME (TLS handshake or hostname binding likely broken)."
+              cat /tmp/health-custom.json 2>/dev/null || true
+              exit 1
+            fi
+          else
+            echo "No customDomain configured in infra/main.parameters.json; skipping custom-domain smoke test."
+          fi
 
           {
             echo "## ✅ Deployed"
             echo ""
             echo "- **Revision:** \`$REV\`"
             echo "- **URL:** $URL"
+            if [ -n "$EXPECTED_HOSTNAME" ]; then
+              echo "- **Custom domain:** https://$EXPECTED_HOSTNAME"
+            fi
             echo "- **Image:** \`$IMAGE\`"
           } >> "$GITHUB_STEP_SUMMARY"
 

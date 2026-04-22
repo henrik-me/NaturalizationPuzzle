@@ -21,6 +21,9 @@ param ghcrUsername string = 'henrik-me'
 @secure()
 param ghcrPullToken string
 
+@description('Optional custom domain bound to the Container App ingress (e.g. np.metzger.dk). Leave empty to skip.')
+param customDomain string = ''
+
 var resourceGroupName = 'rg-naturalizationpuzzle-${environmentName}'
 
 var commonTags = {
@@ -65,6 +68,7 @@ module containerAppsEnv 'modules/containerapps-env.bicep' = {
     tags: commonTags
     logAnalyticsCustomerId: logAnalytics.outputs.customerId
     logAnalyticsPrimaryKey: logAnalytics.outputs.primarySharedKey
+    customDomain: customDomain
   }
 }
 
@@ -80,10 +84,13 @@ module containerApp 'modules/containerapp.bicep' = {
     appInsightsConnectionString: appInsights.outputs.connectionString
     ghcrUsername: ghcrUsername
     ghcrPullToken: ghcrPullToken
+    customDomain: containerAppsEnv.outputs.customDomain
+    customDomainCertificateId: containerAppsEnv.outputs.customDomainCertificateId
   }
 }
 
 output resourceGroupName string = rg.name
 output containerAppName string = containerApp.outputs.name
 output containerAppFqdn string = containerApp.outputs.fqdn
+output customDomain string = containerAppsEnv.outputs.customDomain
 output appInsightsName string = appInsights.outputs.name

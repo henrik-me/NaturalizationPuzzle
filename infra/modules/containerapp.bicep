@@ -43,6 +43,14 @@ param cpu string = '0.5'
 @description('Memory per replica.')
 param memory string = '1Gi'
 
+@description('Optional custom domain (e.g. np.metzger.dk). When set together with customDomainCertificateId, the ingress is SNI-bound to it. Must be pre-validated and have a matching managed certificate provisioned on the env.')
+param customDomain string = ''
+
+@description('Resource ID of the managed certificate for customDomain. Required when customDomain is set.')
+param customDomainCertificateId string = ''
+
+var hasCustomDomain = !empty(customDomain) && !empty(customDomainCertificateId)
+
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: name
   location: location
@@ -63,6 +71,13 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             weight: 100
           }
         ]
+        customDomains: hasCustomDomain ? [
+          {
+            name: customDomain
+            bindingType: 'SniEnabled'
+            certificateId: customDomainCertificateId
+          }
+        ] : []
       }
       registries: [
         {
