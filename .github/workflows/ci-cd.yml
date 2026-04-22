@@ -161,10 +161,32 @@ jobs:
         if: always()
         run: docker rm -f smoke || true
 
+  detect-changes:
+    name: Detect deployable changes
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.filter.outputs.deploy }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            deploy:
+              - 'src/**'
+              - 'infra/**'
+              - 'Dockerfile'
+              - '.github/workflows/ci-cd.yml'
+              - 'NaturalizationPuzzle.sln'
+
   deploy-plan:
     name: Deploy Plan (what-if)
-    needs: image-smoke-test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [image-smoke-test, detect-changes]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -201,8 +223,8 @@ jobs:
 
   deploy-apply:
     name: Deploy Apply (gated)
-    needs: [docker-build-push, deploy-plan]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [docker-build-push, deploy-plan, detect-changes]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     environment:
       name: production
