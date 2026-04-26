@@ -5,13 +5,25 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+  // Service worker registration on the dev server is sensitive to parallel
+  // load — multiple browser contexts hammering the Vite dev server at once
+  // can cause SW activation to race with the first navigation. Run tests
+  // serially so each test gets a clean SW lifecycle.
+  workers: 1,
+  reporter: 'list',
   use: {
     baseURL: 'https://localhost:5173',
     ignoreHTTPSErrors: true,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    launchOptions: {
+      // The dev server uses a self-signed cert from @vitejs/plugin-basic-ssl.
+      // ignoreHTTPSErrors allows page navigation, but Chromium refuses to
+      // register a service worker on a page with an untrusted certificate
+      // (it is not a "secure context"). This flag relaxes that so the PWA
+      // service worker can install and serve cached content offline.
+      args: ['--ignore-certificate-errors'],
+    },
   },
   projects: [
     {

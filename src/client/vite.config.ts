@@ -24,8 +24,17 @@ export default defineConfig({
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
         ],
       },
+      devOptions: {
+        enabled: true,
+        type: 'module',
+        navigateFallback: 'index.html',
+        navigateFallbackAllowlist: [/^\/(?!api\/).*/],
+      },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+        navigateFallback: 'index.html',
+        navigateFallbackAllowlist: [/^\/(?!api\/).*/],
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             urlPattern: /\/api\/v1\/questions/,
@@ -36,6 +45,16 @@ export default defineConfig({
             urlPattern: /\/api\/v1\/states/,
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'states-cache' },
+          },
+          {
+            urlPattern: ({ request, sameOrigin }) =>
+              sameOrigin &&
+              ['script', 'style', 'worker', 'image', 'font'].includes(request.destination),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-assets',
+              networkTimeoutSeconds: 3,
+            },
           },
         ],
       },
