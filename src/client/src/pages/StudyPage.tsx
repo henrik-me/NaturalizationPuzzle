@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { QuestionDto } from '../types/api';
-import { getAllQuestions, get6520Questions } from '../services/questionService';
+import { getAllQuestions } from '../services/questionService';
 import { useAppContext } from '../context/AppContext';
 import { QuizCard } from '../components/QuizCard';
 import { useProgress } from '../hooks/useProgress';
@@ -14,7 +14,7 @@ function matchesSearch(question: QuestionDto, terms: readonly string[]): boolean
 export function StudyPage(): React.ReactNode {
   const { state } = useAppContext();
   const { studiedQuestionIds, markStudied, studiedCount } = useProgress();
-  const [questions, setQuestions] = useState<readonly QuestionDto[]>([]);
+  const [allQuestions, setAllQuestions] = useState<readonly QuestionDto[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | '6520'>('all');
@@ -24,22 +24,33 @@ export function StudyPage(): React.ReactNode {
     const load = async (): Promise<void> => {
       setIsLoading(true);
       const stateId = state.selectedStateId ?? undefined;
-      const data = filter === '6520'
-        ? await get6520Questions(stateId)
-        : await getAllQuestions(stateId);
-      setQuestions(data);
-      setCurrentIndex(0);
+      const data = await getAllQuestions(stateId);
+      setAllQuestions(data);
       setIsLoading(false);
     };
     void load();
-  }, [state.selectedStateId, filter]);
+  }, [state.selectedStateId]);
 
   const filteredQuestions = useMemo((): readonly QuestionDto[] => {
+    const base = filter === '6520'
+      ? allQuestions.filter(q => q.is6520Designated)
+      : allQuestions;
     const trimmed = searchText.trim().toLowerCase();
-    if (!trimmed) return questions;
+    if (!trimmed) return base;
     const terms = trimmed.split(/\s+/);
-    return questions.filter(q => matchesSearch(q, terms));
-  }, [questions, searchText]);
+    return base.filter(q => matchesSearch(q, terms));
+  }, [allQuestions, filter, searchText]);
+
+  // Clamp the current index to the filtered set without an effect
+  // (e.g. switching from "All 128" while on question 50 to "65/20").
+  const safeIndex = filteredQuestions.length === 0
+    ? 0
+    : Math.min(currentIndex, filteredQuestions.length - 1);
+
+  const handleFilterChange = useCallback((next: 'all' | '6520'): void => {
+    setFilter(next);
+    setCurrentIndex(0);
+  }, []);
 
   const handleSearchChange = useCallback((value: string): void => {
     setSearchText(value);
@@ -47,12 +58,16 @@ export function StudyPage(): React.ReactNode {
   }, []);
 
   const handleNext= useCallback((): void => {
-    const current = filteredQuestions[currentIndex];
+    const current = filteredQuestions[safeIndex];
     if (current) {
       markStudied(current.id);
     }
-    setCurrentIndex(prev => (prev + 1) % filteredQuestions.length);
-  }, [filteredQuestions, currentIndex, markStudied]);
+    setCurrentIndex(prev => {
+      const len = filteredQuestions.length;
+      if (len === 0) return 0;
+      return (prev + 1) % len;
+    });
+  }, [filteredQuestions, safeIndex, markStudied]);
 
   if (!state.selectedStateId) {
     return (
@@ -75,7 +90,7 @@ export function StudyPage(): React.ReactNode {
     );
   }
 
-  const currentQuestion = filteredQuestions[currentIndex];
+  const currentQuestion = filteredQuestions[safeIndex];
   const studiedInCurrentSet = filteredQuestions.filter(q => studiedQuestionIds.includes(q.id)).length;
   const isCurrentStudied = currentQuestion ? studiedQuestionIds.includes(currentQuestion.id) : false;
 
@@ -85,7 +100,7 @@ export function StudyPage(): React.ReactNode {
         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Study Mode</h2>
         <div className="flex gap-2">
           <button
-            onClick={() => setFilter('all')}
+            onClick={() => handleFilterChange('all')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               filter === 'all'
                 ? 'bg-blue-600 text-white'
@@ -96,7 +111,7 @@ export function StudyPage(): React.ReactNode {
             All 128
           </button>
           <button
-            onClick={() => setFilter('6520')}
+            onClick={() => handleFilterChange('6520')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               filter === '6520'
                 ? 'bg-blue-600 text-white'
@@ -148,7 +163,7 @@ export function StudyPage(): React.ReactNode {
           <QuizCard
             question={currentQuestion}
             onNext={handleNext}
-            questionNumber={currentIndex + 1}
+            questionNumber={safeIndex + 1}
             totalQuestions={filteredQuestions.length}
           />
         </div>
