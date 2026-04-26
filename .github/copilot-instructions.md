@@ -96,12 +96,12 @@ The main agent acts as an **orchestrator** whose top priority is to remain respo
 
 - **Default to delegation.** For any task that involves more than a few tool calls of investigation or execution, spin up a sub-agent (`explore`, `task`, `general-purpose`, or `code-review` — `rubber-duck` is an example of the `code-review` agent) instead of doing the work inline. Examples: codebase exploration across many files, running long test/build/lint commands, reviewing diffs or PRs, validating plans, batch refactors.
 - **Prefer background mode** (`mode: "background"`) for sub-agents whose results you don't need before your very next step. End the turn after launching; the completion notification will bring you back. This keeps the user's terminal interactive.
-- **Use sync mode** (`mode: "sync"`) only when the next step genuinely cannot proceed without the result (e.g., the mandatory pre-push GPT-5.4 code review).
+- **Default to background even for "mandatory" reviews.** Sync sub-agent calls block the orchestrator from receiving user input until the agent returns. For the GPT-5.4 plan/diff reviews and other long-ish reviews, launch in **background**, end the turn, and resume from the completion notification. Only use `mode: "sync"` when (a) the agent is expected to return in well under 10 seconds, or (b) the orchestrator literally has nothing meaningful to do or say to the user until the result arrives. **A pending review is not a license to ignore the user.**
 - **Parallelize independent work.** Multiple `explore` or `code-review` agents can run concurrently — launch them in a single response when their scopes don't overlap.
 - **Give complete context.** Sub-agents are stateless. Provide the full task, file paths, success criteria, constraints (e.g., "do not modify code", "do not post to the PR"), and the expected output format in the prompt.
 - **Own the scope you delegate.** Once a sub-agent owns a scope, do not duplicate its work with your own grep/view calls; wait for the result.
 - **Fall back gracefully.** If a sub-agent fails twice on the same task, finish it yourself rather than spinning a third.
-- **Stay available.** Between sub-agent launches and notifications, remain ready to accept new user input. Do not block on long shell loops or polling when a sub-agent or background process can do the waiting.
+- **Stay available.** Between sub-agent launches and notifications, remain ready to accept new user input. Do not block on long shell loops or polling when a sub-agent or background process can do the waiting. **Hard rule:** any polling/waiting expected to exceed ~60 seconds (CI status, PR review wait, etc.) MUST run in a background sub-agent. Never run a foreground PowerShell `while`/`Start-Sleep` loop that waits longer than that — it locks the user's terminal.
 
 #### Worktree Isolation for Sub-Agents
 
@@ -161,15 +161,51 @@ Sub-agents that build, test, modify files, or check out different branches **mus
 - If any step fails, fix it and rerun **the full set** before pushing — never push with known failures, even if "unrelated."
 - Verification work is well-suited for delegation to a sub-agent in its own worktree (see **Worktree Isolation for Sub-Agents**) so the orchestrator stays responsive. The sub-agent reports pass/fail and surfaces logs only for failures.
 
+#### Stale-Comment Maintenance
+
+When refactoring or behavior-changing code, also update **any comments that describe the old mechanism** — in source code, in tests, and in docs. Stale comments are reviewable defects: PR #37's review #5 was entirely about three comments that became inaccurate after a refactor. This applies to inline `//` comments, JSDoc/XML doc comments, test descriptions, and prose in `CONTEXT.md` / `README.md` / progress summaries.
+
+#### Avoid Hardcoded Counts in Living Docs
+
+Prefer "all client tests pass" over "78 client tests pass", "all xUnit tests pass" over "all 142 backend tests pass", and "16 new tests added" over "14 new tests added". Hardcoded counts go stale on the next commit and become reviewable findings. This applies to `CONTEXT.md`, `README.md`, PR descriptions, and progress summaries the orchestrator writes for the user. Counts that genuinely matter (e.g., domain-meaningful constants like "128 civics questions") are fine.
+
+#### Local Servers / Long-Running Processes for Manual Testing
+
+When the user asks the orchestrator to spin up servers for manual validation on Windows:
+
+- Use `Start-Process -FilePath <exe> -ArgumentList ... -WorkingDirectory ... -WindowStyle Hidden -PassThru` and capture/report the PID. The powershell tool's `mode: "async", detach: true` does **not** reliably persist a process across the agent session boundary in all scenarios (observed during the dark-mode session: detached `npm run dev` and `dotnet run` were marked "completed" almost immediately and the servers died with them).
+- Tell the user the URLs and the PIDs so they (or you) can stop them later: `Stop-Process -Id <PID>`.
+- This applies **only** to user-driven manual testing. Do **not** start the API or Vite dev server yourself for E2E runs — Playwright's `webServer` config in `tests/e2e/playwright.config.ts` already starts both, and starting them manually causes port conflicts.
+
+#### Pre-Merge Checklist (non-docs PRs)
+
+Before running `gh pr merge`, verify **all four** gates explicitly. Skipping any of these turns into the "why is this still BLOCKED?" diagnostic that surfaced on PR #37:
+
+1. **CI green.** Every required check in `statusCheckRollup` is COMPLETED with `SUCCESS` (or `SKIPPED`/`NEUTRAL`).
+2. **All review threads resolved.** Run:
+   ```
+   gh api graphql -F owner=<owner> -F repo=<repo> -F num=<N> -f query='
+     query($owner:String!,$repo:String!,$num:Int!){
+       repository(owner:$owner,name:$repo){
+         pullRequest(number:$num){ reviewThreads(first:100){ nodes { id isResolved } } }
+       }
+     }' --jq '.data.repository.pullRequest.reviewThreads.nodes | map(select(.isResolved==false)) | length'
+   ```
+   Result must be `0`. Resolve via `mutation resolveReviewThread`. **Note:** the query fetches only the first 100 threads; for PRs with more than 100 threads, paginate using `pageInfo.hasNextPage` / `endCursor` until exhausted, otherwise unresolved threads on later pages will be silently missed.
+3. **`reviewDecision == APPROVED`.**Check with `gh pr view <N> --json reviewDecision`. Empty string or `REVIEW_REQUIRED` blocks the merge. **Important:** Copilot's PR reviews are always submitted as `COMMENTED`, never `APPROVED`. A clean Copilot loop does not satisfy this gate; the PR still needs an `APPROVED` review from a human (or self-approval if branch protection allows). The previous version of these instructions implied "Loop until Copilot returns a clean review" was sufficient to merge — it is not.
+4. **Mergeable & up-to-date with base.** `mergeable == MERGEABLE` and `mergeStateStatus == CLEAN` (i.e., not `BEHIND`, `DIRTY`, `BLOCKED`, `UNSTABLE`, `DRAFT`, or `UNKNOWN`). If `BEHIND`, merge `origin/main` into the PR branch (or rebase). If `DIRTY`, resolve conflicts. If `DRAFT`, mark ready for review. **After updating the branch, re-request Copilot review and wait for CI to re-run** before merging — the previous Copilot review and CI run no longer cover the new tip.
+
+Single command to inspect most state: `gh pr view <N> --json mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,isDraft` — but combine with the GraphQL `reviewThreads` query above, since thread state is not in that JSON projection. Use this as the **first** debugging step whenever a merge unexpectedly fails.
+
 #### Copilot PR Review Loop (non-docs changes)
 
 Any change that is **not docs-only** must additionally pass an iterative GitHub Copilot review on the pull request itself. This is in addition to (not a replacement for) the local GPT-5.4 review above. "Docs-only" here means the change touches only paths covered by the CI/CD workflow's `paths-ignore` list (Markdown, `LICENSE`, `.gitignore`, `.editorconfig`, copilot/contributor instructions, PR/issue templates).
 
-- **PR required.** Never push non-docs changes directly to `main`, and never use `gh pr merge --admin` to bypass review on a non-docs PR.
+- **PR required.** Never push non-docs changes directly to `main`. **`gh pr merge --admin` is banned by default** for non-docs PRs and may be used only as a narrow exception when **all** of the following are true: (i) every other gate in this file is satisfied — local GPT-5.4 plan review (if applicable) and final-diff review, full pre-push verification (build + tests + e2e), Copilot PR review loop clean, and all review threads resolved; (ii) CI is green and the PR is otherwise mergeable (`mergeable == MERGEABLE`, no conflicts, not draft); (iii) the **only** remaining blocker is the missing `APPROVED` review and no human approver is available; and (iv) the rationale is documented in a PR comment before the merge. If any of these is false, do not use `--admin` — escalate to the user and ask for approval instead.
 - **Add Copilot as a reviewer** as soon as the PR is opened: `gh pr edit <N> --add-reviewer "@copilot"` (or click "Request a review from Copilot" in the GitHub UI).
 - **Address every Copilot suggestion** — push fixes as additional commits on the PR branch. The dismissal policy from the Code Review section still applies: a suggestion may be dismissed only when clearly non-blocking, and the rationale must be recorded in a PR comment replying to that suggestion.
 - **Re-request Copilot review after each push** of new commits using the same `gh pr edit <N> --add-reviewer "@copilot"` invocation, or the "Re-request review" button in the UI.
-- **Loop until Copilot returns a clean review** with no further comments or change suggestions. Only then is the PR ready to merge.
+- **Loop until Copilot returns a clean review** with no further comments or change suggestions. **A clean Copilot review is necessary but not sufficient to merge** — old unresolved review threads can still exist, and a non-docs PR additionally needs an `APPROVED` review (Copilot reviews are always `COMMENTED`). See the Pre-Merge Checklist above.
 - The local pre-push GPT-5.4 review is still required for every commit pushed to the PR branch — including commits that address Copilot's feedback.
 - **Dependabot/bot PRs:** the Copilot review loop applies to them too. If Copilot has actionable feedback on a bot PR, push fix-up commits directly to the bot's branch to address it. This will stop Dependabot from further auto-managing that PR (no more auto-rebase), which is acceptable because the PR is about to be merged. Only use `@dependabot rebase` when you genuinely want Dependabot to keep managing the PR (e.g., it's behind `main` and you have no fix-ups to push).
 
