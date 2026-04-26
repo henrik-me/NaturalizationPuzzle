@@ -3,9 +3,10 @@ import { getAllQuestions, get6520Questions } from '../services/questionService';
 import { getAllStates, getStateById } from '../services/stateService';
 
 /**
- * Eagerly fetches all key API endpoints on mount so the service worker
- * caches responses for offline use. Runs once regardless of which page
- * the user visits first.
+ * Eagerly fetches all key API endpoints so the service worker caches
+ * responses for offline use. Re-runs whenever the user picks a different
+ * state (e.g. first-time users who land with `stateId = null` and then
+ * choose a state) so the state-specific data also ends up in cache.
  *
  * Waits for the service worker to be ready before issuing requests so
  * that the responses actually pass through the SW and end up in its
@@ -14,11 +15,11 @@ import { getAllStates, getStateById } from '../services/stateService';
  * offline reload fail.
  */
 export function useWarmUpCache(stateId: number | null): void {
-  const warmedUp = useRef(false);
+  const lastWarmedStateId = useRef<number | null | undefined>(undefined);
 
   useEffect(() => {
-    if (warmedUp.current) return;
-    warmedUp.current = true;
+    if (lastWarmedStateId.current === stateId) return;
+    lastWarmedStateId.current = stateId;
 
     void (async () => {
       if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {

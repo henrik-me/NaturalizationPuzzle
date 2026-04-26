@@ -41,8 +41,8 @@ export function StudyPage(): React.ReactNode {
     return base.filter(q => matchesSearch(q, terms));
   }, [allQuestions, filter, searchText]);
 
-  // Clamp the current index to the filtered set without an effect
-  // (e.g. switching from "All 128" while on question 50 to "65/20").
+  // Clamp the current index to the filtered set without an effect if the
+  // available questions shrink for any reason.
   const safeIndex = filteredQuestions.length === 0
     ? 0
     : Math.min(currentIndex, filteredQuestions.length - 1);
@@ -57,7 +57,7 @@ export function StudyPage(): React.ReactNode {
     setCurrentIndex(0);
   }, []);
 
-  const handleNext= useCallback((): void => {
+  const handleNext = useCallback((): void => {
     const current = filteredQuestions[safeIndex];
     if (current) {
       markStudied(current.id);
