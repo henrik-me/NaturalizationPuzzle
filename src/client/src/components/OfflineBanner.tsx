@@ -9,7 +9,7 @@ export function OfflineBanner(): React.ReactNode {
     <div
       role="status"
       aria-live="polite"
-      className="bg-amber-500 text-white text-center py-2 px-4 text-sm font-medium"
+      className="bg-amber-500 dark:bg-amber-600 text-white text-center py-2 px-4 text-sm font-medium"
     >
       You are offline — studying from cached data
     </div>

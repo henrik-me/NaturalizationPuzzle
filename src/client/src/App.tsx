@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppProvider, useAppContext } from './context/AppContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navigation } from './components/Navigation';
 import { OfflineBanner } from './components/OfflineBanner';
@@ -15,7 +16,7 @@ function AppShell(): React.ReactNode {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-gray-900 dark:text-gray-100">
         <OfflineBanner />
         <Navigation />
         <ErrorBoundary>
@@ -33,8 +34,10 @@ function AppShell(): React.ReactNode {
 
 export function App(): React.ReactNode {
   return (
-    <AppProvider>
-      <AppShell />
-    </AppProvider>
+    <ThemeProvider>
+      <AppProvider>
+        <AppShell />
+      </AppProvider>
+    </ThemeProvider>
   );
 }
