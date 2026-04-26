@@ -162,6 +162,7 @@ export function StudyPage(): React.ReactNode {
       {currentQuestion ? (
         <div className="flex justify-center">
           <QuizCard
+            key={currentQuestion.id}
             question={currentQuestion}
             onNext={handleNext}
             questionNumber={safeIndex + 1}

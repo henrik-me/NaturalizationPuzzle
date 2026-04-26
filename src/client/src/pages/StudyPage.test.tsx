@@ -104,6 +104,32 @@ describe('StudyPage', () => {
     expect(screen.getByText(/Unique-needle text appears here/)).toBeInTheDocument();
   });
 
+  it('resets the QuizCard reveal state when the filter swaps the displayed question', async () => {
+    const user = userEvent.setup();
+    const allQuestions: QuestionDto[] = [
+      makeQuestion(1, false, 'Non-designated question one'),
+      makeQuestion(2, true, 'Designated 65/20 question'),
+    ];
+    vi.mocked(getAllQuestions).mockResolvedValue(allQuestions);
+
+    renderStudyPage();
+
+    await screen.findByText('Question 1 of 2');
+
+    // Reveal the answer on question 1.
+    await user.click(screen.getByRole('button', { name: /show the answer/i }));
+    expect(screen.getByRole('button', { name: /go to next question/i })).toBeInTheDocument();
+
+    // Toggling 65/20 swaps the displayed question (now Q2). The card must
+    // remount so the new question is shown with its answer hidden again,
+    // not carry over the previous showAnswer=true state.
+    await user.click(screen.getByRole('button', { name: /65\/20/i }));
+
+    expect(screen.getByText('Question 1 of 1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /show the answer/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /go to next question/i })).not.toBeInTheDocument();
+  });
+
   it('filters by search text and shows the empty state when no matches', async () => {
     const user = userEvent.setup();
     const allQuestions: QuestionDto[] = [
