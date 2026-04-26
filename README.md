@@ -132,6 +132,7 @@ Navigate to **https://localhost:5173** in your browser. Both servers must be run
 src/api/
 ├── Program.cs              # App bootstrap, DI, middleware pipeline
 ├── Data/                   # EF Core DbContext & seed data
+├── Logging/                # LogSanitizer (CWE-117 defense) & options
 ├── Models/                 # Entity models & record DTOs
 ├── Services/               # Business logic (Question, State, Quiz)
 ├── Endpoints/              # Minimal API route definitions
@@ -141,7 +142,8 @@ src/api/
 
 - **DI container** registers `QuestionService`, `StateService`, and `QuizService` as scoped.
 - **EF Core + SQLite** with all 128 USCIS civics questions and 435 U.S. House Representatives (119th Congress) seeded on startup.
-- **Global exception handler** returns RFC 9457 `ProblemDetails` with correlation IDs.
+- **Global exception handler** returns RFC 9457 `ProblemDetails` with correlation IDs. By default it logs sanitized exception fields (type, message, stack trace) without the raw `Exception` object to prevent log forging (CWE-117). Set `Logging:Exceptions:IncludeRawException = true` to log the raw `Exception` for full structured exception telemetry on OpenTelemetry / Application Insights when debugging.
+- **`LogSanitizer`** (`NaturalizationPuzzle.Api.Logging`) strips control characters (CR, LF, NEL, LS, PS, other C0/C1, DEL) and truncates user-controlled values before they enter log entries. Use `LogSanitizer.Clean(...)` or the `.ForLog()` extension on every log site that touches request input.
 - **CORS** configured to allow the frontend origins (`https://localhost:5173` and `http://localhost:5173`).
 
 ### API Endpoints

@@ -82,6 +82,10 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - React ErrorBoundary wrapping Routes with user-friendly fallback
 - .NET GlobalExceptionHandler middleware returning ProblemDetails (RFC 9457)
   with correlation IDs and structured logging
+- `LogSanitizer` (`src/api/Logging/`) sanitizes user-controlled values to prevent
+  log forging (CWE-117). GlobalExceptionHandler logs sanitized exception fields by
+  default; set `Logging:Exceptions:IncludeRawException=true` to restore raw
+  `Exception` logging (richer OTel/AppInsights telemetry, used for debugging).
 
 ## Decisions Made
 
