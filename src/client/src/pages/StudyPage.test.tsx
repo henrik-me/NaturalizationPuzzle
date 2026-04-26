@@ -7,7 +7,6 @@ import { StudyPage } from './StudyPage';
 
 vi.mock('../services/questionService', () => ({
   getAllQuestions: vi.fn(),
-  get6520Questions: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../context/AppContext', () => ({
@@ -52,6 +51,7 @@ describe('StudyPage', () => {
   });
 
   it('shows the full set by default and switches to 65/20 synchronously without a stale render', async () => {
+    const user = userEvent.setup();
     // 5 questions: 2 designated as 65/20.
     const allQuestions: QuestionDto[] = [
       makeQuestion(1, true),
@@ -66,7 +66,7 @@ describe('StudyPage', () => {
 
     expect(await screen.findByText('Question 1 of 5')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: /65\/20/i }));
+    await user.click(screen.getByRole('button', { name: /65\/20/i }));
 
     // The new total must appear immediately on the same render that updates
     // the filter — never a transient "1 of 5" with the 65/20 button selected.
@@ -75,6 +75,7 @@ describe('StudyPage', () => {
   });
 
   it('clamps currentIndex when the filtered set shrinks past the current position', async () => {
+    const user = userEvent.setup();
     const allQuestions: QuestionDto[] = [
       makeQuestion(1, false),
       makeQuestion(2, false),
@@ -90,20 +91,21 @@ describe('StudyPage', () => {
 
     // Advance to question 4 by revealing + clicking next three times.
     for (let i = 0; i < 3; i++) {
-      await userEvent.click(await screen.findByRole('button', { name: /show the answer/i }));
-      await userEvent.click(await screen.findByRole('button', { name: /go to next question/i }));
+      await user.click(await screen.findByRole('button', { name: /show the answer/i }));
+      await user.click(await screen.findByRole('button', { name: /go to next question/i }));
     }
     expect(screen.getByText('Question 4 of 5')).toBeInTheDocument();
 
     // Search for text that only matches question 3 — the filtered set shrinks
     // to a single item. The displayed counter must clamp to 1, not show
     // "Question 4 of 1".
-    await userEvent.type(screen.getByLabelText(/search questions/i), 'unique-needle');
+    await user.type(screen.getByLabelText(/search questions/i), 'unique-needle');
     expect(await screen.findByText('Question 1 of 1')).toBeInTheDocument();
     expect(screen.getByText(/Unique-needle text appears here/)).toBeInTheDocument();
   });
 
   it('filters by search text and shows the empty state when no matches', async () => {
+    const user = userEvent.setup();
     const allQuestions: QuestionDto[] = [
       makeQuestion(1, false, 'What is the supreme law of the land?'),
       makeQuestion(2, false, 'Name one branch of the government.'),
@@ -115,13 +117,13 @@ describe('StudyPage', () => {
     await screen.findByText('Question 1 of 2');
 
     const search = screen.getByLabelText(/search questions/i);
-    await userEvent.type(search, 'supreme');
+    await user.type(search, 'supreme');
 
     expect(screen.getByText('Question 1 of 1')).toBeInTheDocument();
     expect(screen.getByText(/supreme law/i)).toBeInTheDocument();
 
-    await userEvent.clear(search);
-    await userEvent.type(search, 'nonexistent');
+    await user.clear(search);
+    await user.type(search, 'nonexistent');
 
     await waitFor(() => {
       expect(screen.getByText(/No questions match/i)).toBeInTheDocument();
