@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useWarmUpCache } from './useWarmUpCache';
 
 vi.mock('../services/questionService', () => ({
@@ -42,16 +42,77 @@ describe('useWarmUpCache', () => {
     });
   });
 
-  it('runs only once even on re-render', async () => {
-    const { rerender } = renderHook(() => useWarmUpCache(null));
+  it('runs only once even on re-render with same stateId', async () => {
+    const { rerender } = renderHook(({ id }: { id: number | null }) => useWarmUpCache(id), {
+      initialProps: { id: null as number | null },
+    });
 
     await vi.waitFor(() => {
       expect(getAllQuestions).toHaveBeenCalledTimes(1);
     });
 
-    rerender();
-    rerender();
+    rerender({ id: null });
+    rerender({ id: null });
 
     expect(getAllQuestions).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-warms when stateId changes (e.g. user picks a state for the first time)', async () => {
+    const { rerender } = renderHook(({ id }: { id: number | null }) => useWarmUpCache(id), {
+      initialProps: { id: null as number | null },
+    });
+
+    await vi.waitFor(() => {
+      expect(getAllQuestions).toHaveBeenCalledTimes(1);
+      expect(getAllQuestions).toHaveBeenLastCalledWith(undefined);
+    });
+
+    rerender({ id: 7 });
+
+    await vi.waitFor(() => {
+      expect(getAllQuestions).toHaveBeenCalledTimes(2);
+      expect(getAllQuestions).toHaveBeenLastCalledWith(7);
+      expect(getStateById).toHaveBeenCalledWith(7);
+    });
+  });
+
+  describe('service worker readiness', () => {
+    let originalServiceWorker: PropertyDescriptor | undefined;
+
+    afterEach(() => {
+      if (originalServiceWorker) {
+        Object.defineProperty(navigator, 'serviceWorker', originalServiceWorker);
+      } else {
+        // jsdom doesn't define serviceWorker by default; remove if we added it.
+        delete (navigator as unknown as { serviceWorker?: unknown }).serviceWorker;
+      }
+      originalServiceWorker = undefined;
+    });
+
+    it('waits for navigator.serviceWorker.ready before warming caches', async () => {
+      originalServiceWorker = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
+
+      let resolveReady: (value: unknown) => void = () => undefined;
+      const readyPromise = new Promise(resolve => {
+        resolveReady = resolve;
+      });
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        configurable: true,
+        value: { ready: readyPromise },
+      });
+
+      renderHook(() => useWarmUpCache(null));
+
+      // Give the effect a tick to start awaiting SW readiness.
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(getAllQuestions).not.toHaveBeenCalled();
+
+      resolveReady({});
+
+      await vi.waitFor(() => {
+        expect(getAllQuestions).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 });

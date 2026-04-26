@@ -1,0 +1,158 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import type { QuestionDto } from '../types/api';
+import { StudyPage } from './StudyPage';
+
+vi.mock('../services/questionService', () => ({
+  getAllQuestions: vi.fn(),
+}));
+
+vi.mock('../context/AppContext', () => ({
+  useAppContext: () => ({
+    state: {
+      selectedStateId: 1,
+      selectedState: null,
+      questions: [],
+      is6520Mode: false,
+      isOnline: true,
+      isLoading: false,
+    },
+    dispatch: vi.fn(),
+  }),
+}));
+
+import { getAllQuestions } from '../services/questionService';
+
+function makeQuestion(id: number, designated: boolean, text = `Question ${id}`): QuestionDto {
+  return {
+    id,
+    text,
+    category: 'American Government',
+    subCategory: 'Principles',
+    is6520Designated: designated,
+    answers: [`Answer ${id}`],
+  };
+}
+
+function renderStudyPage(): void {
+  render(
+    <MemoryRouter>
+      <StudyPage />
+    </MemoryRouter>,
+  );
+}
+
+describe('StudyPage', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.mocked(getAllQuestions).mockReset();
+  });
+
+  it('shows the full set by default and switches to 65/20 synchronously without a stale render', async () => {
+    const user = userEvent.setup();
+    // 5 questions: 2 designated as 65/20.
+    const allQuestions: QuestionDto[] = [
+      makeQuestion(1, true),
+      makeQuestion(2, false),
+      makeQuestion(3, true),
+      makeQuestion(4, false),
+      makeQuestion(5, false),
+    ];
+    vi.mocked(getAllQuestions).mockResolvedValue(allQuestions);
+
+    renderStudyPage();
+
+    expect(await screen.findByText('Question 1 of 5')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /65\/20/i }));
+
+    // The new total must appear immediately on the same render that updates
+    // the filter — never a transient "1 of 5" with the 65/20 button selected.
+    expect(screen.getByText('Question 1 of 2')).toBeInTheDocument();
+    expect(getAllQuestions).toHaveBeenCalledTimes(1);
+  });
+
+  it('clamps currentIndex when the filtered set shrinks past the current position', async () => {
+    const user = userEvent.setup();
+    const allQuestions: QuestionDto[] = [
+      makeQuestion(1, false),
+      makeQuestion(2, false),
+      makeQuestion(3, true, 'Unique-needle text appears here'),
+      makeQuestion(4, false),
+      makeQuestion(5, false),
+    ];
+    vi.mocked(getAllQuestions).mockResolvedValue(allQuestions);
+
+    renderStudyPage();
+
+    await screen.findByText('Question 1 of 5');
+
+    // Advance to question 4 by revealing + clicking next three times.
+    for (let i = 0; i < 3; i++) {
+      await user.click(await screen.findByRole('button', { name: /show the answer/i }));
+      await user.click(await screen.findByRole('button', { name: /go to next question/i }));
+    }
+    expect(screen.getByText('Question 4 of 5')).toBeInTheDocument();
+
+    // Search for text that only matches question 3 — the filtered set shrinks
+    // to a single item. The displayed counter must clamp to 1, not show
+    // "Question 4 of 1".
+    await user.type(screen.getByLabelText(/search questions/i), 'unique-needle');
+    expect(await screen.findByText('Question 1 of 1')).toBeInTheDocument();
+    expect(screen.getByText(/Unique-needle text appears here/)).toBeInTheDocument();
+  });
+
+  it('resets the QuizCard reveal state when the filter swaps the displayed question', async () => {
+    const user = userEvent.setup();
+    const allQuestions: QuestionDto[] = [
+      makeQuestion(1, false, 'Non-designated question one'),
+      makeQuestion(2, true, 'Designated 65/20 question'),
+    ];
+    vi.mocked(getAllQuestions).mockResolvedValue(allQuestions);
+
+    renderStudyPage();
+
+    await screen.findByText('Question 1 of 2');
+
+    // Reveal the answer on question 1.
+    await user.click(screen.getByRole('button', { name: /show the answer/i }));
+    expect(screen.getByRole('button', { name: /go to next question/i })).toBeInTheDocument();
+
+    // Toggling 65/20 swaps the displayed question (now Q2). The card must
+    // remount so the new question is shown with its answer hidden again,
+    // not carry over the previous showAnswer=true state.
+    await user.click(screen.getByRole('button', { name: /65\/20/i }));
+
+    expect(screen.getByText('Question 1 of 1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /show the answer/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /go to next question/i })).not.toBeInTheDocument();
+  });
+
+  it('filters by search text and shows the empty state when no matches', async () => {
+    const user = userEvent.setup();
+    const allQuestions: QuestionDto[] = [
+      makeQuestion(1, false, 'What is the supreme law of the land?'),
+      makeQuestion(2, false, 'Name one branch of the government.'),
+    ];
+    vi.mocked(getAllQuestions).mockResolvedValue(allQuestions);
+
+    renderStudyPage();
+
+    await screen.findByText('Question 1 of 2');
+
+    const search = screen.getByLabelText(/search questions/i);
+    await user.type(search, 'supreme');
+
+    expect(screen.getByText('Question 1 of 1')).toBeInTheDocument();
+    expect(screen.getByText(/supreme law/i)).toBeInTheDocument();
+
+    await user.clear(search);
+    await user.type(search, 'nonexistent');
+
+    await waitFor(() => {
+      expect(screen.getByText(/No questions match/i)).toBeInTheDocument();
+    });
+  });
+});
