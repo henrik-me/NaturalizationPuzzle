@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
@@ -27,6 +27,24 @@ function getSystemTheme(): ResolvedTheme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+function subscribeSystemTheme(onChange: () => void): () => void {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return () => { /* no-op */ };
+  }
+  const mql = window.matchMedia('(prefers-color-scheme: dark)');
+  // Safari < 14 / iOS Safari < 14 only support the legacy addListener API.
+  if (typeof mql.addEventListener === 'function') {
+    mql.addEventListener('change', onChange);
+    return () => { mql.removeEventListener('change', onChange); };
+  }
+  mql.addListener(onChange);
+  return () => { mql.removeListener(onChange); };
+}
+
+function getServerSystemTheme(): ResolvedTheme {
+  return 'light';
+}
+
 function applyTheme(resolved: ResolvedTheme): void {
   const root = document.documentElement;
   root.classList.toggle('dark', resolved === 'dark');
@@ -53,7 +71,14 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { readonly children: ReactNode }): ReactNode {
   const [theme, setThemeState] = useState<ThemePreference>(() => readStoredPreference());
-  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() => getSystemTheme());
+  // useSyncExternalStore subscribes globally to prefers-color-scheme, but the
+  // memoized context value only flips when resolvedTheme actually changes, so
+  // explicit Light/Dark consumers do not rerender when the OS toggles.
+  const systemTheme = useSyncExternalStore(
+    subscribeSystemTheme,
+    getSystemTheme,
+    getServerSystemTheme,
+  );
 
   const resolvedTheme: ResolvedTheme = theme === 'system' ? systemTheme : theme;
 
@@ -61,24 +86,6 @@ export function ThemeProvider({ children }: { readonly children: ReactNode }): R
   useEffect(() => {
     applyTheme(resolvedTheme);
   }, [resolvedTheme]);
-
-  // Subscribe to OS color-scheme changes; the listener stays mounted globally
-  // (this provider lives at the app root) so it works even when the user
-  // navigates away from Settings.
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const mql = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent): void => {
-      setSystemTheme(e.matches ? 'dark' : 'light');
-    };
-    // Safari < 14 / iOS Safari < 14 only support the legacy addListener API.
-    if (typeof mql.addEventListener === 'function') {
-      mql.addEventListener('change', handler);
-      return () => { mql.removeEventListener('change', handler); };
-    }
-    mql.addListener(handler);
-    return () => { mql.removeListener(handler); };
-  }, []);
 
   const setTheme = useCallback((preference: ThemePreference): void => {
     try {

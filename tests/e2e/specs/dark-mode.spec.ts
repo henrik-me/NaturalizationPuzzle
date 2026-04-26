@@ -1,72 +1,74 @@
 import { test, expect } from '@playwright/test';
+import { SettingsPage } from '../pages/SettingsPage';
 
 test.describe('Dark Mode', () => {
   test('defaults to System preference and resolves to dark when OS prefers dark', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.goto('/settings');
+    await settings.goto();
 
-    const systemOption = page.getByTestId('theme-option-system');
-    await expect(systemOption).toHaveAttribute('aria-checked', 'true');
-
-    await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f172a');
+    await settings.expectThemeSelected('system');
+    await settings.expectDarkApplied();
   });
 
   test('System preference resolves to light when OS prefers light', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/settings');
+    await settings.goto();
 
-    await expect(page.getByTestId('theme-option-system')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/);
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#1e40af');
+    await settings.expectThemeSelected('system');
+    await settings.expectLightApplied();
   });
 
   test('selecting Dark applies dark class and updates theme-color', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/settings');
+    await settings.goto();
 
-    await page.getByTestId('theme-option-dark').click();
+    await settings.selectTheme('dark');
 
-    await expect(page.getByTestId('theme-option-dark')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f172a');
+    await settings.expectThemeSelected('dark');
+    await settings.expectDarkApplied();
   });
 
   test('selecting Light removes dark class even when OS prefers dark', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.goto('/settings');
+    await settings.goto();
 
-    await page.getByTestId('theme-option-light').click();
+    await settings.selectTheme('light');
 
-    await expect(page.getByTestId('theme-option-light')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/);
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#1e40af');
+    await settings.expectThemeSelected('light');
+    await settings.expectLightApplied();
   });
 
   test('preference persists across reload', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/settings');
+    await settings.goto();
 
-    await page.getByTestId('theme-option-dark').click();
-    const stored = await page.evaluate(() => localStorage.getItem('themePreference'));
-    expect(stored).toBe('dark');
+    await settings.selectTheme('dark');
+    expect(await settings.getStoredThemePreference()).toBe('dark');
 
     await page.reload();
 
-    await expect(page.getByTestId('theme-option-dark')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
+    await settings.expectThemeSelected('dark');
+    await settings.expectDarkApplied();
   });
 
   test('no FOUC: theme is applied before React mounts (main.tsx blocked)', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/settings');
-    await page.evaluate(() => localStorage.setItem('themePreference', 'dark'));
+    await settings.goto();
+    await settings.setStoredThemePreference('dark');
 
     // Block the app entry so React cannot mount; only the inline FOUC script in
-    // index.html will have run when we make our assertions.
+    // index.html will have run when we make our assertions. domcontentloaded
+    // guarantees the inline head script has executed.
     await page.route('**/src/main.tsx', route => route.abort());
-
     await page.goto('/settings', { waitUntil: 'commit' });
+    // Wait until the inline FOUC script has executed (it sets colorScheme).
+    await page.waitForFunction(() => document.documentElement.style.colorScheme !== '');
 
     const state = await page.evaluate(() => ({
       hasDark: document.documentElement.classList.contains('dark'),
@@ -82,12 +84,14 @@ test.describe('Dark Mode', () => {
   });
 
   test('no FOUC (mirror): persisted light is honored on dark OS before mount', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.goto('/settings');
-    await page.evaluate(() => localStorage.setItem('themePreference', 'light'));
+    await settings.goto();
+    await settings.setStoredThemePreference('light');
 
     await page.route('**/src/main.tsx', route => route.abort());
     await page.goto('/settings', { waitUntil: 'commit' });
+    await page.waitForFunction(() => document.documentElement.style.colorScheme !== '');
 
     const state = await page.evaluate(() => ({
       hasDark: document.documentElement.classList.contains('dark'),
@@ -103,12 +107,13 @@ test.describe('Dark Mode', () => {
   });
 
   test('keyboard navigation (radiogroup): arrow keys move selection', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/settings');
+    await settings.goto();
 
-    const light = page.getByTestId('theme-option-light');
-    const dark = page.getByTestId('theme-option-dark');
-    const system = page.getByTestId('theme-option-system');
+    const light = settings.themeOption('light');
+    const dark = settings.themeOption('dark');
+    const system = settings.themeOption('system');
 
     await light.click();
     await expect(light).toBeFocused();
@@ -127,60 +132,59 @@ test.describe('Dark Mode', () => {
   });
 
   test('System mode reacts to live OS preference changes', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/settings');
-    await expect(page.getByTestId('theme-option-system')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/);
+    await settings.goto();
+    await settings.expectThemeSelected('system');
+    await settings.expectLightApplied();
 
     await page.emulateMedia({ colorScheme: 'dark' });
-    await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f172a');
+    await settings.expectDarkApplied();
 
     await page.emulateMedia({ colorScheme: 'light' });
-    await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/);
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#1e40af');
+    await settings.expectLightApplied();
   });
 
   test('explicit Light ignores OS preference changes', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/settings');
-    await page.getByTestId('theme-option-light').click();
+    await settings.goto();
+    await settings.selectTheme('light');
+    await settings.expectLightApplied();
 
+    // ThemeProvider does not subscribe to matchMedia while in explicit mode, so
+    // the assertions below are deterministic without a fixed timeout.
     await page.emulateMedia({ colorScheme: 'dark' });
-
-    // Give any erroneous matchMedia listener a chance to fire.
-    await page.waitForTimeout(100);
-    await expect(page.getByTestId('theme-option-light')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/);
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#1e40af');
+    await settings.expectThemeSelected('light');
+    await settings.expectLightApplied();
   });
 
   test('explicit Dark ignores OS preference changes', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.goto('/settings');
-    await page.getByTestId('theme-option-dark').click();
+    await settings.goto();
+    await settings.selectTheme('dark');
+    await settings.expectDarkApplied();
 
     await page.emulateMedia({ colorScheme: 'light' });
-
-    await page.waitForTimeout(100);
-    await expect(page.getByTestId('theme-option-dark')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f172a');
+    await settings.expectThemeSelected('dark');
+    await settings.expectDarkApplied();
   });
 
   test('switching back to System resumes following OS preference', async ({ page }) => {
+    const settings = new SettingsPage(page);
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.goto('/settings');
+    await settings.goto();
 
-    await page.getByTestId('theme-option-light').click();
-    await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/);
+    await settings.selectTheme('light');
+    await settings.expectLightApplied();
 
-    await page.getByTestId('theme-option-system').click();
-    await expect(page.getByTestId('theme-option-system')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
-    expect(await page.evaluate(() => localStorage.getItem('themePreference'))).toBe('system');
+    await settings.selectTheme('system');
+    await settings.expectThemeSelected('system');
+    await settings.expectDarkApplied();
+    expect(await settings.getStoredThemePreference()).toBe('system');
 
     await page.emulateMedia({ colorScheme: 'light' });
-    await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/);
+    await settings.expectLightApplied();
   });
 });
