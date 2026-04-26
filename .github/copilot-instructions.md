@@ -148,6 +148,18 @@ Sub-agents that build, test, modify files, or check out different branches **mus
 - The review must cover correctness, security, edge cases, and blast radius. Adopt findings that prevent bugs, regressions, or merging a broken change. A finding may be dismissed only when clearly non-blocking; record a one-line rationale for each dismissed finding.
 - When summarizing review outcomes to the user, be concise: state the key findings and how you addressed each. Do not copy the critique verbatim.
 
+#### Copilot PR Review Loop (non-docs changes)
+
+Any change that is **not docs-only** must additionally pass an iterative GitHub Copilot review on the pull request itself. This is in addition to (not a replacement for) the local GPT-5.4 review above. "Docs-only" here means the change touches only paths covered by the CI/CD workflow's `paths-ignore` list (Markdown, `LICENSE`, `.gitignore`, `.editorconfig`, copilot/contributor instructions, PR/issue templates).
+
+- **PR required.** Never push non-docs changes directly to `main`, and never use `gh pr merge --admin` to bypass review on a non-docs PR.
+- **Add Copilot as a reviewer** as soon as the PR is opened: `gh pr edit <N> --add-reviewer "@copilot"` (or click "Request a review from Copilot" in the GitHub UI).
+- **Address every Copilot suggestion** — push fixes as additional commits on the PR branch. The dismissal policy from the Code Review section still applies: a suggestion may be dismissed only when clearly non-blocking, and the rationale must be recorded in a PR comment replying to that suggestion.
+- **Re-request Copilot review after each push** of new commits using the same `gh pr edit <N> --add-reviewer "@copilot"` invocation, or the "Re-request review" button in the UI.
+- **Loop until Copilot returns a clean review** with no further comments or change suggestions. Only then is the PR ready to merge.
+- The local pre-push GPT-5.4 review is still required for every commit pushed to the PR branch — including commits that address Copilot's feedback.
+- **Dependabot/bot PRs exception:** the "push fixes as additional commits" step conflicts with the Dependabot rule against pushing to a Dependabot branch. For bot-authored PRs, do **not** push commits to the bot's branch to address Copilot feedback. Instead: if Copilot's suggestions are actionable and material, close the bot PR (or leave it for the bot to supersede) and open a human-authored PR from a fresh branch that incorporates both the bump and the fixes. If Copilot's suggestions are non-blocking, dismiss them with a one-line rationale per the Code Review section and proceed with the normal Dependabot merge flow.
+
 ### Dependabot & Security PRs
 
 Dependabot PRs (dependency bumps) and other automated security PRs are **first-class code changes** and must be validated, reviewed, and merged through the same discipline as human-authored PRs. Never blindly merge them based on green CI alone.
