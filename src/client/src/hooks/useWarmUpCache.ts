@@ -23,14 +23,21 @@ export function useWarmUpCache(stateId: number | null): void {
 
     void (async () => {
       if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
         try {
           // Bounded wait — never block the UI if the SW takes too long.
           await Promise.race([
             navigator.serviceWorker.ready,
-            new Promise(resolve => setTimeout(resolve, 5000)),
+            new Promise<void>(resolve => {
+              timeoutHandle = setTimeout(resolve, 5000);
+            }),
           ]);
         } catch {
           // Ignore — fall through and warm the cache anyway.
+        } finally {
+          if (timeoutHandle !== null) {
+            clearTimeout(timeoutHandle);
+          }
         }
       }
       await Promise.allSettled([

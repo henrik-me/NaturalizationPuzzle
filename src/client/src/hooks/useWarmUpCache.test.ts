@@ -86,6 +86,7 @@ describe('useWarmUpCache', () => {
         // jsdom doesn't define serviceWorker by default; remove if we added it.
         delete (navigator as unknown as { serviceWorker?: unknown }).serviceWorker;
       }
+      originalServiceWorker = undefined;
     });
 
     it('waits for navigator.serviceWorker.ready before warming caches', async () => {
