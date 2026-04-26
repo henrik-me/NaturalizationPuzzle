@@ -25,6 +25,7 @@ afterEach(() => {
   if (typeof document !== 'undefined') {
     document.documentElement.classList.remove('dark');
     document.documentElement.removeAttribute('style');
+    document.querySelectorAll('meta[name="theme-color"]').forEach(meta => meta.remove());
   }
   try { localStorage.clear(); } catch { /* ignore */ }
 });
