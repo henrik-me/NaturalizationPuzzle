@@ -44,16 +44,22 @@ npx vitest run src/components/QuizCard.test.tsx   # single test file
 npx vitest -t "shows correct answer"              # single test by name
 ```
 
-### Backend (`src/api/`)
+### Backend (`src/api/` for app commands, repo root for tests)
 
 ```bash
+# From src/api/ — app commands
 dotnet restore                    # restore NuGet packages
 dotnet build                      # compile
 dotnet run                        # start API (Development)
-dotnet test                       # full xUnit suite
-dotnet test --filter "FullyQualifiedName~QuestionServiceTests"   # single test class
-dotnet test --filter "DisplayName~Returns_questions_for_state"   # single test by name
+
+# From repo root — test commands (xUnit project lives in tests/api/, NOT src/api/)
+dotnet test                                                            # full xUnit suite (resolves the test project via the .sln)
+dotnet test tests/api/NaturalizationPuzzle.Api.Tests.csproj            # explicit test project
+dotnet test --filter "FullyQualifiedName~QuestionServiceTests"         # single test class
+dotnet test --filter "DisplayName~Returns_questions_for_state"         # single test by name
 ```
+
+> **Note:** Running `dotnet test` from `src/api/` runs against the web app project and silently executes zero tests. Always run tests from the repo root (or pass the test project explicitly).
 
 ## Architecture
 
@@ -97,6 +103,35 @@ The main agent acts as an **orchestrator** whose top priority is to remain respo
 - **Fall back gracefully.** If a sub-agent fails twice on the same task, finish it yourself rather than spinning a third.
 - **Stay available.** Between sub-agent launches and notifications, remain ready to accept new user input. Do not block on long shell loops or polling when a sub-agent or background process can do the waiting.
 
+#### Worktree Isolation for Sub-Agents
+
+Sub-agents that build, test, modify files, or check out different branches **must** run in their own dedicated **git worktree** so they cannot interfere with the orchestrator's working directory or with each other. Without this, two agents working concurrently can swap branches/files under each other (a real failure mode previously observed: a validation agent checked out a PR branch while the orchestrator was creating a feature branch, causing the new branch to fork from the wrong commit).
+
+**Naming scheme:** `<src-location>_wt-<N>` where:
+- `<src-location>` is the repository's working directory path (e.g. `C:\src\NaturalizationPuzzle` → worktrees at `C:\src\NaturalizationPuzzle_wt-1`, `C:\src\NaturalizationPuzzle_wt-2`, ...).
+- `<N>` is a small integer assigned by the orchestrator. The orchestrator owns the numbering and must not reuse a number that is currently in use.
+
+**Orchestrator responsibilities:**
+1. **Choose N** for each isolation-needing sub-agent (track in-use numbers in memory or via `git worktree list`).
+2. **Create the worktree before launching the sub-agent**:
+   ```
+   git worktree add <src-location>_wt-<N> <ref>
+   ```
+   `<ref>` is usually `main` for fresh work, or a fetched PR ref (e.g. `pull/<N>/head`) for PR validation.
+3. **Pass the absolute worktree path to the sub-agent** in its prompt and instruct it to operate exclusively inside that path. Tell it explicitly **not** to `cd` outside the worktree, **not** to switch branches in the orchestrator's repo, and **not** to push or open PRs unless the task says so.
+4. **Remove the worktree after the sub-agent completes:**
+   ```
+   git worktree remove <src-location>_wt-<N>
+   ```
+   If the sub-agent left uncommitted changes that the orchestrator wants, copy or commit them first. Use `git worktree remove --force` only when the worktree state is known to be discardable.
+5. **Never reuse a worktree path across overlapping sub-agents.** Two simultaneous sub-agents must have distinct N values.
+
+**When a worktree is NOT required:**
+- Read-only investigation that does not change branches or run builds (e.g. an `explore` agent doing only `grep`/`view`/`glob`). The orchestrator's working directory is fine for these.
+- The orchestrator's own work; it stays in the primary checkout.
+
+**Constraints from git:** A given branch can be checked out in only one worktree at a time. If two agents need the same branch, give one a detached checkout (`git worktree add --detach <path> <ref>`) or have one work on a fresh branch.
+
 ### Git Workflow
 
 - **Every change gets its own commit.** No batching unrelated changes.
@@ -112,6 +147,44 @@ The main agent acts as an **orchestrator** whose top priority is to remain respo
 - For **non-trivial** changes (multi-file, architectural, security-sensitive, or dependency/infra), also do a **plan review** with GPT-5.4 *before* implementing. Plan review may be skipped only for trivial changes (single small edit, typo fix, renaming).
 - The review must cover correctness, security, edge cases, and blast radius. Adopt findings that prevent bugs, regressions, or merging a broken change. A finding may be dismissed only when clearly non-blocking; record a one-line rationale for each dismissed finding.
 - When summarizing review outcomes to the user, be concise: state the key findings and how you addressed each. Do not copy the critique verbatim.
+
+### Dependabot & Security PRs
+
+Dependabot PRs (dependency bumps) and other automated security PRs are **first-class code changes** and must be validated, reviewed, and merged through the same discipline as human-authored PRs. Never blindly merge them based on green CI alone.
+
+**Triage priority:**
+- **Security advisories / vulnerability fixes**: handle promptly. Don't let them sit.
+- **Patch / minor bumps without security impact**: validate and merge in normal cadence.
+- **Major bumps**: extra scrutiny — analyze breaking changes and peer-dep constraints.
+
+**Plan review:** dependency/infra changes are classed as non-trivial under the **Code Review** section, so a GPT-5.4 plan review applies. In practice, for a routine patch-level Dependabot PR (no breaking changes, narrow blast radius), the validation checklist below is itself the plan; for minor or major bumps run a separate plan review before starting validation.
+
+**Validation checklist — delegate to a sub-agent running in its own worktree** (see Worktree Isolation for Sub-Agents). The orchestrator creates worktree `<src-location>_wt-<N>` from the PR ref, hands the path to the sub-agent, and removes the worktree when done.
+
+1. **Create a worktree from the PR head** (orchestrator step):
+   ```
+   git fetch origin pull/<PR>/head
+   git worktree add <src-location>_wt-<N> FETCH_HEAD
+   ```
+2. **Inspect the diff scope** (in the worktree): `git diff main..HEAD`. Confirm only the expected dependency files change (e.g., `package.json`, `package-lock.json`, `*.csproj`, `packages.lock.json`). Flag any unrelated edits.
+3. **Restore dependencies** in the affected workspace inside the worktree:
+   - Frontend bumps: `cd src/client && npm ci`
+   - Backend bumps: `cd src/api && dotnet restore`
+4. **Verify the resolved version** matches what the PR claims (`npm ls <pkg> --all` from `src/client/`, or `dotnet list package --include-transitive` from `src/api/`). Note any unexpected transitive shifts.
+5. **Lint, test, build** on the affected side:
+   - Frontend (run from `src/client/`): `npm run lint && npm test -- --run && npm run build`
+   - Backend: `dotnet build` from the worktree root (or `src/api/`), and `dotnet test` from the **worktree root** so the solution resolves the xUnit project at `tests/api/`. Do **not** run `dotnet test` from `src/api/` — that project is the web app, not the test project, so the suite would be silently skipped.
+6. **Run the GPT-5.4 `code-review` sub-agent** on the final diff (mandatory per Code Review section). The reviewer can read from the same worktree.
+7. **Remove the worktree** when validation is complete (orchestrator step): `git worktree remove <src-location>_wt-<N>`.
+
+**Merging:**
+- Use **squash merge**. The PR's CI status checks must be passing.
+- If the PR is behind `main` and conflicts, comment `@dependabot rebase` on the PR — **do not manually rebase or push commits to a Dependabot branch**, which would prevent Dependabot from continuing to manage it.
+- A bump that touches deploy-relevant paths (e.g., `src/**`, `Dockerfile`) will trigger a production deploy through the normal `production` environment approval gate. Plan accordingly.
+
+**Grouping & cadence:**
+- Process Dependabot PRs promptly to avoid security drift, but **one at a time**. Don't batch-merge multiple bumps in the same session unless they are intentionally grouped by Dependabot config.
+- After merging, sync `main` locally and delete the merged branch.
 
 ### Context File
 
