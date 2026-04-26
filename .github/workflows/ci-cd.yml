@@ -75,9 +75,64 @@ jobs:
         working-directory: src/client
         run: npm test
 
+  e2e:
+    name: E2E (Playwright)
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+          dotnet-quality: "preview"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: |
+            src/client/package-lock.json
+            tests/e2e/package-lock.json
+
+      - name: Install client dependencies
+        working-directory: src/client
+        run: npm ci
+
+      - name: Install e2e dependencies
+        working-directory: tests/e2e
+        run: npm ci
+
+      - name: Install Playwright browser (chromium)
+        working-directory: tests/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright e2e tests
+        working-directory: tests/e2e
+        # The Playwright config's webServer blocks auto-start the .NET API
+        # and Vite dev server. Use --reporter=list explicitly: the default
+        # html reporter spawns a blocking server on port 9323 that hangs CI.
+        run: npx playwright test --reporter=list
+
+      - name: Upload Playwright test results
+        # The list reporter doesn't generate a playwright-report/ directory
+        # (only the html reporter does), so we upload only test-results/,
+        # which contains traces, screenshots, and videos for failed tests.
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: tests/e2e/test-results/
+          retention-days: 14
+
   docker-build-push:
     name: Docker Build & Push
-    needs: build-and-test
+    needs: [build-and-test, e2e]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -176,7 +231,7 @@ jobs:
 
   detect-changes:
     name: Detect deployable changes
-    needs: build-and-test
+    needs: [build-and-test, e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
