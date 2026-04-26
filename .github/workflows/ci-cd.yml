@@ -3,6 +3,19 @@ name: CI/CD
 on:
   push:
     branches: [main, master]
+    # Docs-only pushes must NOT trigger this workflow. The workflow's
+    # cancel-in-progress concurrency would otherwise abort an in-flight or
+    # approval-pending deploy. Listing paths-ignore here is safer than
+    # queueing, which could deploy stale bits later.
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/copilot-instructions.md'
+      - '.github/instructions/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.gitignore'
+      - '.editorconfig'
   pull_request:
     branches: [main, master]
   workflow_dispatch:
