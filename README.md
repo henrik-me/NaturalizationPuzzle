@@ -240,7 +240,7 @@ src/client/
 
 | Path | Page | Description |
 |------|------|-------------|
-| `/` | StudyPage | Browse and study all 128 civics questions, with keyword search and progress tracking |
+| `/` | StudyPage | Browse and study all 128 civics questions; filter by category, subcategory, 65/20 set, and studied/unstudied status; keyword search; progress tracking |
 | `/quiz` | QuizPage | Take a practice quiz with typed answers and real-time scoring |
 | `/history` | HistoryPage | View all past quiz attempts with summary stats (pass rate, best score, streak) and clear history |
 | `/settings` | SettingsPage | Select U.S. state, manage preferences |
@@ -262,7 +262,18 @@ The app tracks which questions you've studied and your quiz history in `localSto
 
 The **History page** (`/history`) shows all past quiz attempts in reverse chronological order with summary statistics: total quizzes taken, pass rate, best score, and current pass streak. Each entry shows the date, quiz mode (Standard/65/20), score, and pass/fail result. Users can clear their quiz history with a confirmation dialog (study progress is preserved).
 
-A **keyword search box** lets you filter questions by typing words that appear in the question text, answers, category, or subcategory (e.g., "amendment", "president", "1776"). The search works with all-word matching, combines with the 65/20 filter, and operates entirely client-side. When no questions match, a clear-search prompt is shown.
+A **keyword search box** lets you filter questions by typing words that appear in the question text, answers, category, or subcategory (e.g., "amendment", "president", "1776"). The search works with all-word matching, combines with the other study filters, and operates entirely client-side. When no questions match, a *Clear filters* button is shown.
+
+### Study Filters
+
+The Study page exposes four composable filters on top of the keyword search:
+
+- **Category** dropdown — *American Government*, *American History*, *Integrated Civics*, or all.
+- **Subcategory** dropdown — dependent on the chosen category (e.g., *System of Government*, *The 1800s*, *Symbols and Holidays*); disabled when no category is selected.
+- **65/20 toggle** — switch between all 128 questions and the 20 questions designated for the 65/20 rule.
+- **Studied status** toggle — *All*, *Unstudied*, or *Studied* (uses `localStorage` study progress).
+
+All filters compose. Filter state is session-only (not persisted). The progress bar's denominator reflects the *current filtered set* so it always tells you "how much of what you're looking at have you studied"; the global *N total studied* counter sits next to it.
 
 ### Dark Mode
 

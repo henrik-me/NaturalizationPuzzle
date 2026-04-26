@@ -36,6 +36,28 @@ test.describe('Study Flow', () => {
 
     await study.selectFilter('6520');
 
-    expect(await study.getQuestionNumber()).toContain('of 20');
+    await expect(page.locator('[role="article"] span.text-sm').first()).toContainText('of 20');
+  });
+
+  test('filters by category', async ({ page }) => {
+    const study = new StudyPage(page);
+    await study.goto();
+
+    await study.selectCategory('Integrated Civics');
+
+    // Integrated Civics has 10 questions (Q119-128) in the seeded pool.
+    await expect(page.locator('[role="article"] span.text-sm').first()).toContainText('of 10');
+  });
+
+  test('filters by studied status', async ({ page }) => {
+    const study = new StudyPage(page);
+    await study.goto();
+
+    // No questions studied yet -> Unstudied set equals full pool, Studied set is empty.
+    await study.selectStudiedFilter('Studied');
+    await expect(page.getByText(/No questions match the current filters/)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+    expect(await study.getQuestionNumber()).toContain('Question 1 of');
   });
 });
