@@ -358,6 +358,18 @@ Maintain the `README.md` file in the repository root. The README is the public-f
 - Use `FluentValidation` or `DataAnnotations` for request validation. Return `Results.ValidationProblem()` with field-level error details.
 - Log errors with structured logging (`ILogger<T>`) including correlation IDs for traceability.
 
+### Logging — Sanitize User-Controlled Input (CWE-117)
+
+Log forging (CWE-117) happens when attacker-controlled CR/LF or other control characters end up in a log entry, letting an attacker forge fake log lines, hide activity, or inject ANSI terminal escapes. Always assume **anything derived from a request is hostile**: paths, query strings, route values, header values, request bodies, and any string built from them — including exception messages that quote user input.
+
+**Rules:**
+
+- **Never log a user-controlled string directly.** Wrap it with `LogSanitizer.Clean(value)` or, for ASP.NET types, the `.ForLog()` extension (`PathString`, `QueryString`, `string?`). Both live in `NaturalizationPuzzle.Api.Logging`. They strip CR/LF, NEL/LS/PS, other C0/C1 control characters, and DEL; preserve TAB; truncate to a fixed cap with an explicit truncation marker.
+- **Always use structured-log placeholders** (`{Foo}`) and pass the value as an argument. Never interpolate or concatenate user input into the message template; never use user input as the format string itself.
+- **Stack traces use `LogSanitizer.Clean(value, LogSanitizer.MaxStackTraceLength)`** (32 KB cap) — the default 4 KB cap is for short scalar fields and would truncate real traces.
+- **Raw `Exception` is opt-in.** `GlobalExceptionHandler` defaults to logging sanitized `ExceptionType` / `ExceptionMessage` / `ExceptionStackTrace` fields and does **not** pass the raw `Exception` to the logger. Set `Logging:Exceptions:IncludeRawException = true` (config or env var) to restore raw-exception logging for debugging — this re-enables first-class structured exception telemetry on OpenTelemetry / Application Insights at the cost of plaintext-sink CWE-117 safety.
+- **Tests for new logging sites** that emit user-controlled values must include at least one assertion that the rendered log message contains no `\r` / `\n` when the input contains them.
+
 ### API Versioning
 
 - Use **URL path versioning**: `/api/v1/questions`, `/api/v2/questions`.

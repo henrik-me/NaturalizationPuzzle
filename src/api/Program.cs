@@ -2,6 +2,7 @@ using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using NaturalizationPuzzle.Api.Data;
 using NaturalizationPuzzle.Api.Endpoints;
+using NaturalizationPuzzle.Api.Logging;
 using NaturalizationPuzzle.Api.Middleware;
 using NaturalizationPuzzle.Api.Services;
 
@@ -23,6 +24,8 @@ builder.Services.AddScoped<IRepresentativeService, RepresentativeService>();
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
+builder.Services.Configure<ExceptionLoggingOptions>(
+    builder.Configuration.GetSection(ExceptionLoggingOptions.SectionName));
 
 builder.Services.AddOpenApi();
 builder.Services.AddCors(options =>
