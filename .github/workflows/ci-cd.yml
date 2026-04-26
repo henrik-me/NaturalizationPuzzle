@@ -80,6 +80,13 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # dorny/paths-filter uses the GitHub API on pull_request events to list
+    # changed files, which requires pull-requests: read. Declare the minimal
+    # token scope explicitly so a future tightening of the repo's default
+    # GITHUB_TOKEN permissions doesn't silently break the filter step.
+    permissions:
+      contents: read
+      pull-requests: read
 
     steps:
       - name: Checkout
