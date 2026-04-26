@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { QuestionDto } from '../types/api';
-import { getAllQuestions, get6520Questions } from '../services/questionService';
+import { getAllQuestions } from '../services/questionService';
 import { useAppContext } from '../context/AppContext';
 import { QuizCard } from '../components/QuizCard';
 import { useProgress } from '../hooks/useProgress';
@@ -44,9 +44,9 @@ function orderedUnique(values: readonly string[], preferred: readonly string[]):
 export function StudyPage(): React.ReactNode {
   const { state } = useAppContext();
   const { studiedQuestionIds, markStudied, studiedCount } = useProgress();
-  const [questions, setQuestions] = useState<readonly QuestionDto[]>([]);
+  const [allQuestions, setAllQuestions] = useState<readonly QuestionDto[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(state.selectedStateId !== null);
   const [scope, setScope] = useState<ScopeFilter>('all');
   const [category, setCategory] = useState<string>(ALL_CATEGORIES);
   const [subCategory, setSubCategory] = useState<string>(ALL_SUBCATEGORIES);
@@ -54,30 +54,27 @@ export function StudyPage(): React.ReactNode {
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
-    let cancelled = false;
+    if (!state.selectedStateId) return;
     const load = async (): Promise<void> => {
       setIsLoading(true);
-      const stateId = state.selectedStateId ?? undefined;
-      const data = scope === '6520'
-        ? await get6520Questions(stateId)
-        : await getAllQuestions(stateId);
-      // Stale-response guard: an earlier scope/state change may resolve
-      // after a later one. Drop the older payload so the UI always reflects
-      // the most recently requested filters.
-      if (cancelled) return;
-      setQuestions(data);
+      const data = await getAllQuestions(state.selectedStateId ?? undefined);
+      setAllQuestions(data);
       setCurrentIndex(0);
       setIsLoading(false);
     };
     void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [state.selectedStateId, scope]);
+  }, [state.selectedStateId]);
+
+  // Scope (All / 65/20) is filtered client-side off the single fetched dataset.
+  // All subsequent dimension options derive from the scoped set so e.g. the
+  // Category dropdown only lists categories that exist in the active scope.
+  const scopedQuestions = useMemo((): readonly QuestionDto[] => {
+    return scope === '6520' ? allQuestions.filter(q => q.is6520Designated) : allQuestions;
+  }, [allQuestions, scope]);
 
   const categoryOptions = useMemo((): readonly string[] => {
-    return orderedUnique(questions.map(q => q.category), CATEGORY_ORDER);
-  }, [questions]);
+    return orderedUnique(scopedQuestions.map(q => q.category), CATEGORY_ORDER);
+  }, [scopedQuestions]);
 
   // Effective category falls back to ALL when the stored selection is no
   // longer present in the loaded dataset (e.g. after a scope/state change
@@ -90,9 +87,9 @@ export function StudyPage(): React.ReactNode {
 
   const subCategoryOptions = useMemo((): readonly string[] => {
     if (effectiveCategory === ALL_CATEGORIES) return [];
-    const subs = questions.filter(q => q.category === effectiveCategory).map(q => q.subCategory);
+    const subs = scopedQuestions.filter(q => q.category === effectiveCategory).map(q => q.subCategory);
     return orderedUnique(subs, []);
-  }, [questions, effectiveCategory]);
+  }, [scopedQuestions, effectiveCategory]);
 
   const effectiveSubCategory = subCategory !== ALL_SUBCATEGORIES && !subCategoryOptions.includes(subCategory)
     ? ALL_SUBCATEGORIES
@@ -101,7 +98,7 @@ export function StudyPage(): React.ReactNode {
   const studiedSet = useMemo((): ReadonlySet<number> => new Set(studiedQuestionIds), [studiedQuestionIds]);
 
   const filteredQuestions = useMemo((): readonly QuestionDto[] => {
-    let list: readonly QuestionDto[] = questions;
+    let list: readonly QuestionDto[] = scopedQuestions;
     if (effectiveCategory !== ALL_CATEGORIES) {
       list = list.filter(q => q.category === effectiveCategory);
     }
@@ -119,10 +116,18 @@ export function StudyPage(): React.ReactNode {
       list = list.filter(q => matchesSearch(q, terms));
     }
     return list;
-  }, [questions, effectiveCategory, effectiveSubCategory, studiedFilter, studiedSet, searchText]);
+  }, [scopedQuestions, effectiveCategory, effectiveSubCategory, studiedFilter, studiedSet, searchText]);
+
+  // Clamp the current index to the filtered set without an effect if the
+  // available questions shrink for any reason (e.g. a tighter filter is
+  // applied while the user was at index 5 of a now-2-item list).
+  const safeIndex = filteredQuestions.length === 0
+    ? 0
+    : Math.min(currentIndex, filteredQuestions.length - 1);
 
   const handleScopeChange = useCallback((next: ScopeFilter): void => {
     setScope(next);
+    setCurrentIndex(0);
   }, []);
 
   const handleCategoryChange = useCallback((value: string): void => {
@@ -161,14 +166,16 @@ export function StudyPage(): React.ReactNode {
     searchText.trim().length > 0;
 
   const handleNext = useCallback((): void => {
-    const current = filteredQuestions[currentIndex];
+    const current = filteredQuestions[safeIndex];
     if (current) {
       markStudied(current.id);
     }
-    if (filteredQuestions.length > 0) {
-      setCurrentIndex(prev => (prev + 1) % filteredQuestions.length);
-    }
-  }, [filteredQuestions, currentIndex, markStudied]);
+    setCurrentIndex(prev => {
+      const len = filteredQuestions.length;
+      if (len === 0) return 0;
+      return (prev + 1) % len;
+    });
+  }, [filteredQuestions, safeIndex, markStudied]);
 
   if (!state.selectedStateId) {
     return (
@@ -183,7 +190,7 @@ export function StudyPage(): React.ReactNode {
     );
   }
 
-  if (isLoading && questions.length === 0) {
+  if (isLoading) {
     return (
       <div className="flex justify-center py-12" role="status" aria-label="Loading questions">
         <p className="text-gray-500 dark:text-gray-400">Loading questions...</p>
@@ -191,10 +198,9 @@ export function StudyPage(): React.ReactNode {
     );
   }
 
-  const currentQuestion = filteredQuestions[currentIndex];
+  const currentQuestion = filteredQuestions[safeIndex];
   const studiedInCurrentSet = filteredQuestions.filter(q => studiedSet.has(q.id)).length;
   const isCurrentStudied = currentQuestion ? studiedSet.has(currentQuestion.id) : false;
-  const isReloading = isLoading && questions.length > 0;
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
@@ -324,21 +330,13 @@ export function StudyPage(): React.ReactNode {
         )}
       </div>
 
-      {isReloading ? (
-        <div
-          className="flex justify-center py-12 bg-white dark:bg-slate-900 rounded-lg shadow-sm"
-          role="status"
-          aria-live="polite"
-          aria-busy="true"
-        >
-          <p className="text-gray-500 dark:text-gray-400">Refreshing questions...</p>
-        </div>
-      ) : currentQuestion ? (
+      {currentQuestion ? (
         <div className="flex justify-center">
           <QuizCard
+            key={currentQuestion.id}
             question={currentQuestion}
             onNext={handleNext}
-            questionNumber={currentIndex + 1}
+            questionNumber={safeIndex + 1}
             totalQuestions={filteredQuestions.length}
           />
         </div>
