@@ -64,6 +64,11 @@ export default defineConfig({
     }),
   ],
   server: {
+    // Fail fast if 5173 is already in use rather than silently switching
+    // to 5174 — Playwright always waits on a fixed URL so a port shift
+    // turns into a 30s timeout. With strictPort, the dev-server launch
+    // errors out immediately and the e2e suite surfaces the conflict.
+    strictPort: true,
     proxy: {
       '/api': {
         target: 'https://localhost:7075',
