@@ -84,6 +84,19 @@ dotnet test --filter "DisplayName~Returns_questions_for_state"   # single test b
 
 ## Key Conventions
 
+### Orchestration & Sub-Agents
+
+The main agent acts as an **orchestrator** whose top priority is to remain responsive to the user. Long-running, investigative, or otherwise time-consuming work must be delegated to sub-agents whenever possible so the orchestrator stays free to plan, decide, and answer follow-up questions.
+
+- **Default to delegation.** For any task that involves more than a few tool calls of investigation or execution, spin up a sub-agent (`explore`, `task`, `general-purpose`, or `code-review` — `rubber-duck` is an example of the `code-review` agent) instead of doing the work inline. Examples: codebase exploration across many files, running long test/build/lint commands, reviewing diffs or PRs, validating plans, batch refactors.
+- **Prefer background mode** (`mode: "background"`) for sub-agents whose results you don't need before your very next step. End the turn after launching; the completion notification will bring you back. This keeps the user's terminal interactive.
+- **Use sync mode** (`mode: "sync"`) only when the next step genuinely cannot proceed without the result (e.g., the mandatory pre-push GPT-5.4 code review).
+- **Parallelize independent work.** Multiple `explore` or `code-review` agents can run concurrently — launch them in a single response when their scopes don't overlap.
+- **Give complete context.** Sub-agents are stateless. Provide the full task, file paths, success criteria, constraints (e.g., "do not modify code", "do not post to the PR"), and the expected output format in the prompt.
+- **Own the scope you delegate.** Once a sub-agent owns a scope, do not duplicate its work with your own grep/view calls; wait for the result.
+- **Fall back gracefully.** If a sub-agent fails twice on the same task, finish it yourself rather than spinning a third.
+- **Stay available.** Between sub-agent launches and notifications, remain ready to accept new user input. Do not block on long shell loops or polling when a sub-agent or background process can do the waiting.
+
 ### Git Workflow
 
 - **Every change gets its own commit.** No batching unrelated changes.
