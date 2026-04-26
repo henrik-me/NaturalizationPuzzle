@@ -85,13 +85,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # Detect whether this change touches code paths that warrant a real
+      # Playwright run. Docs-only PRs (markdown anywhere, LICENSE, copilot
+      # instructions, .gitignore, .editorconfig, issue/PR templates) skip
+      # the ~35s Playwright run but the job still reports success so the
+      # required status check on main is satisfied.
+      #
+      # The pattern list mirrors on.push.paths-ignore above. We use
+      # predicate-quantifier: every with negated patterns so a file is
+      # considered "code" only when it satisfies ALL exclusions (i.e., it
+      # is none of the doc paths). The filter outputs code=true if at
+      # least one changed file is non-docs — so mixed docs+code PRs run
+      # the full Playwright suite, and only purely docs PRs skip.
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          predicate-quantifier: 'every'
+          filters: |
+            code:
+              - '!**/*.md'
+              - '!LICENSE'
+              - '!.github/copilot-instructions.md'
+              - '!.github/instructions/**'
+              - '!.github/PULL_REQUEST_TEMPLATE.md'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.gitignore'
+              - '!.editorconfig'
+
       - name: Setup .NET
+        if: steps.filter.outputs.code == 'true'
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
           dotnet-quality: "preview"
 
       - name: Setup Node.js
+        if: steps.filter.outputs.code == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: "22"
@@ -101,18 +131,22 @@ jobs:
             tests/e2e/package-lock.json
 
       - name: Install client dependencies
+        if: steps.filter.outputs.code == 'true'
         working-directory: src/client
         run: npm ci
 
       - name: Install e2e dependencies
+        if: steps.filter.outputs.code == 'true'
         working-directory: tests/e2e
         run: npm ci
 
       - name: Install Playwright browser (chromium)
+        if: steps.filter.outputs.code == 'true'
         working-directory: tests/e2e
         run: npx playwright install --with-deps chromium
 
       - name: Run Playwright e2e tests
+        if: steps.filter.outputs.code == 'true'
         working-directory: tests/e2e
         # The Playwright config's webServer blocks auto-start the .NET API
         # and Vite dev server. Use --reporter=list explicitly: the default
@@ -123,12 +157,16 @@ jobs:
         # The list reporter doesn't generate a playwright-report/ directory
         # (only the html reporter does), so we upload only test-results/,
         # which contains traces, screenshots, and videos for failed tests.
-        if: failure()
+        if: failure() && steps.filter.outputs.code == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-test-results
           path: tests/e2e/test-results/
           retention-days: 14
+
+      - name: Skip notice (docs-only)
+        if: steps.filter.outputs.code != 'true'
+        run: echo "Docs-only change detected — Playwright skipped, required check satisfied."
 
   docker-build-push:
     name: Docker Build & Push
