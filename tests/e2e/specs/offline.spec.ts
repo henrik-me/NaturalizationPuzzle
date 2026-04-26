@@ -20,15 +20,36 @@ test.describe('Offline Capabilities', () => {
     // Load app online first — warm-up hook caches all API data
     const settings = new SettingsPage(page);
     await settings.goto();
-    await settings.selectState('New York');
 
-    // Visit study page to ensure questions are loaded and cached
+    // Wait for the post-state-selection warm-up to actually finish, on
+    // a deterministic signal rather than a fixed timeout. ``useWarmUpCache``
+    // re-runs whenever ``stateId`` changes, so once we pick a state it
+    // fires getAllQuestions, get6520Questions, getAllStates, and
+    // getStateById in parallel. The offline tests below depend on the
+    // all-questions, 65/20 questions, and state-by-id responses being
+    // in browser cache; wait for those requests to resolve before going
+    // offline so the test never races the warm-up. A fixed waitForTimeout
+    // was previously used here, but it was either too short on slow CI
+    // or wasted time when the warm-up finished quickly.
+    const warmUpResponses = Promise.all([
+      page.waitForResponse(
+        r => /\/api\/v1\/questions\?stateId=\d+/.test(r.url()) && r.ok(),
+      ),
+      page.waitForResponse(
+        r => /\/api\/v1\/questions\/6520\?stateId=\d+/.test(r.url()) && r.ok(),
+      ),
+      page.waitForResponse(
+        r => /\/api\/v1\/states\/\d+/.test(r.url()) && r.ok(),
+      ),
+    ]);
+    await settings.selectState('New York');
+    await warmUpResponses;
+
+    // Visit study page so the StudyPage component itself has rendered
+    // at least once with the cached data before tests reload offline.
     const study = new StudyPage(page);
     await study.goto();
     await study.getQuestionText();
-
-    // Give service worker time to cache responses
-    await page.waitForTimeout(2000);
   });
 
   test('study page shows questions while offline', async ({ page, context }) => {
