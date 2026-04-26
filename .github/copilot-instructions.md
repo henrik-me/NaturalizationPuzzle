@@ -148,6 +148,19 @@ Sub-agents that build, test, modify files, or check out different branches **mus
 - The review must cover correctness, security, edge cases, and blast radius. Adopt findings that prevent bugs, regressions, or merging a broken change. A finding may be dismissed only when clearly non-blocking; record a one-line rationale for each dismissed finding.
 - When summarizing review outcomes to the user, be concise: state the key findings and how you addressed each. Do not copy the critique verbatim.
 
+#### Pre-Push Verification (build + tests + e2e)
+
+- **Every non-docs change must pass full local verification before it is pushed or opened as a PR, and again before every subsequent push to the PR branch** (e.g., commits that address Copilot or GPT-5.4 review feedback). This is a mandatory pre-push gate, peer to the GPT-5.4 review above.
+- "Non-docs" uses the same definition as the Copilot PR Review Loop — paths outside the CI/CD workflow's `paths-ignore` list. Docs-only changes are exempt from build/test/e2e verification.
+- Verification runs on the change's affected sides; at minimum:
+  - **Frontend changes** (`src/client/**`): `npm run lint && npm test -- --run && npm run build` from `src/client/`.
+  - **Backend changes** (`src/api/**`, `tests/api/**`, `NaturalizationPuzzle.sln`): `dotnet build` and `dotnet test` from the **repo root** (so the `.sln` resolves the xUnit project at `tests/api/`; never run `dotnet test` from `src/api/` — that's the web app project and the suite is silently skipped).
+  - **End-to-end tests** must run for any change that touches `src/client/**`, `src/api/**`, or `infra/**`, or whose effects could plausibly affect runtime behavior. From `tests/e2e/`: `npm ci` (first time) then `npx playwright test --reporter=list` (headless). The Playwright config auto-starts the API (`dotnet run`) and the Vite dev server via `webServer` blocks — do **not** start them manually. Ensure the Chromium browser is installed (`npx playwright install chromium`).
+  - **Never use the default `html` reporter for agent/CI runs.** Playwright's HTML reporter starts a local web server (default port 9323) on failure that blocks the test process from exiting and hangs sub-agents. Always pass `--reporter=list` (or `--reporter=line`/`dot`/`github`) on the CLI to override the config's `reporter: 'html'`. Pass/fail status and per-test details must be reported directly from the CLI output, not from a UI report.
+  - Cross-cutting changes (infra, workflows, dependencies) must run all three sides.
+- If any step fails, fix it and rerun **the full set** before pushing — never push with known failures, even if "unrelated."
+- Verification work is well-suited for delegation to a sub-agent in its own worktree (see **Worktree Isolation for Sub-Agents**) so the orchestrator stays responsive. The sub-agent reports pass/fail and surfaces logs only for failures.
+
 #### Copilot PR Review Loop (non-docs changes)
 
 Any change that is **not docs-only** must additionally pass an iterative GitHub Copilot review on the pull request itself. This is in addition to (not a replacement for) the local GPT-5.4 review above. "Docs-only" here means the change touches only paths covered by the CI/CD workflow's `paths-ignore` list (Markdown, `LICENSE`, `.gitignore`, `.editorconfig`, copilot/contributor instructions, PR/issue templates).
@@ -158,7 +171,7 @@ Any change that is **not docs-only** must additionally pass an iterative GitHub 
 - **Re-request Copilot review after each push** of new commits using the same `gh pr edit <N> --add-reviewer "@copilot"` invocation, or the "Re-request review" button in the UI.
 - **Loop until Copilot returns a clean review** with no further comments or change suggestions. Only then is the PR ready to merge.
 - The local pre-push GPT-5.4 review is still required for every commit pushed to the PR branch — including commits that address Copilot's feedback.
-- **Dependabot/bot PRs exception:** the "push fixes as additional commits" step conflicts with the Dependabot rule against pushing to a Dependabot branch. For bot-authored PRs, do **not** push commits to the bot's branch to address Copilot feedback. Instead: if Copilot's suggestions are actionable and material, close the bot PR (or leave it for the bot to supersede) and open a human-authored PR from a fresh branch that incorporates both the bump and the fixes. If Copilot's suggestions are non-blocking, dismiss them with a one-line rationale per the Code Review section and proceed with the normal Dependabot merge flow.
+- **Dependabot/bot PRs:** the Copilot review loop applies to them too. If Copilot has actionable feedback on a bot PR, push fix-up commits directly to the bot's branch to address it. This will stop Dependabot from further auto-managing that PR (no more auto-rebase), which is acceptable because the PR is about to be merged. Only use `@dependabot rebase` when you genuinely want Dependabot to keep managing the PR (e.g., it's behind `main` and you have no fix-ups to push).
 
 ### Dependabot & Security PRs
 
@@ -178,7 +191,7 @@ Dependabot PRs (dependency bumps) and other automated security PRs are **first-c
    git fetch origin pull/<PR>/head
    git worktree add <src-location>_wt-<N> FETCH_HEAD
    ```
-2. **Inspect the diff scope** (in the worktree): `git diff main..HEAD`. Confirm only the expected dependency files change (e.g., `package.json`, `package-lock.json`, `*.csproj`, `packages.lock.json`). Flag any unrelated edits.
+2. **Inspect the diff scope** (in the worktree): `git diff main..HEAD`. For a clean Dependabot PR with no fix-up commits, confirm only the expected dependency files change (e.g., `package.json`, `package-lock.json`, `*.csproj`, `packages.lock.json`) and flag any unrelated edits. If Copilot review feedback led to fix-up commits on the PR (per the Copilot PR Review Loop), source/config edits required to land the bump are expected and allowed — but they must be directly justified by the bump or by a Copilot finding. Anything outside that scope is still flagged.
 3. **Restore dependencies** in the affected workspace inside the worktree:
    - Frontend bumps: `cd src/client && npm ci`
    - Backend bumps: `cd src/api && dotnet restore`
@@ -187,11 +200,12 @@ Dependabot PRs (dependency bumps) and other automated security PRs are **first-c
    - Frontend (run from `src/client/`): `npm run lint && npm test -- --run && npm run build`
    - Backend: `dotnet build` from the worktree root (or `src/api/`), and `dotnet test` from the **worktree root** so the solution resolves the xUnit project at `tests/api/`. Do **not** run `dotnet test` from `src/api/` — that project is the web app, not the test project, so the suite would be silently skipped.
 6. **Run the GPT-5.4 `code-review` sub-agent** on the final diff (mandatory per Code Review section). The reviewer can read from the same worktree.
-7. **Remove the worktree** when validation is complete (orchestrator step): `git worktree remove <src-location>_wt-<N>`.
+7. **Re-run the validation checklist (steps 2–6) after every fix-up commit** pushed to the PR branch in response to Copilot or GPT-5.4 review feedback. The pre-push verification gate already covers build + unit tests + e2e for the new commit; this step ensures the diff scope, resolved versions, and final-diff GPT-5.4 review reflect the latest PR head before merge.
+8. **Remove the worktree** when validation is complete (orchestrator step): `git worktree remove <src-location>_wt-<N>`.
 
 **Merging:**
 - Use **squash merge**. The PR's CI status checks must be passing.
-- If the PR is behind `main` and conflicts, comment `@dependabot rebase` on the PR — **do not manually rebase or push commits to a Dependabot branch**, which would prevent Dependabot from continuing to manage it.
+- If the PR is behind `main` and conflicts, comment `@dependabot rebase` on the PR to have Dependabot rebase it — do not manually rebase. (Pushing fix-up commits to address Copilot review feedback is allowed and expected per the Copilot PR Review Loop; it just ends Dependabot's auto-management of the PR, which is fine when you're about to merge.)
 - A bump that touches deploy-relevant paths (e.g., `src/**`, `Dockerfile`) will trigger a production deploy through the normal `production` environment approval gate. Plan accordingly.
 
 **Grouping & cadence:**
