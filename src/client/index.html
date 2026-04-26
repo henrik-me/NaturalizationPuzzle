@@ -8,10 +8,14 @@
     <title>Naturalization Puzzle</title>
     <script>
       // FOUC-prevention: apply persisted theme synchronously before React mounts.
+      // localStorage failure must not skip the system-preference fallback.
       (function () {
+        var pref = 'system';
         try {
           var stored = localStorage.getItem('themePreference');
-          var pref = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+          if (stored === 'light' || stored === 'dark' || stored === 'system') pref = stored;
+        } catch (e) { /* localStorage unavailable; keep default 'system' */ }
+        try {
           var resolved = pref === 'system'
             ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
             : pref;
@@ -19,7 +23,7 @@
           document.documentElement.style.colorScheme = resolved;
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute('content', resolved === 'dark' ? '#0f172a' : '#1e40af');
-        } catch (e) { /* localStorage unavailable; default light */ }
+        } catch (e) { /* defensive: never block app startup */ }
       })();
     </script>
   </head>
