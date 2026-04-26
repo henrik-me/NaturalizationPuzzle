@@ -66,9 +66,9 @@ export function HistoryPage(): React.ReactNode {
   if (quizHistory.length === 0) {
     return (
       <main className="max-w-2xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Quiz History</h2>
-        <div className="bg-white rounded-xl shadow-md p-6 text-center">
-          <p className="text-gray-500 mb-4">You haven't taken any quizzes yet.</p>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Quiz History</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 text-center">
+          <p className="text-gray-500 dark:text-gray-400 mb-4">You haven't taken any quizzes yet.</p>
           <Link
             to="/quiz"
             className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 focus:ring-2 focus:ring-blue-500"
@@ -82,59 +82,59 @@ export function HistoryPage(): React.ReactNode {
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Quiz History</h2>
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Quiz History</h2>
 
-      <div className="bg-white rounded-xl shadow-md p-6 space-y-6">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 space-y-6">
         <section aria-labelledby="stats-heading">
-          <h3 id="stats-heading" className="text-lg font-semibold text-gray-700 mb-3">Summary</h3>
+          <h3 id="stats-heading" className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-3">Summary</h3>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="bg-blue-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-blue-800">{stats.total}</p>
-              <p className="text-xs text-blue-600">Quizzes Taken</p>
+            <div className="bg-blue-50 dark:bg-blue-950/40 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-blue-800 dark:text-blue-200">{stats.total}</p>
+              <p className="text-xs text-blue-600 dark:text-blue-300">Quizzes Taken</p>
             </div>
-            <div className="bg-green-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-green-800">{stats.passRate}%</p>
-              <p className="text-xs text-green-600">Pass Rate</p>
+            <div className="bg-green-50 dark:bg-green-950/40 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-green-800 dark:text-green-200">{stats.passRate}%</p>
+              <p className="text-xs text-green-600 dark:text-green-300">Pass Rate</p>
             </div>
-            <div className="bg-purple-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-purple-800">{stats.bestScore ?? '–'}</p>
-              <p className="text-xs text-purple-600">Best Score</p>
+            <div className="bg-purple-50 dark:bg-purple-950/40 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-purple-800 dark:text-purple-200">{stats.bestScore ?? '–'}</p>
+              <p className="text-xs text-purple-600 dark:text-purple-300">Best Score</p>
             </div>
-            <div className="bg-amber-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-amber-800">{stats.currentStreak}</p>
-              <p className="text-xs text-amber-600">Pass Streak</p>
+            <div className="bg-amber-50 dark:bg-amber-950/40 rounded-lg p-3 text-center">
+              <p className="text-2xl font-bold text-amber-800 dark:text-amber-200">{stats.currentStreak}</p>
+              <p className="text-xs text-amber-600 dark:text-amber-300">Pass Streak</p>
             </div>
           </div>
         </section>
 
         <section aria-labelledby="history-heading">
-          <h3 id="history-heading" className="text-lg font-semibold text-gray-700 mb-3">All Attempts</h3>
+          <h3 id="history-heading" className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-3">All Attempts</h3>
           <ol className="space-y-3" aria-label="Quiz attempt history">
             {sortedHistory.map((entry, index) => (
               <li
                 key={`${entry.date}-${index}`}
-                className="flex items-center justify-between bg-gray-50 rounded-lg p-4"
+                className="flex items-center justify-between bg-gray-50 dark:bg-slate-800 rounded-lg p-4"
               >
                 <div className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-gray-800">
+                  <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
                     {formatDate(entry.date)}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                       entry.mode === '6520'
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'bg-blue-100 text-blue-700'
+                        ? 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200'
+                        : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200'
                     }`}>
                       {entry.mode === '6520' ? '65/20' : 'Standard'}
                     </span>
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold text-gray-800">
+                  <span className="text-lg font-bold text-gray-800 dark:text-gray-100">
                     {entry.correct}/{entry.total}
                   </span>
                   <span className={`text-sm font-semibold ${
-                    entry.passed ? 'text-green-700' : 'text-red-700'
+                    entry.passed ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
                   }`} aria-label={entry.passed ? 'Passed' : 'Failed'}>
                     {entry.passed ? '✓ Pass' : '✗ Fail'}
                   </span>
@@ -146,8 +146,8 @@ export function HistoryPage(): React.ReactNode {
 
         <section>
           {showConfirm ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4" role="alert">
-              <p className="text-sm text-red-800 mb-3">
+            <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg p-4" role="alert">
+              <p className="text-sm text-red-800 dark:text-red-200 mb-3">
                 Are you sure? This will permanently delete all quiz history.
               </p>
               <div className="flex gap-2">
@@ -159,7 +159,7 @@ export function HistoryPage(): React.ReactNode {
                 </button>
                 <button
                   onClick={() => setShowConfirm(false)}
-                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-200 focus:ring-2 focus:ring-gray-400"
+                  className="bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded text-sm hover:bg-gray-200 dark:hover:bg-slate-600 focus:ring-2 focus:ring-gray-400"
                 >
                   Cancel
                 </button>
@@ -168,7 +168,7 @@ export function HistoryPage(): React.ReactNode {
           ) : (
             <button
               onClick={() => setShowConfirm(true)}
-              className="text-red-600 text-sm hover:underline focus:ring-2 focus:ring-red-500 rounded px-2 py-1"
+              className="text-red-600 dark:text-red-400 text-sm hover:underline focus:ring-2 focus:ring-red-500 rounded px-2 py-1"
             >
               Clear quiz history
             </button>

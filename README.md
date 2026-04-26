@@ -262,6 +262,10 @@ The **History page** (`/history`) shows all past quiz attempts in reverse chrono
 
 A **keyword search box** lets you filter questions by typing words that appear in the question text, answers, category, or subcategory (e.g., "amendment", "president", "1776"). The search works with all-word matching, combines with the 65/20 filter, and operates entirely client-side. When no questions match, a clear-search prompt is shown.
 
+### Dark Mode
+
+The app supports **Light**, **Dark**, and **System** themes (default: System, which follows the OS `prefers-color-scheme`). The theme is selected from a 3-way segmented control on the **Settings** page under the *Appearance* section, persisted to `localStorage` as `themePreference`, and applied app-wide before React mounts (no flash of unstyled content). The `<meta name="theme-color">` tag and `color-scheme` CSS property are updated to match the resolved theme so browser chrome and native form controls render correctly. When the OS theme changes while the app is running in System mode, the UI updates live.
+
 ### Data Storage
 
 All user data is stored **client-side only** in the browser's `localStorage`. The backend API is a read-only data source — it never stores per-user state.
@@ -270,6 +274,7 @@ All user data is stored **client-side only** in the browser's `localStorage`. Th
 |------|---------|-----|---------|
 | Selected state ID | `localStorage` | `selectedStateId` | Numeric ID of the user's chosen U.S. state. On page load, the app hydrates full state details (capital, governor, senators, representatives) from the API. |
 | Study progress | `localStorage` | `naturalizationProgress` | Studied question IDs and quiz history (date, mode, score, pass/fail). |
+| Theme preference | `localStorage` | `themePreference` | `'light'`, `'dark'`, or `'system'` (default). Drives the app-wide color theme. |
 | State details (capital, governor, senators, reps) | Backend API | — | Read-only, fetched from `/api/v1/states/{id}`. Cached by the service worker for offline use. |
 | Question data (128 questions) | Backend API | — | Read-only, fetched from `/api/v1/questions`. Cached by the service worker for offline use. |
 

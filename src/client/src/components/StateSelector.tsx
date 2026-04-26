@@ -27,19 +27,19 @@ export function StateSelector(): React.ReactNode {
   };
 
   if (isLoading) {
-    return <p className="text-gray-500">Loading states...</p>;
+    return <p className="text-gray-500 dark:text-gray-400">Loading states...</p>;
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor="state-select" className="text-sm font-medium text-gray-700">
+      <label htmlFor="state-select" className="text-sm font-medium text-gray-700 dark:text-gray-200">
         Select your state
       </label>
       <select
         id="state-select"
         value={state.selectedStateId ?? ''}
         onChange={handleChange}
-        className="border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        className="border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-blue-500 focus:outline-none"
         aria-label="Select your U.S. state for state-specific questions"
       >
         <option value="" disabled>Choose a state...</option>

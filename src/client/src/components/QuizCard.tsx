@@ -52,33 +52,33 @@ export function QuizCard({ question, onNext, questionNumber, totalQuestions, mod
 
   return (
     <div
-      className="bg-white rounded-xl shadow-md p-6 max-w-2xl w-full"
+      className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 max-w-2xl w-full"
       role="article"
       aria-label={`Question ${questionNumber} of ${totalQuestions}`}
     >
       <div className="flex justify-between items-center mb-4">
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-gray-500 dark:text-gray-400">
           Question {questionNumber} of {totalQuestions}
         </span>
         {question.is6520Designated && (
-          <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
+          <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs px-2 py-1 rounded-full font-medium">
             65/20
           </span>
         )}
       </div>
 
-      <p className="text-lg font-medium text-gray-900 mb-1">
-        <span className="text-gray-500 mr-2">#{question.id}</span>
+      <p className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">
+        <span className="text-gray-500 dark:text-gray-400 mr-2">#{question.id}</span>
         {question.text}
       </p>
 
-      <p className="text-xs text-gray-500 mb-4">
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
         {question.category} › {question.subCategory}
       </p>
 
       {mode === 'quiz' ? (
         <div className="space-y-3">
-          <label htmlFor="quiz-answer-input" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="quiz-answer-input" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
             Your answer
           </label>
           <input
@@ -88,7 +88,7 @@ export function QuizCard({ question, onNext, questionNumber, totalQuestions, mod
             onChange={e => setUserAnswer(e.target.value)}
             onKeyDown={handleInputKeyDown}
             placeholder="Type your answer..."
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none text-gray-900 dark:text-gray-100"
             autoComplete="off"
             data-testid="quiz-answer-input"
           />
@@ -106,7 +106,7 @@ export function QuizCard({ question, onNext, questionNumber, totalQuestions, mod
         <div aria-live="polite">
           <ul className="list-disc list-inside space-y-1 mb-6" role="list" aria-label="Accepted answers">
             {question.answers.map((answer, index) => (
-              <li key={index} className="text-green-700">
+              <li key={index} className="text-green-700 dark:text-green-400">
                 {answer}
               </li>
             ))}
@@ -124,7 +124,7 @@ export function QuizCard({ question, onNext, questionNumber, totalQuestions, mod
         <button
           onClick={handleShowAnswer}
           onKeyDown={handleKeyDown}
-          className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors"
+          className="w-full bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 py-3 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors"
           aria-label="Show the answer"
         >
           Show Answer

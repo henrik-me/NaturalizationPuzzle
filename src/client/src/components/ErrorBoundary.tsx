@@ -32,15 +32,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       return (
         <div role="alert" className="max-w-2xl mx-auto px-4 py-12 text-center">
-          <div className="bg-white rounded-xl shadow-md p-8">
-            <h2 className="text-2xl font-bold text-red-700 mb-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-8">
+            <h2 className="text-2xl font-bold text-red-700 dark:text-red-400 mb-4">
               Something went wrong
             </h2>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
               An unexpected error occurred. Please try refreshing the page.
             </p>
             {this.state.error && (
-              <p className="text-sm text-gray-400 mb-6 font-mono">
+              <p className="text-sm text-gray-400 dark:text-gray-500 mb-6 font-mono">
                 {this.state.error.message}
               </p>
             )}

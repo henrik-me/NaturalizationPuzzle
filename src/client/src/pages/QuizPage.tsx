@@ -96,10 +96,10 @@ export function QuizPage(): React.ReactNode {
   if (!state.selectedStateId) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Quiz Mode</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">Quiz Mode</h2>
+        <p className="text-gray-600 dark:text-gray-300">
           Please select your state in{' '}
-          <Link to="/settings" className="text-blue-600 underline">Settings</Link>
+          <Link to="/settings" className="text-blue-600 dark:text-blue-400 underline">Settings</Link>
           {' '}first.
         </p>
       </div>
@@ -109,17 +109,17 @@ export function QuizPage(): React.ReactNode {
   if (!quizState.isStarted) {
     return (
       <main className="max-w-2xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Quiz Mode</h2>
-        <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Quiz Mode</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6 space-y-4">
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-gray-700">Quiz Type</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Quiz Type</label>
             <div className="flex gap-3">
               <button
                 onClick={() => setIs6520(false)}
                 className={`flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                   !is6520
                     ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700'
                 }`}
                 aria-pressed={!is6520}
               >
@@ -131,7 +131,7 @@ export function QuizPage(): React.ReactNode {
                 className={`flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                   is6520
                     ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700'
                 }`}
                 aria-pressed={is6520}
               >
@@ -143,7 +143,7 @@ export function QuizPage(): React.ReactNode {
           <button
             onClick={() => void startQuiz()}
             disabled={isLoading}
-            className="w-full bg-green-700 text-white py-3 rounded-lg font-medium hover:bg-green-800 focus:ring-2 focus:ring-green-500 focus:outline-none transition-colors disabled:opacity-50"
+            className="w-full bg-green-700 dark:bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-800 dark:hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:outline-none transition-colors disabled:opacity-50"
           >
             {isLoading ? 'Loading...' : 'Start Quiz'}
           </button>
@@ -156,44 +156,46 @@ export function QuizPage(): React.ReactNode {
     const passed = correctCount >= passThreshold;
     return (
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-xl shadow-md p-6" aria-live="polite">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6" aria-live="polite">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Quiz Complete!</h2>
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Quiz Complete!</h2>
             <div className={`inline-block px-6 py-3 rounded-lg text-lg font-bold ${
-              passed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              passed
+                ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
             }`}>
               {passed ? '✓ PASSED' : '✗ FAILED'}
             </div>
-            <p className="text-lg mt-3">
+            <p className="text-lg mt-3 text-gray-800 dark:text-gray-100">
               <span className="font-bold">{correctCount}</span> correct out of{' '}
               <span className="font-bold">{quizState.answers.length}</span> answered
               {' '}({passThreshold} needed to pass)
             </p>
           </div>
 
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Review Your Answers</h3>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Review Your Answers</h3>
           <div className="space-y-4">
             {quizState.answers.map((answer, index) => (
               <div
                 key={answer.questionId}
                 className={`p-4 rounded-lg border-l-4 ${
                   answer.isCorrect
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-red-500 bg-red-50'
+                    ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
+                    : 'border-red-500 bg-red-50 dark:bg-red-950/40'
                 }`}
               >
                 <div className="flex items-start gap-2">
-                  <span className={`text-lg ${answer.isCorrect ? 'text-green-600' : 'text-red-600'}`} aria-hidden="true">
+                  <span className={`text-lg ${answer.isCorrect ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`} aria-hidden="true">
                     {answer.isCorrect ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    <p className="font-medium text-gray-900 text-sm">
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
                       {index + 1}. {answer.questionText}
                     </p>
-                    <p className={`text-sm mt-1 ${answer.isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                    <p className={`text-sm mt-1 ${answer.isCorrect ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
                       <span className="font-medium">Your answer:</span> {answer.userAnswer}
                     </p>
-                    <div className="text-sm text-gray-600 mt-1">
+                    <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                       <span className="font-medium">Accepted:</span>{' '}
                       {answer.acceptedAnswers.join(' · ')}
                     </div>
@@ -219,18 +221,18 @@ export function QuizPage(): React.ReactNode {
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-4">
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">
         Quiz Mode {is6520 ? '(65/20)' : '(Standard)'}
       </h2>
 
       {/* Score progress bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6" aria-label="Quiz progress">
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-4 mb-6" aria-label="Quiz progress">
         <div className="flex justify-between text-sm mb-2">
-          <span className="text-green-700 font-medium">✓ {correctCount} correct</span>
-          <span className="text-gray-500">{passThreshold} to pass</span>
-          <span className="text-red-700 font-medium">✗ {incorrectCount} wrong</span>
+          <span className="text-green-700 dark:text-green-400 font-medium">✓ {correctCount} correct</span>
+          <span className="text-gray-500 dark:text-gray-400">{passThreshold} to pass</span>
+          <span className="text-red-700 dark:text-red-400 font-medium">✗ {incorrectCount} wrong</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5 flex overflow-hidden">
+        <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5 flex overflow-hidden">
           <div
             className="bg-green-500 h-2.5 transition-all"
             style={{ width: `${(correctCount / quizState.questions.length) * 100}%` }}

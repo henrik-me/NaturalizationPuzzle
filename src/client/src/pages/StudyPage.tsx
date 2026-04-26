@@ -57,10 +57,10 @@ export function StudyPage(): React.ReactNode {
   if (!state.selectedStateId) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Welcome!</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">Welcome!</h2>
+        <p className="text-gray-600 dark:text-gray-300">
           Please select your state in{' '}
-          <Link to="/settings" className="text-blue-600 underline">Settings</Link>
+          <Link to="/settings" className="text-blue-600 dark:text-blue-400 underline">Settings</Link>
           {' '}to get started.
         </p>
       </div>
@@ -70,7 +70,7 @@ export function StudyPage(): React.ReactNode {
   if (isLoading) {
     return (
       <div className="flex justify-center py-12" role="status" aria-label="Loading questions">
-        <p className="text-gray-500">Loading questions...</p>
+        <p className="text-gray-500 dark:text-gray-400">Loading questions...</p>
       </div>
     );
   }
@@ -82,14 +82,14 @@ export function StudyPage(): React.ReactNode {
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-gray-800">Study Mode</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Study Mode</h2>
         <div className="flex gap-2">
           <button
             onClick={() => setFilter('all')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               filter === 'all'
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700'
             }`}
             aria-pressed={filter === 'all'}
           >
@@ -100,7 +100,7 @@ export function StudyPage(): React.ReactNode {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               filter === '6520'
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700'
             }`}
             aria-pressed={filter === '6520'}
           >
@@ -118,28 +118,28 @@ export function StudyPage(): React.ReactNode {
           placeholder="Search questions or answers..."
           value={searchText}
           onChange={e => handleSearchChange(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           aria-label="Search questions by keyword"
         />
       </div>
 
       {/* Progress indicator */}
-      <div className="bg-white rounded-lg shadow-sm p-3 mb-6">
-        <div className="flex justify-between text-sm text-gray-600 mb-1">
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-3 mb-6">
+        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300 mb-1">
           <span>
             {studiedInCurrentSet} of {filteredQuestions.length} studied
             {searchText.trim() && ` (matching "${searchText.trim()}")`}
           </span>
           <span>{studiedCount} total studied</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2">
           <div
             className="bg-blue-500 h-2 rounded-full transition-all"
             style={{ width: `${filteredQuestions.length > 0 ? (studiedInCurrentSet / filteredQuestions.length) * 100 : 0}%` }}
           />
         </div>
         {isCurrentStudied && (
-          <p className="text-xs text-blue-600 mt-1">✓ You've studied this question before</p>
+          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">✓ You've studied this question before</p>
         )}
       </div>
 
@@ -153,13 +153,13 @@ export function StudyPage(): React.ReactNode {
           />
         </div>
       ) : (
-        <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-          <p className="text-gray-500">
+        <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
+          <p className="text-gray-500 dark:text-gray-400">
             No questions match "<span className="font-medium">{searchText.trim()}</span>"
           </p>
           <button
             onClick={() => handleSearchChange('')}
-            className="mt-3 text-blue-600 hover:text-blue-800 text-sm underline"
+            className="mt-3 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm underline"
           >
             Clear search
           </button>
