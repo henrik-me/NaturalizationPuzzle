@@ -26,6 +26,7 @@ export function StudyPage(): React.ReactNode {
       setIsLoading(true);
       const data = await getAllQuestions(state.selectedStateId ?? undefined);
       setAllQuestions(data);
+      setCurrentIndex(0);
       setIsLoading(false);
     };
     void load();
