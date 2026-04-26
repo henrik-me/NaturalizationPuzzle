@@ -16,15 +16,15 @@ export function StudyPage(): React.ReactNode {
   const { studiedQuestionIds, markStudied, studiedCount } = useProgress();
   const [allQuestions, setAllQuestions] = useState<readonly QuestionDto[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(state.selectedStateId !== null);
   const [filter, setFilter] = useState<'all' | '6520'>('all');
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
+    if (!state.selectedStateId) return;
     const load = async (): Promise<void> => {
       setIsLoading(true);
-      const stateId = state.selectedStateId ?? undefined;
-      const data = await getAllQuestions(stateId);
+      const data = await getAllQuestions(state.selectedStateId ?? undefined);
       setAllQuestions(data);
       setIsLoading(false);
     };
