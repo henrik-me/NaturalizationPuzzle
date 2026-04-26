@@ -43,8 +43,17 @@ export default defineConfig({
       command: 'cd ../../src/client && npm run dev',
       url: 'https://localhost:5173',
       ignoreHTTPSErrors: true,
-      reuseExistingServer: !process.env.CI,
-      timeout: 15000,
+      // The client webServer is never reused — we always launch a fresh
+      // Vite dev server so the ENABLE_DEV_SW env var below is guaranteed
+      // to be in effect (a stale dev server started without it would
+      // silently disable the PWA service worker, breaking offline tests).
+      reuseExistingServer: false,
+      timeout: 30000,
+      env: {
+        // The PWA dev service worker is opt-in (see vite.config.ts).
+        // E2E tests need it enabled to exercise the offline behavior.
+        ENABLE_DEV_SW: 'true',
+      },
     },
   ],
 });

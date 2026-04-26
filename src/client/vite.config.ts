@@ -25,7 +25,10 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        enabled: true,
+        // Only enable the dev service worker when explicitly requested (e.g.
+        // by the Playwright e2e suite). Always-on dev SWs cause confusing
+        // stale-asset behavior during normal `npm run dev` iteration.
+        enabled: process.env.ENABLE_DEV_SW === 'true',
         type: 'module',
         navigateFallback: 'index.html',
         navigateFallbackAllowlist: [/^\/(?!api(?:\/|\?|$)).*/],
