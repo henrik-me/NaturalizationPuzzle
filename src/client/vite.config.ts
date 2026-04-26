@@ -28,13 +28,13 @@ export default defineConfig({
         enabled: true,
         type: 'module',
         navigateFallback: 'index.html',
-        navigateFallbackAllowlist: [/^\/(?!api\/).*/],
+        navigateFallbackAllowlist: [/^\/(?!api(?:\/|\?|$)).*/],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
         navigateFallback: 'index.html',
-        navigateFallbackAllowlist: [/^\/(?!api\/).*/],
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackAllowlist: [/^\/(?!api(?:\/|\?|$)).*/],
+        navigateFallbackDenylist: [/^\/api(?:\/|\?|$)/],
         runtimeCaching: [
           {
             urlPattern: /\/api\/v1\/questions/,
