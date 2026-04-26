@@ -44,16 +44,22 @@ npx vitest run src/components/QuizCard.test.tsx   # single test file
 npx vitest -t "shows correct answer"              # single test by name
 ```
 
-### Backend (`src/api/`)
+### Backend (`src/api/` for app commands, repo root for tests)
 
 ```bash
+# From src/api/ — app commands
 dotnet restore                    # restore NuGet packages
 dotnet build                      # compile
 dotnet run                        # start API (Development)
-dotnet test                       # full xUnit suite
-dotnet test --filter "FullyQualifiedName~QuestionServiceTests"   # single test class
-dotnet test --filter "DisplayName~Returns_questions_for_state"   # single test by name
+
+# From repo root — test commands (xUnit project lives in tests/api/, NOT src/api/)
+dotnet test                                                            # full xUnit suite (resolves the test project via the .sln)
+dotnet test tests/api/NaturalizationPuzzle.Api.Tests.csproj            # explicit test project
+dotnet test --filter "FullyQualifiedName~QuestionServiceTests"         # single test class
+dotnet test --filter "DisplayName~Returns_questions_for_state"         # single test by name
 ```
+
+> **Note:** Running `dotnet test` from `src/api/` runs against the web app project and silently executes zero tests. Always run tests from the repo root (or pass the test project explicitly).
 
 ## Architecture
 
@@ -84,6 +90,48 @@ dotnet test --filter "DisplayName~Returns_questions_for_state"   # single test b
 
 ## Key Conventions
 
+### Orchestration & Sub-Agents
+
+The main agent acts as an **orchestrator** whose top priority is to remain responsive to the user. Long-running, investigative, or otherwise time-consuming work must be delegated to sub-agents whenever possible so the orchestrator stays free to plan, decide, and answer follow-up questions.
+
+- **Default to delegation.** For any task that involves more than a few tool calls of investigation or execution, spin up a sub-agent (`explore`, `task`, `general-purpose`, or `code-review` — `rubber-duck` is an example of the `code-review` agent) instead of doing the work inline. Examples: codebase exploration across many files, running long test/build/lint commands, reviewing diffs or PRs, validating plans, batch refactors.
+- **Prefer background mode** (`mode: "background"`) for sub-agents whose results you don't need before your very next step. End the turn after launching; the completion notification will bring you back. This keeps the user's terminal interactive.
+- **Use sync mode** (`mode: "sync"`) only when the next step genuinely cannot proceed without the result (e.g., the mandatory pre-push GPT-5.4 code review).
+- **Parallelize independent work.** Multiple `explore` or `code-review` agents can run concurrently — launch them in a single response when their scopes don't overlap.
+- **Give complete context.** Sub-agents are stateless. Provide the full task, file paths, success criteria, constraints (e.g., "do not modify code", "do not post to the PR"), and the expected output format in the prompt.
+- **Own the scope you delegate.** Once a sub-agent owns a scope, do not duplicate its work with your own grep/view calls; wait for the result.
+- **Fall back gracefully.** If a sub-agent fails twice on the same task, finish it yourself rather than spinning a third.
+- **Stay available.** Between sub-agent launches and notifications, remain ready to accept new user input. Do not block on long shell loops or polling when a sub-agent or background process can do the waiting.
+
+#### Worktree Isolation for Sub-Agents
+
+Sub-agents that build, test, modify files, or check out different branches **must** run in their own dedicated **git worktree** so they cannot interfere with the orchestrator's working directory or with each other. Without this, two agents working concurrently can swap branches/files under each other (a real failure mode previously observed: a validation agent checked out a PR branch while the orchestrator was creating a feature branch, causing the new branch to fork from the wrong commit).
+
+**Naming scheme:** `<src-location>_wt-<N>` where:
+- `<src-location>` is the repository's working directory path (e.g. `C:\src\NaturalizationPuzzle` → worktrees at `C:\src\NaturalizationPuzzle_wt-1`, `C:\src\NaturalizationPuzzle_wt-2`, ...).
+- `<N>` is a small integer assigned by the orchestrator. The orchestrator owns the numbering and must not reuse a number that is currently in use.
+
+**Orchestrator responsibilities:**
+1. **Choose N** for each isolation-needing sub-agent (track in-use numbers in memory or via `git worktree list`).
+2. **Create the worktree before launching the sub-agent**:
+   ```
+   git worktree add <src-location>_wt-<N> <ref>
+   ```
+   `<ref>` is usually `main` for fresh work, or a fetched PR ref (e.g. `pull/<N>/head`) for PR validation.
+3. **Pass the absolute worktree path to the sub-agent** in its prompt and instruct it to operate exclusively inside that path. Tell it explicitly **not** to `cd` outside the worktree, **not** to switch branches in the orchestrator's repo, and **not** to push or open PRs unless the task says so.
+4. **Remove the worktree after the sub-agent completes:**
+   ```
+   git worktree remove <src-location>_wt-<N>
+   ```
+   If the sub-agent left uncommitted changes that the orchestrator wants, copy or commit them first. Use `git worktree remove --force` only when the worktree state is known to be discardable.
+5. **Never reuse a worktree path across overlapping sub-agents.** Two simultaneous sub-agents must have distinct N values.
+
+**When a worktree is NOT required:**
+- Read-only investigation that does not change branches or run builds (e.g. an `explore` agent doing only `grep`/`view`/`glob`). The orchestrator's working directory is fine for these.
+- The orchestrator's own work; it stays in the primary checkout.
+
+**Constraints from git:** A given branch can be checked out in only one worktree at a time. If two agents need the same branch, give one a detached checkout (`git worktree add --detach <path> <ref>`) or have one work on a fresh branch.
+
 ### Git Workflow
 
 - **Every change gets its own commit.** No batching unrelated changes.
@@ -99,6 +147,70 @@ dotnet test --filter "DisplayName~Returns_questions_for_state"   # single test b
 - For **non-trivial** changes (multi-file, architectural, security-sensitive, or dependency/infra), also do a **plan review** with GPT-5.4 *before* implementing. Plan review may be skipped only for trivial changes (single small edit, typo fix, renaming).
 - The review must cover correctness, security, edge cases, and blast radius. Adopt findings that prevent bugs, regressions, or merging a broken change. A finding may be dismissed only when clearly non-blocking; record a one-line rationale for each dismissed finding.
 - When summarizing review outcomes to the user, be concise: state the key findings and how you addressed each. Do not copy the critique verbatim.
+
+#### Pre-Push Verification (build + tests + e2e)
+
+- **Every non-docs change must pass full local verification before it is pushed or opened as a PR, and again before every subsequent push to the PR branch** (e.g., commits that address Copilot or GPT-5.4 review feedback). This is a mandatory pre-push gate, peer to the GPT-5.4 review above.
+- "Non-docs" uses the same definition as the Copilot PR Review Loop — paths outside the CI/CD workflow's `paths-ignore` list. Docs-only changes are exempt from build/test/e2e verification.
+- Verification runs on the change's affected sides; at minimum:
+  - **Frontend changes** (`src/client/**`): `npm run lint && npm test -- --run && npm run build` from `src/client/`.
+  - **Backend changes** (`src/api/**`, `tests/api/**`, `NaturalizationPuzzle.sln`): `dotnet build` and `dotnet test` from the **repo root** (so the `.sln` resolves the xUnit project at `tests/api/`; never run `dotnet test` from `src/api/` — that's the web app project and the suite is silently skipped).
+  - **End-to-end tests** must run for any change that touches `src/client/**`, `src/api/**`, or `infra/**`, or whose effects could plausibly affect runtime behavior. From `tests/e2e/`: `npm ci` (first time) then `npx playwright test --reporter=list` (headless). The Playwright config auto-starts the API (`dotnet run`) and the Vite dev server via `webServer` blocks — do **not** start them manually. Ensure the Chromium browser is installed (`npx playwright install chromium`).
+  - **Never use the default `html` reporter for agent/CI runs.** Playwright's HTML reporter starts a local web server (default port 9323) on failure that blocks the test process from exiting and hangs sub-agents. Always pass `--reporter=list` (or `--reporter=line`/`dot`/`github`) on the CLI to override the config's `reporter: 'html'`. Pass/fail status and per-test details must be reported directly from the CLI output, not from a UI report.
+  - Cross-cutting changes (infra, workflows, dependencies) must run all three sides.
+- If any step fails, fix it and rerun **the full set** before pushing — never push with known failures, even if "unrelated."
+- Verification work is well-suited for delegation to a sub-agent in its own worktree (see **Worktree Isolation for Sub-Agents**) so the orchestrator stays responsive. The sub-agent reports pass/fail and surfaces logs only for failures.
+
+#### Copilot PR Review Loop (non-docs changes)
+
+Any change that is **not docs-only** must additionally pass an iterative GitHub Copilot review on the pull request itself. This is in addition to (not a replacement for) the local GPT-5.4 review above. "Docs-only" here means the change touches only paths covered by the CI/CD workflow's `paths-ignore` list (Markdown, `LICENSE`, `.gitignore`, `.editorconfig`, copilot/contributor instructions, PR/issue templates).
+
+- **PR required.** Never push non-docs changes directly to `main`, and never use `gh pr merge --admin` to bypass review on a non-docs PR.
+- **Add Copilot as a reviewer** as soon as the PR is opened: `gh pr edit <N> --add-reviewer "@copilot"` (or click "Request a review from Copilot" in the GitHub UI).
+- **Address every Copilot suggestion** — push fixes as additional commits on the PR branch. The dismissal policy from the Code Review section still applies: a suggestion may be dismissed only when clearly non-blocking, and the rationale must be recorded in a PR comment replying to that suggestion.
+- **Re-request Copilot review after each push** of new commits using the same `gh pr edit <N> --add-reviewer "@copilot"` invocation, or the "Re-request review" button in the UI.
+- **Loop until Copilot returns a clean review** with no further comments or change suggestions. Only then is the PR ready to merge.
+- The local pre-push GPT-5.4 review is still required for every commit pushed to the PR branch — including commits that address Copilot's feedback.
+- **Dependabot/bot PRs:** the Copilot review loop applies to them too. If Copilot has actionable feedback on a bot PR, push fix-up commits directly to the bot's branch to address it. This will stop Dependabot from further auto-managing that PR (no more auto-rebase), which is acceptable because the PR is about to be merged. Only use `@dependabot rebase` when you genuinely want Dependabot to keep managing the PR (e.g., it's behind `main` and you have no fix-ups to push).
+
+### Dependabot & Security PRs
+
+Dependabot PRs (dependency bumps) and other automated security PRs are **first-class code changes** and must be validated, reviewed, and merged through the same discipline as human-authored PRs. Never blindly merge them based on green CI alone.
+
+**Triage priority:**
+- **Security advisories / vulnerability fixes**: handle promptly. Don't let them sit.
+- **Patch / minor bumps without security impact**: validate and merge in normal cadence.
+- **Major bumps**: extra scrutiny — analyze breaking changes and peer-dep constraints.
+
+**Plan review:** dependency/infra changes are classed as non-trivial under the **Code Review** section, so a GPT-5.4 plan review applies. In practice, for a routine patch-level Dependabot PR (no breaking changes, narrow blast radius), the validation checklist below is itself the plan; for minor or major bumps run a separate plan review before starting validation.
+
+**Validation checklist — delegate to a sub-agent running in its own worktree** (see Worktree Isolation for Sub-Agents). The orchestrator creates worktree `<src-location>_wt-<N>` from the PR ref, hands the path to the sub-agent, and removes the worktree when done.
+
+1. **Create a worktree from the PR head** (orchestrator step):
+   ```
+   git fetch origin pull/<PR>/head
+   git worktree add <src-location>_wt-<N> FETCH_HEAD
+   ```
+2. **Inspect the diff scope** (in the worktree): `git diff main..HEAD`. For a clean Dependabot PR with no fix-up commits, confirm only the expected dependency files change (e.g., `package.json`, `package-lock.json`, `*.csproj`, `packages.lock.json`) and flag any unrelated edits. If Copilot review feedback led to fix-up commits on the PR (per the Copilot PR Review Loop), source/config edits required to land the bump are expected and allowed — but they must be directly justified by the bump or by a Copilot finding. Anything outside that scope is still flagged.
+3. **Restore dependencies** in the affected workspace inside the worktree:
+   - Frontend bumps: `cd src/client && npm ci`
+   - Backend bumps: `cd src/api && dotnet restore`
+4. **Verify the resolved version** matches what the PR claims (`npm ls <pkg> --all` from `src/client/`, or `dotnet list package --include-transitive` from `src/api/`). Note any unexpected transitive shifts.
+5. **Lint, test, build** on the affected side:
+   - Frontend (run from `src/client/`): `npm run lint && npm test -- --run && npm run build`
+   - Backend: `dotnet build` from the worktree root (or `src/api/`), and `dotnet test` from the **worktree root** so the solution resolves the xUnit project at `tests/api/`. Do **not** run `dotnet test` from `src/api/` — that project is the web app, not the test project, so the suite would be silently skipped.
+6. **Run the GPT-5.4 `code-review` sub-agent** on the final diff (mandatory per Code Review section). The reviewer can read from the same worktree.
+7. **Re-run the validation checklist (steps 2–6) after every fix-up commit** pushed to the PR branch in response to Copilot or GPT-5.4 review feedback. The pre-push verification gate already covers build + unit tests + e2e for the new commit; this step ensures the diff scope, resolved versions, and final-diff GPT-5.4 review reflect the latest PR head before merge.
+8. **Remove the worktree** when validation is complete (orchestrator step): `git worktree remove <src-location>_wt-<N>`.
+
+**Merging:**
+- Use **squash merge**. The PR's CI status checks must be passing.
+- If the PR is behind `main` and conflicts, comment `@dependabot rebase` on the PR to have Dependabot rebase it — do not manually rebase. (Pushing fix-up commits to address Copilot review feedback is allowed and expected per the Copilot PR Review Loop; it just ends Dependabot's auto-management of the PR, which is fine when you're about to merge.)
+- A bump that touches deploy-relevant paths (e.g., `src/**`, `Dockerfile`) will trigger a production deploy through the normal `production` environment approval gate. Plan accordingly.
+
+**Grouping & cadence:**
+- Process Dependabot PRs promptly to avoid security drift, but **one at a time**. Don't batch-merge multiple bumps in the same session unless they are intentionally grouped by Dependabot config.
+- After merging, sync `main` locally and delete the merged branch.
 
 ### Context File
 
