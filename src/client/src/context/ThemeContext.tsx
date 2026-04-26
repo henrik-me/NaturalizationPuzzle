@@ -71,9 +71,13 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { readonly children: ReactNode }): ReactNode {
   const [theme, setThemeState] = useState<ThemePreference>(() => readStoredPreference());
-  // useSyncExternalStore subscribes globally to prefers-color-scheme, but the
-  // memoized context value only flips when resolvedTheme actually changes, so
-  // explicit Light/Dark consumers do not rerender when the OS toggles.
+  // Subscribe to OS prefers-color-scheme changes via useSyncExternalStore
+  // (React's canonical pattern for external mutable sources). The subscription
+  // is unconditional, so ThemeProvider itself will rerender whenever the OS
+  // toggles. However, the memoized context value below is gated on
+  // resolvedTheme, which does not change while the user has selected an
+  // explicit Light or Dark preference — so consumers do not rerender in those
+  // modes.
   const systemTheme = useSyncExternalStore(
     subscribeSystemTheme,
     getSystemTheme,

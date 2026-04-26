@@ -62,9 +62,11 @@ test.describe('Dark Mode', () => {
     await settings.goto();
     await settings.setStoredThemePreference('dark');
 
-    // Block the app entry so React cannot mount; only the inline FOUC script in
-    // index.html will have run when we make our assertions. domcontentloaded
-    // guarantees the inline head script has executed.
+    // Block the app entry so React cannot mount; only the inline FOUC script
+    // in index.html will have run when we make our assertions. We use
+    // waitUntil:'commit' (the earliest signal Playwright offers) and then
+    // explicitly waitForFunction on documentElement.style.colorScheme to
+    // synchronize on the inline script having executed.
     await page.route('**/src/main.tsx', route => route.abort());
     await page.goto('/settings', { waitUntil: 'commit' });
     // Wait until the inline FOUC script has executed (it sets colorScheme).
@@ -152,8 +154,9 @@ test.describe('Dark Mode', () => {
     await settings.selectTheme('light');
     await settings.expectLightApplied();
 
-    // ThemeProvider does not subscribe to matchMedia while in explicit mode, so
-    // the assertions below are deterministic without a fixed timeout.
+    // ThemeProvider's resolvedTheme stays equal to `theme` (light) while in
+    // explicit mode, so the rendered UI does not react to OS changes — the
+    // assertions below are therefore deterministic without a fixed timeout.
     await page.emulateMedia({ colorScheme: 'dark' });
     await settings.expectThemeSelected('light');
     await settings.expectLightApplied();
@@ -166,6 +169,7 @@ test.describe('Dark Mode', () => {
     await settings.selectTheme('dark');
     await settings.expectDarkApplied();
 
+    // Same as above: in explicit Dark, resolvedTheme is fixed regardless of OS.
     await page.emulateMedia({ colorScheme: 'light' });
     await settings.expectThemeSelected('dark');
     await settings.expectDarkApplied();
