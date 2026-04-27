@@ -42,11 +42,13 @@ export default defineConfig({
           {
             urlPattern: /\/api\/v1\/questions/,
             handler: 'StaleWhileRevalidate',
-            // Bumped from 'questions-cache' to '-v2' when Question.Tags was added so
-            // existing service workers don't serve a cached response from the older
-            // shape (no tags field) after deploy. Bump the suffix again on any
-            // future shape change.
-            options: { cacheName: 'questions-cache-v2' },
+            // Bumped from 'questions-cache' to '-v2' when Question.Tags was added,
+            // then to '-v3' when three new tag namespaces (branches, amendments,
+            // civicConcepts) were added so existing service workers don't serve a
+            // stale cached response missing those tags after deploy. Bump the
+            // suffix again on any future shape change OR meaningful tag-data shift
+            // that the UI depends on.
+            options: { cacheName: 'questions-cache-v3' },
           },
           {
             urlPattern: /\/api\/v1\/states/,

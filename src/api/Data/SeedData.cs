@@ -12,9 +12,11 @@ namespace NaturalizationPuzzle.Api.Data;
 /// </para>
 /// <list type="bullet">
 ///   <item>
-///     Tags use the form <c>"namespace:Value"</c> in four namespaces — <c>people</c>,
-///     <c>wars</c>, <c>documents</c>, <c>timePeriod</c>. Adding a new namespace is
-///     a deliberate change and requires updating the client tag panel.
+///     Tags use the form <c>"namespace:Value"</c> in seven namespaces — <c>people</c>,
+///     <c>wars</c>, <c>documents</c>, <c>timePeriod</c>, <c>branches</c>,
+///     <c>amendments</c>, and <c>civicConcepts</c>. Adding a new namespace is a
+///     deliberate change and requires updating the client tag panel
+///     (<c>NAMESPACE_LABELS</c> + <c>NAMESPACE_ORDER</c> in <c>TagFilterPanel.tsx</c>).
 ///   </item>
 ///   <item>
 ///     A <c>people</c>, <c>wars</c>, or <c>documents</c> tag is added only when the
@@ -29,6 +31,29 @@ namespace NaturalizationPuzzle.Api.Data;
 ///     Questions about ongoing institutions (branches of government, voting rights,
 ///     symbols, holidays) are intentionally left without a time-period tag so the
 ///     filter is never accidentally noisy.
+///   </item>
+///   <item>
+///     A <c>branches</c> tag (<c>Legislative</c>, <c>Executive</c>, <c>Judicial</c>)
+///     is added when a question is structurally about that branch — its powers,
+///     members, head, or internal mechanics. Meta questions about the branches as
+///     a whole (Q15 "why three branches", Q16 "name them") get
+///     <c>civicConcepts:Separation of Powers</c> instead of a specific branch tag.
+///   </item>
+///   <item>
+///     An <c>amendments</c> tag is added when a specific amendment (or the Bill of
+///     Rights) is named in the question text, OR when the question text explicitly
+///     identifies a known set of amendments by their shared subject. Q63 ("four
+///     amendments to the U.S. Constitution about who can vote") unambiguously refers
+///     to the 15th, 19th, 24th, and 26th, so all four are tagged. We do NOT tag
+///     voting-history questions like Q98 or Q102 where the canonical answer involves
+///     an amendment but the question text neither names the amendment nor identifies
+///     a set.
+///   </item>
+///   <item>
+///     A <c>civicConcepts</c> tag is added only when the concept is the explicit
+///     subject of the question (e.g. Q13 names "rule of law"; Q112 names "civil
+///     rights movement"). We deliberately keep this namespace small to avoid
+///     editorial drift.
 ///   </item>
 /// </list>
 ///
@@ -51,75 +76,75 @@ public static class SeedData
             new Question { Id = 3, Text = "Name one thing the U.S. Constitution does.", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = false, Tags = new List<string> { "documents:Constitution" } },
             new Question { Id = 4, Text = "The U.S. Constitution starts with the words \"We the People.\" What does \"We the People\" mean?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = false, Tags = new List<string> { "documents:Constitution" } },
             new Question { Id = 5, Text = "How are changes made to the U.S. Constitution?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = false, Tags = new List<string> { "documents:Constitution" } },
-            new Question { Id = 6, Text = "What does the Bill of Rights protect?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = true, Tags = new List<string> { "documents:Bill of Rights" } },
+            new Question { Id = 6, Text = "What does the Bill of Rights protect?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = true, Tags = new List<string> { "documents:Bill of Rights", "amendments:Bill of Rights" } },
             new Question { Id = 7, Text = "How many amendments does the U.S. Constitution have?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = true, Tags = new List<string> { "documents:Constitution" } },
             new Question { Id = 8, Text = "Why is the Declaration of Independence important?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = false, Tags = new List<string> { "documents:Declaration of Independence" } },
             new Question { Id = 9, Text = "What founding document said the American colonies were free from Britain?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = false, Tags = new List<string> { "documents:Declaration of Independence" } },
             new Question { Id = 10, Text = "Name two important ideas from the Declaration of Independence and the U.S. Constitution.", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = false, Tags = new List<string> { "documents:Declaration of Independence", "documents:Constitution" } },
             new Question { Id = 11, Text = "The words \"Life, Liberty, and the pursuit of Happiness\" are in what founding document?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = false, Tags = new List<string> { "documents:Declaration of Independence" } },
             new Question { Id = 12, Text = "What is the economic system of the United States?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 13, Text = "What is the rule of law?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = false, Tags = new List<string>() },
+            new Question { Id = 13, Text = "What is the rule of law?", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = false, Tags = new List<string> { "civicConcepts:Rule of Law" } },
             new Question { Id = 14, Text = "Many documents influenced the U.S. Constitution. Name one.", Category = "American Government", SubCategory = "Principles of American Government", Is6520Designated = true, Tags = new List<string> { "documents:Constitution" } },
 
             // American Government — System of Government (Q15–62)
-            new Question { Id = 15, Text = "There are three branches of government. Why?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string>() },
-            new Question { Id = 16, Text = "Name the three branches of government.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 17, Text = "The President of the United States is in charge of which branch of government?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 18, Text = "What part of the federal government writes laws?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string>() },
-            new Question { Id = 19, Text = "What are the two parts of the U.S. Congress?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 20, Text = "Name one power of the U.S. Congress.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string>() },
-            new Question { Id = 21, Text = "How many U.S. senators are there?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string>() },
-            new Question { Id = 22, Text = "How long is a term for a U.S. senator?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string>() },
-            new Question { Id = 23, Text = "Who is one of your state's U.S. senators now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 24, Text = "How many voting members are in the House of Representatives?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string>() },
-            new Question { Id = 25, Text = "How long is a term for a member of the House of Representatives?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string>() },
-            new Question { Id = 26, Text = "Why do U.S. representatives serve shorter terms than U.S. senators?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 27, Text = "How many senators does each state have?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 28, Text = "Why does each state have two senators?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 29, Text = "Name your U.S. representative.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 30, Text = "What is the name of the Speaker of the House of Representatives now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 31, Text = "Who does a U.S. senator represent?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 32, Text = "Who elects U.S. senators?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 33, Text = "Who does a member of the House of Representatives represent?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 34, Text = "Who elects members of the House of Representatives?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 35, Text = "Some states have more representatives than other states. Why?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 36, Text = "The President of the United States is elected for how many years?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string>() },
-            new Question { Id = 37, Text = "The President of the United States can serve only two terms. Why?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 38, Text = "What is the name of the President of the United States now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string>() },
-            new Question { Id = 39, Text = "What is the name of the Vice President of the United States now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 40, Text = "If the president can no longer serve, who becomes president?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 41, Text = "Name one power of the president.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 42, Text = "Who is Commander in Chief of the U.S. military?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 43, Text = "Who signs bills to become laws?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 44, Text = "Who vetoes bills?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 45, Text = "Who appoints federal judges?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 46, Text = "The executive branch has many parts. Name one.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 47, Text = "What does the President's Cabinet do?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 48, Text = "What are two Cabinet-level positions?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 49, Text = "Why is the Electoral College important?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 50, Text = "What is one part of the judicial branch?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 51, Text = "What does the judicial branch do?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 52, Text = "What is the highest court in the United States?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string>() },
-            new Question { Id = 53, Text = "How many seats are on the Supreme Court?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 54, Text = "How many Supreme Court justices are usually needed to decide a case?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 55, Text = "How long do Supreme Court justices serve?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 56, Text = "Supreme Court justices serve for life. Why?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 57, Text = "Who is the Chief Justice of the United States now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 58, Text = "Name one power that is only for the federal government.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 59, Text = "Name one power that is only for the states.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 60, Text = "What is the purpose of the 10th Amendment?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "documents:Constitution" } },
+            new Question { Id = 15, Text = "There are three branches of government. Why?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string> { "civicConcepts:Separation of Powers" } },
+            new Question { Id = 16, Text = "Name the three branches of government.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "civicConcepts:Separation of Powers" } },
+            new Question { Id = 17, Text = "The President of the United States is in charge of which branch of government?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 18, Text = "What part of the federal government writes laws?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 19, Text = "What are the two parts of the U.S. Congress?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 20, Text = "Name one power of the U.S. Congress.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 21, Text = "How many U.S. senators are there?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 22, Text = "How long is a term for a U.S. senator?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 23, Text = "Who is one of your state's U.S. senators now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 24, Text = "How many voting members are in the House of Representatives?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 25, Text = "How long is a term for a member of the House of Representatives?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 26, Text = "Why do U.S. representatives serve shorter terms than U.S. senators?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 27, Text = "How many senators does each state have?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 28, Text = "Why does each state have two senators?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 29, Text = "Name your U.S. representative.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 30, Text = "What is the name of the Speaker of the House of Representatives now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 31, Text = "Who does a U.S. senator represent?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 32, Text = "Who elects U.S. senators?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 33, Text = "Who does a member of the House of Representatives represent?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 34, Text = "Who elects members of the House of Representatives?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 35, Text = "Some states have more representatives than other states. Why?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Legislative" } },
+            new Question { Id = 36, Text = "The President of the United States is elected for how many years?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 37, Text = "The President of the United States can serve only two terms. Why?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 38, Text = "What is the name of the President of the United States now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 39, Text = "What is the name of the Vice President of the United States now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 40, Text = "If the president can no longer serve, who becomes president?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 41, Text = "Name one power of the president.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 42, Text = "Who is Commander in Chief of the U.S. military?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 43, Text = "Who signs bills to become laws?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 44, Text = "Who vetoes bills?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 45, Text = "Who appoints federal judges?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 46, Text = "The executive branch has many parts. Name one.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 47, Text = "What does the President's Cabinet do?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 48, Text = "What are two Cabinet-level positions?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 49, Text = "Why is the Electoral College important?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Executive" } },
+            new Question { Id = 50, Text = "What is one part of the judicial branch?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Judicial" } },
+            new Question { Id = 51, Text = "What does the judicial branch do?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Judicial" } },
+            new Question { Id = 52, Text = "What is the highest court in the United States?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = true, Tags = new List<string> { "branches:Judicial" } },
+            new Question { Id = 53, Text = "How many seats are on the Supreme Court?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Judicial" } },
+            new Question { Id = 54, Text = "How many Supreme Court justices are usually needed to decide a case?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Judicial" } },
+            new Question { Id = 55, Text = "How long do Supreme Court justices serve?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Judicial" } },
+            new Question { Id = 56, Text = "Supreme Court justices serve for life. Why?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Judicial" } },
+            new Question { Id = 57, Text = "Who is the Chief Justice of the United States now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "branches:Judicial" } },
+            new Question { Id = 58, Text = "Name one power that is only for the federal government.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "civicConcepts:Federalism" } },
+            new Question { Id = 59, Text = "Name one power that is only for the states.", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "civicConcepts:Federalism" } },
+            new Question { Id = 60, Text = "What is the purpose of the 10th Amendment?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string> { "documents:Constitution", "amendments:10th Amendment", "civicConcepts:Federalism" } },
             new Question { Id = 61, Text = "Who is the governor of your state now?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
             new Question { Id = 62, Text = "What is the capital of your state?", Category = "American Government", SubCategory = "System of Government", Is6520Designated = false, Tags = new List<string>() },
 
             // American Government — Rights and Responsibilities (Q63–72)
-            new Question { Id = 63, Text = "There are four amendments to the U.S. Constitution about who can vote. Describe one of them.", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string> { "documents:Constitution" } },
+            new Question { Id = 63, Text = "There are four amendments to the U.S. Constitution about who can vote. Describe one of them.", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string> { "documents:Constitution", "amendments:15th Amendment", "amendments:19th Amendment", "amendments:24th Amendment", "amendments:26th Amendment" } },
             new Question { Id = 64, Text = "Who can vote in federal elections, run for federal office, and serve on a jury in the United States?", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string>() },
             new Question { Id = 65, Text = "What are three rights of everyone living in the United States?", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string>() },
             new Question { Id = 66, Text = "What do we show loyalty to when we say the Pledge of Allegiance?", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string>() },
             new Question { Id = 67, Text = "Name two promises that new citizens make in the Oath of Allegiance.", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string>() },
             new Question { Id = 68, Text = "How can people become United States citizens?", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 69, Text = "What are two examples of civic participation in the United States?", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string>() },
-            new Question { Id = 70, Text = "What is one way Americans can serve their country?", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string>() },
+            new Question { Id = 69, Text = "What are two examples of civic participation in the United States?", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string> { "civicConcepts:Civic Participation" } },
+            new Question { Id = 70, Text = "What is one way Americans can serve their country?", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string> { "civicConcepts:Civic Participation" } },
             new Question { Id = 71, Text = "Why is it important to pay federal taxes?", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string>() },
             new Question { Id = 72, Text = "It is important for all men age 18 through 25 to register for the Selective Service. Name one reason why.", Category = "American Government", SubCategory = "Rights and Responsibilities", Is6520Designated = false, Tags = new List<string>() },
 
@@ -150,7 +175,7 @@ public static class SeedData
             new Question { Id = 94, Text = "Abraham Lincoln is famous for many things. Name one.", Category = "American History", SubCategory = "The 1800s", Is6520Designated = false, Tags = new List<string> { "people:Abraham Lincoln", "timePeriod:1800s" } },
             new Question { Id = 95, Text = "What did the Emancipation Proclamation do?", Category = "American History", SubCategory = "The 1800s", Is6520Designated = false, Tags = new List<string> { "documents:Emancipation Proclamation", "timePeriod:1800s" } },
             new Question { Id = 96, Text = "What U.S. war ended slavery?", Category = "American History", SubCategory = "The 1800s", Is6520Designated = false, Tags = new List<string> { "wars:Civil War", "timePeriod:1800s" } },
-            new Question { Id = 97, Text = "What amendment says all persons born or naturalized in the United States are U.S. citizens?", Category = "American History", SubCategory = "The 1800s", Is6520Designated = false, Tags = new List<string> { "documents:Constitution", "timePeriod:1800s" } },
+            new Question { Id = 97, Text = "What amendment says all persons born or naturalized in the United States are U.S. citizens?", Category = "American History", SubCategory = "The 1800s", Is6520Designated = false, Tags = new List<string> { "documents:Constitution", "timePeriod:1800s", "amendments:14th Amendment" } },
             new Question { Id = 98, Text = "When did all men get the right to vote?", Category = "American History", SubCategory = "The 1800s", Is6520Designated = false, Tags = new List<string> { "timePeriod:1800s" } },
             new Question { Id = 99, Text = "Name one leader of the women's rights movement in the 1800s.", Category = "American History", SubCategory = "The 1800s", Is6520Designated = false, Tags = new List<string> { "timePeriod:1800s" } },
 
@@ -167,7 +192,7 @@ public static class SeedData
             new Question { Id = 109, Text = "During the Cold War, what was one main concern of the United States?", Category = "American History", SubCategory = "Recent American History", Is6520Designated = false, Tags = new List<string> { "wars:Cold War", "timePeriod:1900s" } },
             new Question { Id = 110, Text = "Why did the United States enter the Korean War?", Category = "American History", SubCategory = "Recent American History", Is6520Designated = false, Tags = new List<string> { "wars:Korean War", "timePeriod:1900s" } },
             new Question { Id = 111, Text = "Why did the United States enter the Vietnam War?", Category = "American History", SubCategory = "Recent American History", Is6520Designated = false, Tags = new List<string> { "wars:Vietnam War", "timePeriod:1900s" } },
-            new Question { Id = 112, Text = "What did the civil rights movement do?", Category = "American History", SubCategory = "Recent American History", Is6520Designated = false, Tags = new List<string> { "timePeriod:1900s" } },
+            new Question { Id = 112, Text = "What did the civil rights movement do?", Category = "American History", SubCategory = "Recent American History", Is6520Designated = false, Tags = new List<string> { "timePeriod:1900s", "civicConcepts:Civil Rights" } },
             new Question { Id = 113, Text = "Martin Luther King, Jr. is famous for many things. Name one.", Category = "American History", SubCategory = "Recent American History", Is6520Designated = false, Tags = new List<string> { "people:Martin Luther King, Jr.", "timePeriod:1900s" } },
             new Question { Id = 114, Text = "Why did the United States enter the Persian Gulf War?", Category = "American History", SubCategory = "Recent American History", Is6520Designated = false, Tags = new List<string> { "wars:Persian Gulf War", "timePeriod:1900s" } },
             new Question { Id = 115, Text = "What major event happened on September 11, 2001 in the United States?", Category = "American History", SubCategory = "Recent American History", Is6520Designated = false, Tags = new List<string> { "timePeriod:2000s" } },

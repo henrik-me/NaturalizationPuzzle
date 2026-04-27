@@ -135,11 +135,50 @@ public sealed class QuestionServiceTests : IDisposable
         Assert.Equal(expectedIds.OrderBy(id => id).ToArray(), actualIds);
     }
 
+    [Theory]
+    [InlineData("branches:Legislative", new[] { 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 })]
+    [InlineData("branches:Executive", new[] { 17, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49 })]
+    [InlineData("branches:Judicial", new[] { 50, 51, 52, 53, 54, 55, 56, 57 })]
+    public async Task GetAllQuestionsAsync_BranchesTagSentinelSet_AllExpectedQuestionsCarryTag(string tag, int[] expectedIds)
+    {
+        var questions = await _sut.GetAllQuestionsAsync(null, CancellationToken.None);
+        var actualIds = questions.Where(q => q.Tags.Contains(tag)).Select(q => q.Id).OrderBy(id => id).ToArray();
+        Assert.Equal(expectedIds.OrderBy(id => id).ToArray(), actualIds);
+    }
+
+    [Theory]
+    [InlineData("amendments:Bill of Rights", new[] { 6 })]
+    [InlineData("amendments:10th Amendment", new[] { 60 })]
+    [InlineData("amendments:14th Amendment", new[] { 97 })]
+    [InlineData("amendments:15th Amendment", new[] { 63 })]
+    [InlineData("amendments:19th Amendment", new[] { 63 })]
+    [InlineData("amendments:24th Amendment", new[] { 63 })]
+    [InlineData("amendments:26th Amendment", new[] { 63 })]
+    public async Task GetAllQuestionsAsync_AmendmentsTagSentinelSet_AllExpectedQuestionsCarryTag(string tag, int[] expectedIds)
+    {
+        var questions = await _sut.GetAllQuestionsAsync(null, CancellationToken.None);
+        var actualIds = questions.Where(q => q.Tags.Contains(tag)).Select(q => q.Id).OrderBy(id => id).ToArray();
+        Assert.Equal(expectedIds.OrderBy(id => id).ToArray(), actualIds);
+    }
+
+    [Theory]
+    [InlineData("civicConcepts:Rule of Law", new[] { 13 })]
+    [InlineData("civicConcepts:Separation of Powers", new[] { 15, 16 })]
+    [InlineData("civicConcepts:Federalism", new[] { 58, 59, 60 })]
+    [InlineData("civicConcepts:Civic Participation", new[] { 69, 70 })]
+    [InlineData("civicConcepts:Civil Rights", new[] { 112 })]
+    public async Task GetAllQuestionsAsync_CivicConceptsTagSentinelSet_AllExpectedQuestionsCarryTag(string tag, int[] expectedIds)
+    {
+        var questions = await _sut.GetAllQuestionsAsync(null, CancellationToken.None);
+        var actualIds = questions.Where(q => q.Tags.Contains(tag)).Select(q => q.Id).OrderBy(id => id).ToArray();
+        Assert.Equal(expectedIds.OrderBy(id => id).ToArray(), actualIds);
+    }
+
     [Fact]
     public async Task GetAllQuestionsAsync_AllTagsAreNamespaced()
     {
         var questions = await _sut.GetAllQuestionsAsync(null, CancellationToken.None);
-        var allowedNamespaces = new HashSet<string> { "people", "wars", "documents", "timePeriod" };
+        var allowedNamespaces = new HashSet<string> { "people", "wars", "documents", "timePeriod", "branches", "amendments", "civicConcepts" };
         foreach (var q in questions)
         {
             foreach (var tag in q.Tags)

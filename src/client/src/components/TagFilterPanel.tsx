@@ -5,12 +5,23 @@ const NAMESPACE_LABELS: Record<string, string> = {
   wars: 'Wars',
   documents: 'Documents',
   timePeriod: 'Time period',
+  branches: 'Branches of government',
+  amendments: 'Amendments',
+  civicConcepts: 'Civic concepts',
 };
 
 // Stable display order for namespaces. Any namespace present in the data but
 // not in this list is rendered after the known ones in alphabetical order so
 // unexpected backend additions remain visible (rather than silently dropped).
-const NAMESPACE_ORDER: readonly string[] = ['people', 'wars', 'documents', 'timePeriod'];
+const NAMESPACE_ORDER: readonly string[] = [
+  'people',
+  'wars',
+  'documents',
+  'timePeriod',
+  'branches',
+  'amendments',
+  'civicConcepts',
+];
 
 export interface TagFilterPanelProps {
   /** All tags present in the active option scope (post-Studied filter). */

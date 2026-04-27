@@ -73,8 +73,8 @@ public sealed class QuestionTagsPersistenceTests : IDisposable
     public async Task Tags_EmptyList_RoundTripsAsEmpty()
     {
         await using var read = new AppDbContext(_options);
-        // Q15 has no tags in seed; verify it deserializes as an empty list, not null.
-        var q = await read.Questions.AsNoTracking().FirstAsync(x => x.Id == 15);
+        // Q1 has no tags in seed; verify it deserializes as an empty list, not null.
+        var q = await read.Questions.AsNoTracking().FirstAsync(x => x.Id == 1);
         Assert.NotNull(q.Tags);
         Assert.Empty(q.Tags);
     }
