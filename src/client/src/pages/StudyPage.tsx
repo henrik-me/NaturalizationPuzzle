@@ -4,6 +4,7 @@ import type { QuestionDto } from '../types/api';
 import { getAllQuestions } from '../services/questionService';
 import { useAppContext } from '../context/AppContext';
 import { QuizCard } from '../components/QuizCard';
+import { TagFilterPanel } from '../components/TagFilterPanel';
 import { useProgress } from '../hooks/useProgress';
 
 type ScopeFilter = 'all' | '6520';
@@ -51,6 +52,7 @@ export function StudyPage(): React.ReactNode {
   const [category, setCategory] = useState<string>(ALL_CATEGORIES);
   const [subCategory, setSubCategory] = useState<string>(ALL_SUBCATEGORIES);
   const [studiedFilter, setStudiedFilter] = useState<StudiedFilter>('all');
+  const [selectedTags, setSelectedTags] = useState<ReadonlySet<string>>(() => new Set());
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
@@ -97,7 +99,11 @@ export function StudyPage(): React.ReactNode {
 
   const studiedSet = useMemo((): ReadonlySet<number> => new Set(studiedQuestionIds), [studiedQuestionIds]);
 
-  const filteredQuestions = useMemo((): readonly QuestionDto[] => {
+  // Pipeline up to (and including) Studied. Tag options derive from this so
+  // the chips a user sees only reflect what they can realistically narrow to
+  // given Scope + Category + SubCategory + Studied. Search and the tag filter
+  // itself do NOT influence option visibility, matching standard faceted-search UX.
+  const preTagQuestions = useMemo((): readonly QuestionDto[] => {
     let list: readonly QuestionDto[] = scopedQuestions;
     if (effectiveCategory !== ALL_CATEGORIES) {
       list = list.filter(q => q.category === effectiveCategory);
@@ -110,13 +116,65 @@ export function StudyPage(): React.ReactNode {
     } else if (studiedFilter === 'unstudied') {
       list = list.filter(q => !studiedSet.has(q.id));
     }
+    return list;
+  }, [scopedQuestions, effectiveCategory, effectiveSubCategory, studiedFilter, studiedSet]);
+
+  // Tag options are the union of every tag present in `preTagQuestions`. A tag
+  // a user picked earlier may have just been narrowed away by another filter;
+  // `effectiveSelectedTags` drops those orphans during render so reconciliation
+  // never lives in setState-in-effect (avoids the react-hooks lint and an
+  // extra render).
+  const availableTagSet = useMemo((): ReadonlySet<string> => {
+    const set = new Set<string>();
+    for (const q of preTagQuestions) {
+      for (const tag of q.tags) set.add(tag);
+    }
+    return set;
+  }, [preTagQuestions]);
+
+  const availableTags = useMemo((): readonly string[] => [...availableTagSet], [availableTagSet]);
+
+  const effectiveSelectedTags = useMemo((): ReadonlySet<string> => {
+    let everyPresent = true;
+    for (const t of selectedTags) {
+      if (!availableTagSet.has(t)) { everyPresent = false; break; }
+    }
+    if (everyPresent) return selectedTags;
+    const next = new Set<string>();
+    for (const t of selectedTags) {
+      if (availableTagSet.has(t)) next.add(t);
+    }
+    return next;
+  }, [selectedTags, availableTagSet]);
+
+  const filteredQuestions = useMemo((): readonly QuestionDto[] => {
+    let list: readonly QuestionDto[] = preTagQuestions;
+    if (effectiveSelectedTags.size > 0) {
+      // Group active tags by namespace. Within a namespace = OR; across
+      // namespaces = AND. A namespace with no chips selected is a no-op.
+      const byNamespace = new Map<string, string[]>();
+      for (const tag of effectiveSelectedTags) {
+        const idx = tag.indexOf(':');
+        const ns = idx > 0 ? tag.slice(0, idx) : tag;
+        const bucket = byNamespace.get(ns) ?? [];
+        bucket.push(tag);
+        byNamespace.set(ns, bucket);
+      }
+      list = list.filter(q => {
+        const qTags = new Set(q.tags);
+        for (const tagsInNs of byNamespace.values()) {
+          if (!tagsInNs.some(t => qTags.has(t))) return false;
+        }
+        return true;
+      });
+    }
     const trimmed = searchText.trim().toLowerCase();
     if (trimmed) {
       const terms = trimmed.split(/\s+/);
       list = list.filter(q => matchesSearch(q, terms));
     }
     return list;
-  }, [scopedQuestions, effectiveCategory, effectiveSubCategory, studiedFilter, studiedSet, searchText]);
+  }, [preTagQuestions, effectiveSelectedTags, searchText]);
 
   // Clamp the current index to the filtered set without an effect if the
   // available questions shrink for any reason (e.g. a tighter filter is
@@ -146,6 +204,26 @@ export function StudyPage(): React.ReactNode {
     setCurrentIndex(0);
   }, []);
 
+  const handleToggleTag = useCallback((tag: string): void => {
+    setSelectedTags(prev => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag); else next.add(tag);
+      return next;
+    });
+    setCurrentIndex(0);
+  }, []);
+
+  const handleClearNamespace = useCallback((namespace: string): void => {
+    setSelectedTags(prev => {
+      const next = new Set<string>();
+      for (const t of prev) {
+        if (!t.startsWith(`${namespace}:`)) next.add(t);
+      }
+      return next;
+    });
+    setCurrentIndex(0);
+  }, []);
+
   const handleSearchChange = useCallback((value: string): void => {
     setSearchText(value);
     setCurrentIndex(0);
@@ -155,6 +233,7 @@ export function StudyPage(): React.ReactNode {
     setCategory(ALL_CATEGORIES);
     setSubCategory(ALL_SUBCATEGORIES);
     setStudiedFilter('all');
+    setSelectedTags(new Set());
     setSearchText('');
     setCurrentIndex(0);
   }, []);
@@ -163,6 +242,7 @@ export function StudyPage(): React.ReactNode {
     effectiveCategory !== ALL_CATEGORIES ||
     effectiveSubCategory !== ALL_SUBCATEGORIES ||
     studiedFilter !== 'all' ||
+    effectiveSelectedTags.size > 0 ||
     searchText.trim().length > 0;
 
   const handleNext = useCallback((): void => {
@@ -293,6 +373,14 @@ export function StudyPage(): React.ReactNode {
           </div>
         </div>
       </div>
+
+      {/* Tag filters (people, wars, documents, time period) */}
+      <TagFilterPanel
+        availableTags={availableTags}
+        selectedTags={effectiveSelectedTags}
+        onToggleTag={handleToggleTag}
+        onClearNamespace={handleClearNamespace}
+      />
 
       {/* Search box */}
       <div className="mb-4">
