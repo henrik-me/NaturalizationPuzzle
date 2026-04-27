@@ -7,6 +7,7 @@ public sealed record Question
     public required string Category { get; init; }
     public required string SubCategory { get; init; }
     public bool Is6520Designated { get; init; }
+    public IReadOnlyList<string> Tags { get; init; } = [];
     public ICollection<Answer> Answers { get; init; } = [];
 }
 

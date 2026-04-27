@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NaturalizationPuzzle.Api.Models;
+using System.Text.Json;
 
 namespace NaturalizationPuzzle.Api.Data;
 
@@ -13,12 +16,29 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Tags are a small read-only list of namespaced strings (e.g. "people:Lincoln",
+        // "wars:Civil War"). Stored as JSON in a single TEXT column to keep the schema
+        // simple. Server-side filtering by tag is intentionally NOT supported — the
+        // client filters in-memory after loading the question set.
+        var tagsConverter = new ValueConverter<IReadOnlyList<string>, string>(
+            v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+            v => JsonSerializer.Deserialize<IReadOnlyList<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>());
+
+        var tagsComparer = new ValueComparer<IReadOnlyList<string>>(
+            (a, b) => (a ?? new List<string>()).SequenceEqual(b ?? new List<string>()),
+            v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+            v => v.ToList());
+
         modelBuilder.Entity<Question>(entity =>
         {
             entity.HasKey(q => q.Id);
             entity.Property(q => q.Text).IsRequired().HasMaxLength(500);
             entity.Property(q => q.Category).IsRequired().HasMaxLength(100);
             entity.Property(q => q.SubCategory).IsRequired().HasMaxLength(100);
+            entity.Property(q => q.Tags)
+                  .HasConversion(tagsConverter, tagsComparer)
+                  .HasColumnType("TEXT")
+                  .IsRequired();
             entity.HasMany(q => q.Answers)
                   .WithOne()
                   .HasForeignKey(a => a.QuestionId)

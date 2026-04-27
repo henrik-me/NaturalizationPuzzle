@@ -10,6 +10,7 @@ const mockQuestion: QuestionDto = {
   category: 'American Government',
   subCategory: 'Principles of American Government',
   is6520Designated: true,
+  tags: [],
   answers: ['Republic', 'Constitution-based federal republic', 'Representative democracy'],
 };
 

@@ -49,6 +49,21 @@ test.describe('Study Flow', () => {
     await expect(page.locator('[role="article"] span.text-sm').first()).toContainText('of 10');
   });
 
+  test('filters by tag (documents:Constitution) and passes axe', async ({ page }) => {
+    const study = new StudyPage(page);
+    await study.goto();
+
+    await study.toggleTag('documents', 'Constitution');
+
+    // Constitution-tagged questions per seed: 2,3,4,5,7,10,14,60,63,82,97 -> 11.
+    await expect(page.locator('[role="article"] span.text-sm').first()).toContainText('of 11');
+
+    // Visible chip should now report aria-pressed=true.
+    await expect(
+      page.getByTestId('tag-group-documents').getByRole('button', { name: 'Constitution', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
   test('filters by studied status', async ({ page }) => {
     const study = new StudyPage(page);
     await study.goto();

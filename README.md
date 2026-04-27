@@ -240,7 +240,7 @@ src/client/
 
 | Path | Page | Description |
 |------|------|-------------|
-| `/` | StudyPage | Browse and study all 128 civics questions; filter by category, subcategory, 65/20 set, and studied/unstudied status; keyword search; progress tracking |
+| `/` | StudyPage | Browse and study all 128 civics questions; filter by category, subcategory, 65/20 set, studied/unstudied status, and namespaced tag chips (people, wars, documents, time period); keyword search; progress tracking |
 | `/quiz` | QuizPage | Take a practice quiz with typed answers and real-time scoring |
 | `/history` | HistoryPage | View all past quiz attempts with summary stats (pass rate, best score, streak) and clear history |
 | `/settings` | SettingsPage | Select U.S. state, manage preferences |
@@ -266,12 +266,13 @@ A **keyword search box** lets you filter questions by typing words that appear i
 
 ### Study Filters
 
-The Study page exposes four composable filters on top of the keyword search:
+The Study page exposes five composable filters on top of the keyword search:
 
 - **Category** dropdown — *American Government*, *American History*, *Integrated Civics*, or all.
 - **Subcategory** dropdown — dependent on the chosen category (e.g., *System of Government*, *The 1800s*, *Symbols and Holidays*); disabled when no category is selected.
 - **65/20 toggle** — switch between all 128 questions and the 20 questions designated for the 65/20 rule.
 - **Studied status** toggle — *All*, *Unstudied*, or *Studied* (uses `localStorage` study progress).
+- **Tag chips** grouped by namespace — *People*, *Wars*, *Documents*, and *Time period*. Within a group chips combine with **OR** ("any of these"); across groups they combine with **AND** ("must match every active group"). Each group offers a per-group *Clear* link, and the master *Clear filters* button resets every dimension at once. Tag chip options are derived from the post-Studied set, so you only see chips that can realistically narrow the current view; selecting a chip that another filter later removes is reconciled silently (no orphan filters).
 
 All filters compose. Filter state is session-only (not persisted). The progress bar's denominator reflects the *current filtered set* so it always tells you "how much of what you're looking at have you studied"; the global *N total studied* counter sits next to it.
 
