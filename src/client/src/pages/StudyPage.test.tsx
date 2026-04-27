@@ -254,6 +254,27 @@ describe('StudyPage filters', () => {
     expect(screen.getByText(/capital of the United States/)).toBeInTheDocument();
   });
 
+  it('does not silently re-apply a narrowed-away tag when filters widen again', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    // Pick a tag.
+    await user.click(screen.getByRole('button', { name: 'Constitution' }));
+    await screen.findByText(/Question 1 of 1/);
+
+    // Narrow to a category that doesn't have any Constitution question — chip vanishes.
+    await user.selectOptions(screen.getByLabelText(/^Category$/), 'Integrated Civics');
+    await screen.findByText(/Question 1 of 1/);
+    expect(screen.queryByRole('button', { name: 'Constitution' })).not.toBeInTheDocument();
+
+    // Widen back to All. The Constitution chip is offered again, but it must
+    // come back unselected — the narrowed-away selection was dropped, not stashed.
+    await user.selectOptions(screen.getByLabelText(/^Category$/), '__all__');
+    await screen.findByText(/Question 1 of 5/);
+    expect(screen.getByRole('button', { name: 'Constitution' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('per-namespace Clear button removes only that namespace', async () => {
     const user = userEvent.setup();
     renderStudyPage();

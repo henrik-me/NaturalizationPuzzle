@@ -124,15 +124,15 @@ public sealed class QuestionServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData("timePeriod:1700s", 76)]
-    [InlineData("timePeriod:1800s", 90)]
-    [InlineData("timePeriod:1900s", 100)]
-    [InlineData("timePeriod:2000s", 115)]
-    public async Task GetAllQuestionsAsync_TimePeriodTagPresent(string tag, int sampleQuestionId)
+    [InlineData("timePeriod:1700s", new[] { 76, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89 })]
+    [InlineData("timePeriod:1800s", new[] { 90, 91, 92, 93, 94, 95, 96, 97, 98, 99 })]
+    [InlineData("timePeriod:1900s", new[] { 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114 })]
+    [InlineData("timePeriod:2000s", new[] { 115, 116 })]
+    public async Task GetAllQuestionsAsync_TimePeriodTagSentinelSet_AllExpectedQuestionsCarryTag(string tag, int[] expectedIds)
     {
         var questions = await _sut.GetAllQuestionsAsync(null, CancellationToken.None);
-        var q = questions.First(x => x.Id == sampleQuestionId);
-        Assert.Contains(tag, q.Tags);
+        var actualIds = questions.Where(q => q.Tags.Contains(tag)).Select(q => q.Id).OrderBy(id => id).ToArray();
+        Assert.Equal(expectedIds.OrderBy(id => id).ToArray(), actualIds);
     }
 
     [Fact]

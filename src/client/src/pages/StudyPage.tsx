@@ -121,9 +121,9 @@ export function StudyPage(): React.ReactNode {
 
   // Tag options are the union of every tag present in `preTagQuestions`. A tag
   // a user picked earlier may have just been narrowed away by another filter;
-  // `effectiveSelectedTags` drops those orphans during render so reconciliation
-  // never lives in setState-in-effect (avoids the react-hooks lint and an
-  // extra render).
+  // that orphan is masked from the render via `effectiveSelectedTags` AND
+  // pruned from `selectedTags` by the effect below so it does not silently
+  // come back when other filters are widened.
   const availableTagSet = useMemo((): ReadonlySet<string> => {
     const set = new Set<string>();
     for (const q of preTagQuestions) {
@@ -134,6 +134,27 @@ export function StudyPage(): React.ReactNode {
 
   const availableTags = useMemo((): readonly string[] => [...availableTagSet], [availableTagSet]);
 
+  // Persistently prune any selected tags whose chip is no longer offered (because
+  // a narrower category/scope/studied filter eliminated every question carrying
+  // them). Doing this in an effect rather than only in render means the orphan
+  // tag does NOT silently come back when the user widens the other filters
+  // again — it is a deliberate "removed" state once narrowed away.
+  useEffect(() => {
+    if (selectedTags.size === 0) return;
+    let everyPresent = true;
+    for (const t of selectedTags) {
+      if (!availableTagSet.has(t)) { everyPresent = false; break; }
+    }
+    if (everyPresent) return;
+    const next = new Set<string>();
+    for (const t of selectedTags) {
+      if (availableTagSet.has(t)) next.add(t);
+    }
+    setSelectedTags(next);
+  }, [availableTagSet, selectedTags]);
+
+  // Orphan tags are also masked at render time so the very render that triggers
+  // the pruning effect doesn't briefly include them in the filter result.
   const effectiveSelectedTags = useMemo((): ReadonlySet<string> => {
     let everyPresent = true;
     for (const t of selectedTags) {

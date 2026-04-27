@@ -67,7 +67,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    await EnsureDatabaseSchemaAsync(db, logger);
+    await EnsureDatabaseSchemaAsync(db, logger, app.Environment.IsDevelopment());
 }
 
 app.Run();
@@ -75,11 +75,15 @@ app.Run();
 // One-time recovery for SQLite databases created before the Question.Tags column
 // was added. The project uses EnsureCreatedAsync (no migrations), so a pre-existing
 // DB file will silently keep the old schema and queries on Tags will fail at read.
-// Since all data is read-only seed (no user state lives server-side), the safe
-// recovery is to drop and recreate when a known column is missing.
+//
+// In Development the safe recovery is to drop and recreate the file (all dev data is
+// disposable seed). In any non-Development environment we refuse to delete the DB —
+// representative edits and any future writes are persisted server-side and must not
+// be silently destroyed — and instead throw a clear startup error so an operator can
+// run a migration or recreate the DB intentionally.
 //
 // This block can be removed once migrations are introduced (tracked separately).
-static async Task EnsureDatabaseSchemaAsync(AppDbContext db, ILogger logger)
+static async Task EnsureDatabaseSchemaAsync(AppDbContext db, ILogger logger, bool isDevelopment)
 {
     if (await db.Database.CanConnectAsync())
     {
@@ -96,7 +100,13 @@ static async Task EnsureDatabaseSchemaAsync(AppDbContext db, ILogger logger)
                 var tagsColumnCount = Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
                 if (tagsColumnCount == 0)
                 {
-                    logger.LogWarning("Existing database is missing the Questions.Tags column; dropping and recreating with fresh seed data.");
+                    if (!isDevelopment)
+                    {
+                        logger.LogError("Existing database is missing the Questions.Tags column. Refusing to auto-recover outside Development to avoid destroying persisted data. Apply a schema migration or recreate the database manually.");
+                        throw new InvalidOperationException(
+                            "Database schema is out of date: 'Questions.Tags' column is missing. Auto-recovery is disabled outside Development.");
+                    }
+                    logger.LogWarning("Existing development database is missing the Questions.Tags column; dropping and recreating with fresh seed data.");
                     await conn.CloseAsync();
                     await db.Database.EnsureDeletedAsync();
                 }
