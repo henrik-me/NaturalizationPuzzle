@@ -34,11 +34,11 @@ import { getAllQuestions } from '../services/questionService';
 import { StudyPage } from './StudyPage';
 
 const ALL_QUESTIONS: readonly QuestionDto[] = [
-  { id: 1, text: 'What is the form of government of the United States?', category: 'American Government', subCategory: 'Principles of American Government', is6520Designated: true, answers: ['Republic'] },
-  { id: 2, text: 'Name the three branches of government.', category: 'American Government', subCategory: 'System of Government', is6520Designated: false, answers: ['Legislative, Executive, Judicial'] },
-  { id: 3, text: 'Who wrote the Declaration of Independence?', category: 'American History', subCategory: 'Colonial Period and Independence', is6520Designated: false, answers: ['Thomas Jefferson'] },
-  { id: 4, text: 'Name the U.S. war between the North and the South.', category: 'American History', subCategory: 'The 1800s', is6520Designated: false, answers: ['Civil War'] },
-  { id: 5, text: 'What is the capital of the United States?', category: 'Integrated Civics', subCategory: 'Symbols and Holidays', is6520Designated: true, answers: ['Washington, D.C.'] },
+  { id: 1, text: 'What is the form of government of the United States?', category: 'American Government', subCategory: 'Principles of American Government', is6520Designated: true, tags: ['documents:Constitution'], answers: ['Republic'] },
+  { id: 2, text: 'Name the three branches of government.', category: 'American Government', subCategory: 'System of Government', is6520Designated: false, tags: [], answers: ['Legislative, Executive, Judicial'] },
+  { id: 3, text: 'Who wrote the Declaration of Independence?', category: 'American History', subCategory: 'Colonial Period and Independence', is6520Designated: false, tags: ['documents:Declaration of Independence', 'people:Thomas Jefferson', 'timePeriod:1700s'], answers: ['Thomas Jefferson'] },
+  { id: 4, text: 'Name the U.S. war between the North and the South.', category: 'American History', subCategory: 'The 1800s', is6520Designated: false, tags: ['wars:Civil War', 'timePeriod:1800s'], answers: ['Civil War'] },
+  { id: 5, text: 'What is the capital of the United States?', category: 'Integrated Civics', subCategory: 'Symbols and Holidays', is6520Designated: true, tags: [], answers: ['Washington, D.C.'] },
 ];
 
 function renderStudyPage(): ReturnType<typeof render> {

@@ -42,7 +42,11 @@ export default defineConfig({
           {
             urlPattern: /\/api\/v1\/questions/,
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'questions-cache' },
+            // Bumped from 'questions-cache' to '-v2' when Question.Tags was added so
+            // existing service workers don't serve a cached response from the older
+            // shape (no tags field) after deploy. Bump the suffix again on any
+            // future shape change.
+            options: { cacheName: 'questions-cache-v2' },
           },
           {
             urlPattern: /\/api\/v1\/states/,
