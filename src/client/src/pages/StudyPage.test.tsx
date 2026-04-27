@@ -191,9 +191,22 @@ describe('StudyPage filters', () => {
     expect(subSelect.value).toBe('__all__');
   });
 
-  it('renders tag chip groups by namespace based on loaded data', async () => {
+  it('hides the tag chips behind a collapsed "More filters" disclosure by default', async () => {
     renderStudyPage();
     await screen.findByText(/What is the form of government/);
+
+    const toggle = screen.getByRole('button', { name: /More filters/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('tag-group-documents')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tag-filter-count-badge')).not.toBeInTheDocument();
+  });
+
+  it('renders tag chip groups by namespace once the disclosure is expanded', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.click(screen.getByRole('button', { name: /More filters/ }));
 
     expect(screen.getByTestId('tag-group-documents')).toBeInTheDocument();
     expect(screen.getByTestId('tag-group-people')).toBeInTheDocument();
@@ -205,11 +218,27 @@ describe('StudyPage filters', () => {
     expect(within(docs).getByRole('button', { name: 'Declaration of Independence' })).toBeInTheDocument();
   });
 
+  it('shows a count badge on the collapsed disclosure when tags are active', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.click(screen.getByRole('button', { name: /More filters/ }));
+    await user.click(screen.getByRole('button', { name: 'Civil War' }));
+    await user.click(screen.getByRole('button', { name: '1800s' }));
+
+    // Collapse again — count badge should reflect the 2 active tags.
+    await user.click(screen.getByRole('button', { name: /More filters/ }));
+    expect(screen.queryByTestId('tag-group-wars')).not.toBeInTheDocument();
+    expect(screen.getByTestId('tag-filter-count-badge')).toHaveTextContent('2');
+  });
+
   it('filters by a single tag chip and resets currentIndex', async () => {
     const user = userEvent.setup();
     renderStudyPage();
     await screen.findByText(/What is the form of government/);
 
+    await user.click(screen.getByRole('button', { name: /More filters/ }));
     await user.click(screen.getByRole('button', { name: 'Constitution' }));
     await screen.findByText(/Question 1 of 1/);
     expect(screen.getByText(/What is the form of government/)).toBeInTheDocument();
@@ -220,6 +249,7 @@ describe('StudyPage filters', () => {
     renderStudyPage();
     await screen.findByText(/What is the form of government/);
 
+    await user.click(screen.getByRole('button', { name: /More filters/ }));
     await user.click(screen.getByRole('button', { name: 'Constitution' }));
     await user.click(screen.getByRole('button', { name: 'Declaration of Independence' }));
     // Q1 (Constitution) + Q3 (DoI) = 2 questions.
@@ -231,6 +261,7 @@ describe('StudyPage filters', () => {
     renderStudyPage();
     await screen.findByText(/What is the form of government/);
 
+    await user.click(screen.getByRole('button', { name: /More filters/ }));
     // Civil War (Q4) AND 1800s (Q4) -> exactly Q4.
     await user.click(screen.getByRole('button', { name: 'Civil War' }));
     await user.click(screen.getByRole('button', { name: '1800s' }));
@@ -243,6 +274,7 @@ describe('StudyPage filters', () => {
     renderStudyPage();
     await screen.findByText(/What is the form of government/);
 
+    await user.click(screen.getByRole('button', { name: /More filters/ }));
     await user.click(screen.getByRole('button', { name: 'Constitution' }));
     await screen.findByText(/Question 1 of 1/);
 
@@ -259,6 +291,7 @@ describe('StudyPage filters', () => {
     renderStudyPage();
     await screen.findByText(/What is the form of government/);
 
+    await user.click(screen.getByRole('button', { name: /More filters/ }));
     // Pick a tag.
     await user.click(screen.getByRole('button', { name: 'Constitution' }));
     await screen.findByText(/Question 1 of 1/);
@@ -280,6 +313,7 @@ describe('StudyPage filters', () => {
     renderStudyPage();
     await screen.findByText(/What is the form of government/);
 
+    await user.click(screen.getByRole('button', { name: /More filters/ }));
     await user.click(screen.getByRole('button', { name: 'Civil War' }));
     await user.click(screen.getByRole('button', { name: '1800s' }));
     await screen.findByText(/Question 1 of 1/);
@@ -297,6 +331,7 @@ describe('StudyPage filters', () => {
     renderStudyPage();
     await screen.findByText(/What is the form of government/);
 
+    await user.click(screen.getByRole('button', { name: /More filters/ }));
     await user.click(screen.getByRole('button', { name: 'Constitution' }));
     await screen.findByText(/Question 1 of 1/);
 
