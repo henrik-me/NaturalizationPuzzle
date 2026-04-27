@@ -190,4 +190,100 @@ describe('StudyPage filters', () => {
     const subSelect = screen.getByLabelText(/^Subcategory$/) as HTMLSelectElement;
     expect(subSelect.value).toBe('__all__');
   });
+
+  it('renders tag chip groups by namespace based on loaded data', async () => {
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    expect(screen.getByTestId('tag-group-documents')).toBeInTheDocument();
+    expect(screen.getByTestId('tag-group-people')).toBeInTheDocument();
+    expect(screen.getByTestId('tag-group-wars')).toBeInTheDocument();
+    expect(screen.getByTestId('tag-group-timePeriod')).toBeInTheDocument();
+
+    const docs = screen.getByTestId('tag-group-documents');
+    expect(within(docs).getByRole('button', { name: 'Constitution' })).toBeInTheDocument();
+    expect(within(docs).getByRole('button', { name: 'Declaration of Independence' })).toBeInTheDocument();
+  });
+
+  it('filters by a single tag chip and resets currentIndex', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.click(screen.getByRole('button', { name: 'Constitution' }));
+    await screen.findByText(/Question 1 of 1/);
+    expect(screen.getByText(/What is the form of government/)).toBeInTheDocument();
+  });
+
+  it('OR-combines chips within a namespace', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.click(screen.getByRole('button', { name: 'Constitution' }));
+    await user.click(screen.getByRole('button', { name: 'Declaration of Independence' }));
+    // Q1 (Constitution) + Q3 (DoI) = 2 questions.
+    await screen.findByText(/Question 1 of 2/);
+  });
+
+  it('AND-combines chips across namespaces', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    // Civil War (Q4) AND 1800s (Q4) -> exactly Q4.
+    await user.click(screen.getByRole('button', { name: 'Civil War' }));
+    await user.click(screen.getByRole('button', { name: '1800s' }));
+    await screen.findByText(/Question 1 of 1/);
+    expect(screen.getByText(/Name the U.S. war between the North and the South/)).toBeInTheDocument();
+  });
+
+  it('reconciles selected tags that vanish when another filter narrows the option set', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.click(screen.getByRole('button', { name: 'Constitution' }));
+    await screen.findByText(/Question 1 of 1/);
+
+    // Narrow to a category that has no Constitution-tagged question -> the
+    // Constitution chip is not rendered any more, and the filter is no-op.
+    await user.selectOptions(screen.getByLabelText(/^Category$/), 'Integrated Civics');
+    await screen.findByText(/Question 1 of 1/);
+    expect(screen.queryByRole('button', { name: 'Constitution' })).not.toBeInTheDocument();
+    expect(screen.getByText(/capital of the United States/)).toBeInTheDocument();
+  });
+
+  it('per-namespace Clear button removes only that namespace', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.click(screen.getByRole('button', { name: 'Civil War' }));
+    await user.click(screen.getByRole('button', { name: '1800s' }));
+    await screen.findByText(/Question 1 of 1/);
+
+    const wars = screen.getByTestId('tag-group-wars');
+    await user.click(within(wars).getByRole('button', { name: 'Clear' }));
+
+    // Only timePeriod:1800s remains -> Q4 is the only 1800s question.
+    await screen.findByText(/Question 1 of 1/);
+    expect(within(wars).getByRole('button', { name: 'Civil War' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('Clear filters resets selected tags', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.click(screen.getByRole('button', { name: 'Constitution' }));
+    await screen.findByText(/Question 1 of 1/);
+
+    await user.type(screen.getByLabelText(/Search questions by keyword/), 'zzznomatch');
+    await screen.findByText(/No questions match the current filters/);
+    await user.click(screen.getByRole('button', { name: /Clear filters/ }));
+
+    await screen.findByText(/Question 1 of 5/);
+    expect(screen.getByRole('button', { name: 'Constitution' })).toHaveAttribute('aria-pressed', 'false');
+  });
 });
