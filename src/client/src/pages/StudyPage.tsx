@@ -6,9 +6,39 @@ import { useAppContext } from '../context/AppContext';
 import { QuizCard } from '../components/QuizCard';
 import { useProgress } from '../hooks/useProgress';
 
+type ScopeFilter = 'all' | '6520';
+type StudiedFilter = 'all' | 'unstudied' | 'studied';
+const ALL_CATEGORIES = '__all__';
+const ALL_SUBCATEGORIES = '__all__';
+
+// Preferred display order for the three known civics-test categories.
+// Any category present in loaded data but not in this list falls back
+// to alphabetical order at the end, so unexpected backend changes don't
+// silently drop options.
+const CATEGORY_ORDER: readonly string[] = [
+  'American Government',
+  'American History',
+  'Integrated Civics',
+];
+
 function matchesSearch(question: QuestionDto, terms: readonly string[]): boolean {
   const haystack = `${question.text} ${question.answers.join(' ')} ${question.category} ${question.subCategory}`.toLowerCase();
   return terms.every(term => haystack.includes(term));
+}
+
+function orderedUnique(values: readonly string[], preferred: readonly string[]): readonly string[] {
+  const seen = new Set(values);
+  const ordered: string[] = [];
+  for (const p of preferred) {
+    if (seen.has(p)) {
+      ordered.push(p);
+      seen.delete(p);
+    }
+  }
+  for (const remaining of [...seen].sort()) {
+    ordered.push(remaining);
+  }
+  return ordered;
 }
 
 export function StudyPage(): React.ReactNode {
@@ -17,7 +47,10 @@ export function StudyPage(): React.ReactNode {
   const [allQuestions, setAllQuestions] = useState<readonly QuestionDto[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(state.selectedStateId !== null);
-  const [filter, setFilter] = useState<'all' | '6520'>('all');
+  const [scope, setScope] = useState<ScopeFilter>('all');
+  const [category, setCategory] = useState<string>(ALL_CATEGORIES);
+  const [subCategory, setSubCategory] = useState<string>(ALL_SUBCATEGORIES);
+  const [studiedFilter, setStudiedFilter] = useState<StudiedFilter>('all');
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
@@ -32,24 +65,84 @@ export function StudyPage(): React.ReactNode {
     void load();
   }, [state.selectedStateId]);
 
+  // Scope (All / 65/20) is filtered client-side off the single fetched dataset.
+  // All subsequent dimension options derive from the scoped set so e.g. the
+  // Category dropdown only lists categories that exist in the active scope.
+  const scopedQuestions = useMemo((): readonly QuestionDto[] => {
+    return scope === '6520' ? allQuestions.filter(q => q.is6520Designated) : allQuestions;
+  }, [allQuestions, scope]);
+
+  const categoryOptions = useMemo((): readonly string[] => {
+    return orderedUnique(scopedQuestions.map(q => q.category), CATEGORY_ORDER);
+  }, [scopedQuestions]);
+
+  // Effective category falls back to ALL when the stored selection is no
+  // longer present in the loaded dataset (e.g. after a scope/state change
+  // dropped that category). Without this fallback the controlled <select>
+  // would render blank (selectedIndex === -1) and the user would see an
+  // active-but-invisible filter producing an empty list.
+  const effectiveCategory = category !== ALL_CATEGORIES && !categoryOptions.includes(category)
+    ? ALL_CATEGORIES
+    : category;
+
+  const subCategoryOptions = useMemo((): readonly string[] => {
+    if (effectiveCategory === ALL_CATEGORIES) return [];
+    const subs = scopedQuestions.filter(q => q.category === effectiveCategory).map(q => q.subCategory);
+    return orderedUnique(subs, []);
+  }, [scopedQuestions, effectiveCategory]);
+
+  const effectiveSubCategory = subCategory !== ALL_SUBCATEGORIES && !subCategoryOptions.includes(subCategory)
+    ? ALL_SUBCATEGORIES
+    : subCategory;
+
+  const studiedSet = useMemo((): ReadonlySet<number> => new Set(studiedQuestionIds), [studiedQuestionIds]);
+
   const filteredQuestions = useMemo((): readonly QuestionDto[] => {
-    const base = filter === '6520'
-      ? allQuestions.filter(q => q.is6520Designated)
-      : allQuestions;
+    let list: readonly QuestionDto[] = scopedQuestions;
+    if (effectiveCategory !== ALL_CATEGORIES) {
+      list = list.filter(q => q.category === effectiveCategory);
+    }
+    if (effectiveSubCategory !== ALL_SUBCATEGORIES) {
+      list = list.filter(q => q.subCategory === effectiveSubCategory);
+    }
+    if (studiedFilter === 'studied') {
+      list = list.filter(q => studiedSet.has(q.id));
+    } else if (studiedFilter === 'unstudied') {
+      list = list.filter(q => !studiedSet.has(q.id));
+    }
     const trimmed = searchText.trim().toLowerCase();
-    if (!trimmed) return base;
-    const terms = trimmed.split(/\s+/);
-    return base.filter(q => matchesSearch(q, terms));
-  }, [allQuestions, filter, searchText]);
+    if (trimmed) {
+      const terms = trimmed.split(/\s+/);
+      list = list.filter(q => matchesSearch(q, terms));
+    }
+    return list;
+  }, [scopedQuestions, effectiveCategory, effectiveSubCategory, studiedFilter, studiedSet, searchText]);
 
   // Clamp the current index to the filtered set without an effect if the
-  // available questions shrink for any reason.
+  // available questions shrink for any reason (e.g. a tighter filter is
+  // applied while the user was at index 5 of a now-2-item list).
   const safeIndex = filteredQuestions.length === 0
     ? 0
     : Math.min(currentIndex, filteredQuestions.length - 1);
 
-  const handleFilterChange = useCallback((next: 'all' | '6520'): void => {
-    setFilter(next);
+  const handleScopeChange = useCallback((next: ScopeFilter): void => {
+    setScope(next);
+    setCurrentIndex(0);
+  }, []);
+
+  const handleCategoryChange = useCallback((value: string): void => {
+    setCategory(value);
+    setSubCategory(ALL_SUBCATEGORIES);
+    setCurrentIndex(0);
+  }, []);
+
+  const handleSubCategoryChange = useCallback((value: string): void => {
+    setSubCategory(value);
+    setCurrentIndex(0);
+  }, []);
+
+  const handleStudiedFilterChange = useCallback((next: StudiedFilter): void => {
+    setStudiedFilter(next);
     setCurrentIndex(0);
   }, []);
 
@@ -57,6 +150,20 @@ export function StudyPage(): React.ReactNode {
     setSearchText(value);
     setCurrentIndex(0);
   }, []);
+
+  const clearAllFilters = useCallback((): void => {
+    setCategory(ALL_CATEGORIES);
+    setSubCategory(ALL_SUBCATEGORIES);
+    setStudiedFilter('all');
+    setSearchText('');
+    setCurrentIndex(0);
+  }, []);
+
+  const hasActiveFilter =
+    effectiveCategory !== ALL_CATEGORIES ||
+    effectiveSubCategory !== ALL_SUBCATEGORIES ||
+    studiedFilter !== 'all' ||
+    searchText.trim().length > 0;
 
   const handleNext = useCallback((): void => {
     const current = filteredQuestions[safeIndex];
@@ -92,36 +199,98 @@ export function StudyPage(): React.ReactNode {
   }
 
   const currentQuestion = filteredQuestions[safeIndex];
-  const studiedInCurrentSet = filteredQuestions.filter(q => studiedQuestionIds.includes(q.id)).length;
-  const isCurrentStudied = currentQuestion ? studiedQuestionIds.includes(currentQuestion.id) : false;
+  const studiedInCurrentSet = filteredQuestions.filter(q => studiedSet.has(q.id)).length;
+  const isCurrentStudied = currentQuestion ? studiedSet.has(currentQuestion.id) : false;
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Study Mode</h2>
         <div className="flex gap-2">
           <button
-            onClick={() => handleFilterChange('all')}
+            onClick={() => handleScopeChange('all')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filter === 'all'
+              scope === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700'
             }`}
-            aria-pressed={filter === 'all'}
+            aria-pressed={scope === 'all'}
           >
             All 128
           </button>
           <button
-            onClick={() => handleFilterChange('6520')}
+            onClick={() => handleScopeChange('6520')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filter === '6520'
+              scope === '6520'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700'
             }`}
-            aria-pressed={filter === '6520'}
+            aria-pressed={scope === '6520'}
           >
             65/20 (20 Questions)
           </button>
+        </div>
+      </div>
+
+      {/* Filter controls */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-4">
+        <div>
+          <label htmlFor="category-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+            Category
+          </label>
+          <select
+            id="category-filter"
+            value={effectiveCategory}
+            onChange={e => handleCategoryChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value={ALL_CATEGORIES}>All categories</option>
+            {categoryOptions.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="subcategory-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+            Subcategory
+          </label>
+          <select
+            id="subcategory-filter"
+            value={effectiveSubCategory}
+            onChange={e => handleSubCategoryChange(e.target.value)}
+            disabled={effectiveCategory === ALL_CATEGORIES}
+            aria-disabled={effectiveCategory === ALL_CATEGORIES}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <option value={ALL_SUBCATEGORIES}>All subcategories</option>
+            {subCategoryOptions.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <span id="studied-filter-label" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+            Studied status
+          </span>
+          <div role="group" aria-labelledby="studied-filter-label" className="inline-flex rounded-lg overflow-hidden border border-gray-300 dark:border-slate-600">
+            {(['all', 'unstudied', 'studied'] as const).map(opt => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => handleStudiedFilterChange(opt)}
+                aria-pressed={studiedFilter === opt}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  studiedFilter === opt
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                {opt === 'all' ? 'All' : opt === 'unstudied' ? 'Unstudied' : 'Studied'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -139,7 +308,9 @@ export function StudyPage(): React.ReactNode {
         />
       </div>
 
-      {/* Progress indicator */}
+      {/* Progress indicator. Denominator is the current filtered set so the
+          bar reflects "how much of what you're looking at have you studied";
+          the trailing total stays grounded in the global pool. */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-3 mb-6">
         <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300 mb-1">
           <span>
@@ -172,14 +343,18 @@ export function StudyPage(): React.ReactNode {
       ) : (
         <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
           <p className="text-gray-500 dark:text-gray-400">
-            No questions match "<span className="font-medium">{searchText.trim()}</span>"
+            {hasActiveFilter
+              ? 'No questions match the current filters.'
+              : 'No questions available.'}
           </p>
-          <button
-            onClick={() => handleSearchChange('')}
-            className="mt-3 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm underline"
-          >
-            Clear search
-          </button>
+          {hasActiveFilter && (
+            <button
+              onClick={clearAllFilters}
+              className="mt-3 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm underline"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       )}
     </main>

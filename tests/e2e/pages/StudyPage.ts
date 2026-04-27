@@ -31,4 +31,12 @@ export class StudyPage {
     const label = filter === '6520' ? '65/20' : 'All 128';
     await this.page.click(`button:has-text("${label}")`);
   }
+
+  async selectCategory(category: string): Promise<void> {
+    await this.page.getByLabel('Category', { exact: true }).selectOption({ label: category });
+  }
+
+  async selectStudiedFilter(option: 'All' | 'Unstudied' | 'Studied'): Promise<void> {
+    await this.page.getByRole('group', { name: 'Studied status' }).getByRole('button', { name: option, exact: true }).click();
+  }
 }

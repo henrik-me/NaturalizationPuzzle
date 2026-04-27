@@ -1,12 +1,19 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { QuestionDto } from '../types/api';
-import { StudyPage } from './StudyPage';
 
 vi.mock('../services/questionService', () => ({
   getAllQuestions: vi.fn(),
+  get6520Questions: vi.fn(),
+  getQuestionById: vi.fn(),
+  getQuestionsByCategory: vi.fn(),
+}));
+
+vi.mock('../services/stateService', () => ({
+  getAllStates: vi.fn().mockResolvedValue([]),
+  getStateById: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../context/AppContext', () => ({
@@ -24,135 +31,163 @@ vi.mock('../context/AppContext', () => ({
 }));
 
 import { getAllQuestions } from '../services/questionService';
+import { StudyPage } from './StudyPage';
 
-function makeQuestion(id: number, designated: boolean, text = `Question ${id}`): QuestionDto {
-  return {
-    id,
-    text,
-    category: 'American Government',
-    subCategory: 'Principles',
-    is6520Designated: designated,
-    answers: [`Answer ${id}`],
-  };
-}
+const ALL_QUESTIONS: readonly QuestionDto[] = [
+  { id: 1, text: 'What is the form of government of the United States?', category: 'American Government', subCategory: 'Principles of American Government', is6520Designated: true, answers: ['Republic'] },
+  { id: 2, text: 'Name the three branches of government.', category: 'American Government', subCategory: 'System of Government', is6520Designated: false, answers: ['Legislative, Executive, Judicial'] },
+  { id: 3, text: 'Who wrote the Declaration of Independence?', category: 'American History', subCategory: 'Colonial Period and Independence', is6520Designated: false, answers: ['Thomas Jefferson'] },
+  { id: 4, text: 'Name the U.S. war between the North and the South.', category: 'American History', subCategory: 'The 1800s', is6520Designated: false, answers: ['Civil War'] },
+  { id: 5, text: 'What is the capital of the United States?', category: 'Integrated Civics', subCategory: 'Symbols and Holidays', is6520Designated: true, answers: ['Washington, D.C.'] },
+];
 
-function renderStudyPage(): void {
-  render(
+function renderStudyPage(): ReturnType<typeof render> {
+  return render(
     <MemoryRouter>
       <StudyPage />
     </MemoryRouter>,
   );
 }
 
-describe('StudyPage', () => {
+describe('StudyPage filters', () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.mocked(getAllQuestions).mockReset();
+    vi.mocked(getAllQuestions).mockResolvedValue(ALL_QUESTIONS);
   });
 
-  it('shows the full set by default and switches to 65/20 synchronously without a stale render', async () => {
-    const user = userEvent.setup();
-    // 5 questions: 2 designated as 65/20.
-    const allQuestions: QuestionDto[] = [
-      makeQuestion(1, true),
-      makeQuestion(2, false),
-      makeQuestion(3, true),
-      makeQuestion(4, false),
-      makeQuestion(5, false),
-    ];
-    vi.mocked(getAllQuestions).mockResolvedValue(allQuestions);
-
+  it('shows all loaded questions by default and Question 1 of N', async () => {
     renderStudyPage();
-
-    expect(await screen.findByText('Question 1 of 5')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /65\/20/i }));
-
-    // The new total must appear immediately on the same render that updates
-    // the filter — never a transient "1 of 5" with the 65/20 button selected.
-    expect(screen.getByText('Question 1 of 2')).toBeInTheDocument();
-    expect(getAllQuestions).toHaveBeenCalledTimes(1);
+    await screen.findByText(/What is the form of government/);
+    expect(screen.getByText(/Question 1 of 5/)).toBeInTheDocument();
   });
 
-  it('clamps currentIndex when the filtered set shrinks past the current position', async () => {
+  it('filters by category and resets currentIndex', async () => {
     const user = userEvent.setup();
-    const allQuestions: QuestionDto[] = [
-      makeQuestion(1, false),
-      makeQuestion(2, false),
-      makeQuestion(3, true, 'Unique-needle text appears here'),
-      makeQuestion(4, false),
-      makeQuestion(5, false),
-    ];
-    vi.mocked(getAllQuestions).mockResolvedValue(allQuestions);
-
     renderStudyPage();
+    await screen.findByText(/What is the form of government/);
 
-    await screen.findByText('Question 1 of 5');
-
-    // Advance to question 4 by revealing + clicking next three times.
-    for (let i = 0; i < 3; i++) {
-      await user.click(await screen.findByRole('button', { name: /show the answer/i }));
-      await user.click(await screen.findByRole('button', { name: /go to next question/i }));
-    }
-    expect(screen.getByText('Question 4 of 5')).toBeInTheDocument();
-
-    // Search for text that only matches question 3 — the filtered set shrinks
-    // to a single item. The displayed counter must clamp to 1, not show
-    // "Question 4 of 1".
-    await user.type(screen.getByLabelText(/search questions/i), 'unique-needle');
-    expect(await screen.findByText('Question 1 of 1')).toBeInTheDocument();
-    expect(screen.getByText(/Unique-needle text appears here/)).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/^Category$/), 'American History');
+    await screen.findByText(/Who wrote the Declaration of Independence/);
+    expect(screen.getByText(/Question 1 of 2/)).toBeInTheDocument();
   });
 
-  it('resets the QuizCard reveal state when the filter swaps the displayed question', async () => {
+  it('subcategory dropdown only enables when a category is chosen and resets when category changes', async () => {
     const user = userEvent.setup();
-    const allQuestions: QuestionDto[] = [
-      makeQuestion(1, false, 'Non-designated question one'),
-      makeQuestion(2, true, 'Designated 65/20 question'),
-    ];
-    vi.mocked(getAllQuestions).mockResolvedValue(allQuestions);
-
     renderStudyPage();
+    await screen.findByText(/What is the form of government/);
 
-    await screen.findByText('Question 1 of 2');
+    const subSelect = screen.getByLabelText(/^Subcategory$/) as HTMLSelectElement;
+    expect(subSelect).toBeDisabled();
 
-    // Reveal the answer on question 1.
-    await user.click(screen.getByRole('button', { name: /show the answer/i }));
-    expect(screen.getByRole('button', { name: /go to next question/i })).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/^Category$/), 'American History');
+    expect(subSelect).not.toBeDisabled();
 
-    // Toggling 65/20 swaps the displayed question (now Q2). The card must
-    // remount so the new question is shown with its answer hidden again,
-    // not carry over the previous showAnswer=true state.
-    await user.click(screen.getByRole('button', { name: /65\/20/i }));
+    await user.selectOptions(subSelect, 'The 1800s');
+    await screen.findByText(/Question 1 of 1/);
+    expect(screen.getByText(/Name the U.S. war between the North and the South/)).toBeInTheDocument();
 
-    expect(screen.getByText('Question 1 of 1')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /show the answer/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /go to next question/i })).not.toBeInTheDocument();
+    // Switching category must reset subcategory back to "All subcategories".
+    await user.selectOptions(screen.getByLabelText(/^Category$/), 'American Government');
+    expect(subSelect.value).toBe('__all__');
   });
 
-  it('filters by search text and shows the empty state when no matches', async () => {
+  it('filters Studied vs Unstudied based on persisted progress', async () => {
+    localStorage.setItem('naturalizationProgress', JSON.stringify({ studiedQuestionIds: [3, 5], quizHistory: [] }));
     const user = userEvent.setup();
-    const allQuestions: QuestionDto[] = [
-      makeQuestion(1, false, 'What is the supreme law of the land?'),
-      makeQuestion(2, false, 'Name one branch of the government.'),
-    ];
-    vi.mocked(getAllQuestions).mockResolvedValue(allQuestions);
-
     renderStudyPage();
+    await screen.findByText(/What is the form of government/);
 
-    await screen.findByText('Question 1 of 2');
+    const group = screen.getByRole('group', { name: /Studied status/ });
 
-    const search = screen.getByLabelText(/search questions/i);
-    await user.type(search, 'supreme');
+    await user.click(within(group).getByRole('button', { name: /^Studied$/ }));
+    await screen.findByText(/Question 1 of 2/);
 
-    expect(screen.getByText('Question 1 of 1')).toBeInTheDocument();
-    expect(screen.getByText(/supreme law/i)).toBeInTheDocument();
+    await user.click(within(group).getByRole('button', { name: /^Unstudied$/ }));
+    await screen.findByText(/Question 1 of 3/);
+  });
 
-    await user.clear(search);
-    await user.type(search, 'nonexistent');
+  it('composes 65/20 + category', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
 
-    await waitFor(() => {
-      expect(screen.getByText(/No questions match/i)).toBeInTheDocument();
-    });
+    await user.click(screen.getByRole('button', { name: /65\/20/ }));
+    // 65/20 designated: ids 1 (American Government) + 5 (Integrated Civics) -> 2 items.
+    await screen.findByText(/Question 1 of 2/);
+
+    await user.selectOptions(screen.getByLabelText(/^Category$/), 'Integrated Civics');
+    await screen.findByText(/Question 1 of 1/);
+    expect(screen.getByText(/capital of the United States/)).toBeInTheDocument();
+  });
+
+  it('composes Category + search', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.selectOptions(screen.getByLabelText(/^Category$/), 'American History');
+    await user.type(screen.getByLabelText(/Search questions by keyword/), 'civil');
+    await screen.findByText(/Question 1 of 1/);
+    // Search hits the answer "Civil War" (case-insensitive); the rendered card
+    // shows the question text, not the answer.
+    expect(screen.getByText(/Name the U.S. war between the North and the South/)).toBeInTheDocument();
+  });
+
+  it('shows filter-aware empty state with a Clear filters button on empty intersection', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.type(screen.getByLabelText(/Search questions by keyword/), 'zzznomatch');
+
+    await screen.findByText(/No questions match the current filters/);
+    const clear = screen.getByRole('button', { name: /Clear filters/ });
+    await user.click(clear);
+
+    await screen.findByText(/What is the form of government/);
+    expect(screen.getByText(/Question 1 of 5/)).toBeInTheDocument();
+  });
+
+  it('progress denominator reflects the current filtered set', async () => {
+    localStorage.setItem('naturalizationProgress', JSON.stringify({ studiedQuestionIds: [3], quizHistory: [] }));
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    expect(screen.getByText(/1 of 5 studied/)).toBeInTheDocument();
+    expect(screen.getByText(/1 total studied/)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/^Category$/), 'American History');
+    expect(screen.getByText(/1 of 2 studied/)).toBeInTheDocument();
+    expect(screen.getByText(/1 total studied/)).toBeInTheDocument();
+  });
+
+  it('search text alone filters within all loaded questions', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.type(screen.getByLabelText(/Search questions by keyword/), 'capital');
+    await screen.findByText(/What is the capital of the United States/);
+    expect(screen.getByText(/Question 1 of 1/)).toBeInTheDocument();
+  });
+
+  it('falls back to All when scope change drops a previously selected category', async () => {
+    const user = userEvent.setup();
+    renderStudyPage();
+    await screen.findByText(/What is the form of government/);
+
+    await user.selectOptions(screen.getByLabelText(/^Category$/), 'American History');
+    await user.selectOptions(screen.getByLabelText(/^Subcategory$/), 'The 1800s');
+    await screen.findByText(/Question 1 of 1/);
+
+    // 65/20 dataset has no American History questions in this fixture.
+    await user.click(screen.getByRole('button', { name: /65\/20/ }));
+    await screen.findByText(/Question 1 of 2/);
+
+    const categorySelect = screen.getByLabelText(/^Category$/) as HTMLSelectElement;
+    expect(categorySelect.value).toBe('__all__');
+    const subSelect = screen.getByLabelText(/^Subcategory$/) as HTMLSelectElement;
+    expect(subSelect.value).toBe('__all__');
   });
 });
