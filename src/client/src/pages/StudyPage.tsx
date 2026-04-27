@@ -312,12 +312,12 @@ export function StudyPage(): React.ReactNode {
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Study Mode</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <button
             onClick={() => handleScopeChange('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex-1 sm:flex-none min-h-[44px] px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               scope === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700'
@@ -328,7 +328,7 @@ export function StudyPage(): React.ReactNode {
           </button>
           <button
             onClick={() => handleScopeChange('6520')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex-1 sm:flex-none min-h-[44px] px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               scope === '6520'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700'
@@ -428,12 +428,12 @@ export function StudyPage(): React.ReactNode {
           bar reflects "how much of what you're looking at have you studied";
           the trailing total stays grounded in the global pool. */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-3 mb-6">
-        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300 mb-1">
-          <span>
+        <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-sm text-gray-600 dark:text-gray-300 mb-1">
+          <span className="break-words min-w-0">
             {studiedInCurrentSet} of {filteredQuestions.length} studied
             {searchText.trim() && ` (matching "${searchText.trim()}")`}
           </span>
-          <span>{studiedCount} total studied</span>
+          <span className="whitespace-nowrap">{studiedCount} total studied</span>
         </div>
         <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2">
           <div
