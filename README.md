@@ -334,12 +334,14 @@ Automated **WCAG 2.1 AA** accessibility checks are run via `@axe-core/playwright
 
 ```bash
 cd tests/e2e
-npx playwright test                        # run all E2E tests (12 tests)
-npx playwright test accessibility          # run accessibility checks only
-npx playwright test state-selection        # run a specific spec
+npx playwright test                  # run all E2E tests (29 tests)
+npx playwright test accessibility    # run accessibility checks only
+npx playwright test state-selection  # run a specific spec
 ```
 
-> Both the API and frontend dev server must be running for E2E tests.
+> The Playwright config's `webServer` blocks auto-start the .NET API and Vite dev server — you do **not** need to start them manually.
+>
+> The repo pins `reporter: 'list'` in `playwright.config.ts`. Do not switch to the default `html` reporter for CI or agent runs — its built-in server holds port 9323 and blocks the process from exiting.
 
 ---
 
