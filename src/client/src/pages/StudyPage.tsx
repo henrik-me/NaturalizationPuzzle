@@ -136,25 +136,32 @@ export function StudyPage(): React.ReactNode {
 
   // Persistently prune any selected tags whose chip is no longer offered (because
   // a narrower category/scope/studied filter eliminated every question carrying
-  // them). Doing this in an effect rather than only in render means the orphan
-  // tag does NOT silently come back when the user widens the other filters
-  // again — it is a deliberate "removed" state once narrowed away.
-  useEffect(() => {
-    if (selectedTags.size === 0) return;
-    let everyPresent = true;
-    for (const t of selectedTags) {
-      if (!availableTagSet.has(t)) { everyPresent = false; break; }
+  // them). We use the React-idiomatic "adjust state during render" pattern keyed
+  // off `availableTagSet` identity so the orphan tag does NOT silently come back
+  // when the user widens the other filters again — it is a deliberate "removed"
+  // state once narrowed away. Tracking the last-seen set via state (not a ref)
+  // is what React's docs recommend for this pattern; the guarded equality check
+  // makes the adjustment a one-shot per change with no infinite loop.
+  const [lastAvailableTagSet, setLastAvailableTagSet] = useState(availableTagSet);
+  if (lastAvailableTagSet !== availableTagSet) {
+    setLastAvailableTagSet(availableTagSet);
+    if (selectedTags.size > 0) {
+      let everyPresent = true;
+      for (const t of selectedTags) {
+        if (!availableTagSet.has(t)) { everyPresent = false; break; }
+      }
+      if (!everyPresent) {
+        const next = new Set<string>();
+        for (const t of selectedTags) {
+          if (availableTagSet.has(t)) next.add(t);
+        }
+        setSelectedTags(next);
+      }
     }
-    if (everyPresent) return;
-    const next = new Set<string>();
-    for (const t of selectedTags) {
-      if (availableTagSet.has(t)) next.add(t);
-    }
-    setSelectedTags(next);
-  }, [availableTagSet, selectedTags]);
+  }
 
   // Orphan tags are also masked at render time so the very render that triggers
-  // the pruning effect doesn't briefly include them in the filter result.
+  // the prune doesn't briefly include them in the filter result.
   const effectiveSelectedTags = useMemo((): ReadonlySet<string> => {
     let everyPresent = true;
     for (const t of selectedTags) {
