@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 const NAMESPACE_LABELS: Record<string, string> = {
   people: 'People',
@@ -74,60 +74,96 @@ export function TagFilterPanel({
   onClearNamespace,
 }: TagFilterPanelProps): React.ReactNode {
   const groups = useMemo(() => groupTagsByNamespace(availableTags), [availableTags]);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (groups.length === 0) return null;
 
+  // Selected-tag count powers the badge so a user knows there are active
+  // hidden filters even when the panel is collapsed.
+  let selectedCount = 0;
+  for (const tag of selectedTags) {
+    if (groups.some(g => g.tags.includes(tag))) selectedCount += 1;
+  }
+
+  const panelId = 'tag-filter-panel-content';
+
   return (
-    <div className="mb-4 space-y-3">
-      {groups.map(group => {
-        const selectedInGroup = group.tags.filter(t => selectedTags.has(t));
-        const hasSelection = selectedInGroup.length > 0;
-        return (
-          <div key={group.namespace} data-testid={`tag-group-${group.namespace}`}>
-            <div className="flex items-center gap-2 mb-1">
-              <span
-                id={`tag-group-${group.namespace}-label`}
-                className="text-sm font-medium text-gray-700 dark:text-gray-200"
-              >
-                {group.label}
-              </span>
-              {hasSelection && (
-                <button
-                  type="button"
-                  onClick={() => onClearNamespace(group.namespace)}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <div
-              role="group"
-              aria-labelledby={`tag-group-${group.namespace}-label`}
-              className="flex flex-wrap gap-2"
-            >
-              {group.tags.map(tag => {
-                const isSelected = selectedTags.has(tag);
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => onToggleTag(tag)}
-                    aria-pressed={isSelected}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
-                      isSelected
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700'
-                    }`}
+    <div className="mb-4">
+      <button
+        type="button"
+        onClick={() => setIsExpanded(prev => !prev)}
+        aria-expanded={isExpanded}
+        aria-controls={panelId}
+        className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
+      >
+        <span aria-hidden="true" className="inline-block w-4 text-xs">
+          {isExpanded ? '▾' : '▸'}
+        </span>
+        <span>More filters</span>
+        {selectedCount > 0 && (
+          <span
+            data-testid="tag-filter-count-badge"
+            aria-label={`${selectedCount} selected`}
+            className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold"
+          >
+            <span aria-hidden="true">{selectedCount}</span>
+          </span>
+        )}
+      </button>
+
+      {isExpanded && (
+        <div id={panelId} className="mt-3 space-y-3">
+          {groups.map(group => {
+            const selectedInGroup = group.tags.filter(t => selectedTags.has(t));
+            const hasSelection = selectedInGroup.length > 0;
+            return (
+              <div key={group.namespace} data-testid={`tag-group-${group.namespace}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    id={`tag-group-${group.namespace}-label`}
+                    className="text-sm font-medium text-gray-700 dark:text-gray-200"
                   >
-                    {valueOf(tag)}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+                    {group.label}
+                  </span>
+                  {hasSelection && (
+                    <button
+                      type="button"
+                      onClick={() => onClearNamespace(group.namespace)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div
+                  role="group"
+                  aria-labelledby={`tag-group-${group.namespace}-label`}
+                  className="flex flex-wrap gap-2"
+                >
+                  {group.tags.map(tag => {
+                    const isSelected = selectedTags.has(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => onToggleTag(tag)}
+                        aria-pressed={isSelected}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+                          isSelected
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {valueOf(tag)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
