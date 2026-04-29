@@ -39,4 +39,17 @@ export class StudyPage {
   async selectStudiedFilter(option: 'All' | 'Unstudied' | 'Studied'): Promise<void> {
     await this.page.getByRole('group', { name: 'Studied status' }).getByRole('button', { name: option, exact: true }).click();
   }
+
+  async toggleTag(namespace: 'people' | 'wars' | 'documents' | 'timePeriod', value: string): Promise<void> {
+    // The tag panel is a collapsible disclosure that defaults to collapsed;
+    // expand it (idempotent — only clicks when collapsed) before clicking a chip.
+    const toggle = this.page.getByRole('button', { name: /More filters/ });
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+      await toggle.click();
+    }
+    await this.page
+      .getByTestId(`tag-group-${namespace}`)
+      .getByRole('button', { name: value, exact: true })
+      .click();
+  }
 }

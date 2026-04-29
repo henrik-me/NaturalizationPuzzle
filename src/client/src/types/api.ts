@@ -4,6 +4,7 @@ export interface QuestionDto {
   readonly category: string;
   readonly subCategory: string;
   readonly is6520Designated: boolean;
+  readonly tags: readonly string[];
   readonly answers: readonly string[];
 }
 

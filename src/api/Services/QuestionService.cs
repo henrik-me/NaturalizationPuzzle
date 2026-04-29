@@ -102,6 +102,7 @@ public sealed class QuestionService(AppDbContext db) : IQuestionService
             question.Category,
             question.SubCategory,
             question.Is6520Designated,
+            question.Tags,
             answers);
     }
 

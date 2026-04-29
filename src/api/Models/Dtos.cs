@@ -6,6 +6,7 @@ public sealed record QuestionDto(
     string Category,
     string SubCategory,
     bool Is6520Designated,
+    IReadOnlyList<string> Tags,
     IReadOnlyList<string> Answers);
 
 public sealed record UsStateDto(
