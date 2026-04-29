@@ -96,7 +96,16 @@ The main agent acts as an **orchestrator** whose top priority is to remain respo
 
 - **Default to delegation.** For any task that involves more than a few tool calls of investigation or execution, spin up a sub-agent (`explore`, `task`, `general-purpose`, or `code-review` — `rubber-duck` is an example of the `code-review` agent) instead of doing the work inline. Examples: codebase exploration across many files, running long test/build/lint commands, reviewing diffs or PRs, validating plans, batch refactors.
 - **Prefer background mode** (`mode: "background"`) for sub-agents whose results you don't need before your very next step. End the turn after launching; the completion notification will bring you back. This keeps the user's terminal interactive.
-- **Default to background even for "mandatory" reviews.** Sync sub-agent calls block the orchestrator from receiving user input until the agent returns. For the GPT-5.4 plan/diff reviews and other long-ish reviews, launch in **background**, end the turn, and resume from the completion notification. Only use `mode: "sync"` when (a) the agent is expected to return in well under 10 seconds, or (b) the orchestrator literally has nothing meaningful to do or say to the user until the result arrives. **A pending review is not a license to ignore the user.**
+- **Default to background even for "mandatory" reviews.** Sync sub-agent calls block the orchestrator from receiving user input until the agent returns. For the GPT-5.5 plan/diff reviews and other long-ish reviews, launch in **background**, end the turn, and resume from the completion notification. Only use `mode: "sync"` when (a) the agent is expected to return in well under 10 seconds, or (b) the orchestrator literally has nothing meaningful to do or say to the user until the result arrives. **A pending review is not a license to ignore the user.**
+
+#### Model Selection for Sub-Agents
+
+Always pass an explicit `model` argument when launching a non-`explore` sub-agent — never rely on the agent type's default model. Read-only `explore` agents are the only exception and may use the default fast model.
+
+- **Code-review / rubber-duck reviews (plan reviews and final-diff reviews):** use `model: "gpt-5.5"`. This is the only model used for review work, including the local pre-push GPT-5.5 review and the GPT-5.5 plan review.
+- **Code, test, and implementation-plan generation** (`general-purpose`, `task`, and any sub-agent that writes/edits source code, writes/runs tests, or produces an implementation plan for the orchestrator to execute): use `model: "claude-opus-4.7-1m-internal"` (Claude Opus 4.7, 1M context). The 1M-context window is required so the sub-agent can hold the full repository context it needs for non-trivial implementation and test work. Note: this covers *generating* implementation plans; *reviewing* a plan is still a code-review task and uses `gpt-5.5` per the bullet above.
+- **Explore agents** doing read-only investigation may use the agent type's default fast model. If a specific exploration genuinely benefits from deeper reasoning, override to `claude-opus-4.7-1m-internal`.
+- **Fallback when `claude-opus-4.7-1m-internal` is unavailable** (e.g., the sub-agent invocation errors with model-access denied, or an external contributor lacks access to the internal variant): substitute the strongest available high-reasoning Claude Opus model with the largest context window the environment offers (e.g., `claude-opus-4.7-high`, `claude-opus-4.7`, then `claude-opus-4.6`). State the substitution to the user in the same response that launches the sub-agent. If no Claude Opus model is available, ask the user how to proceed rather than silently falling back to a much weaker model.
 - **Parallelize independent work.** Multiple `explore` or `code-review` agents can run concurrently — launch them in a single response when their scopes don't overlap.
 - **Give complete context.** Sub-agents are stateless. Provide the full task, file paths, success criteria, constraints (e.g., "do not modify code", "do not post to the PR"), and the expected output format in the prompt.
 - **Own the scope you delegate.** Once a sub-agent owns a scope, do not duplicate its work with your own grep/view calls; wait for the result.
@@ -142,15 +151,15 @@ Sub-agents that build, test, modify files, or check out different branches **mus
 
 ### Code Review
 
-- **Every change must receive a local GPT-5.4 review of the final diff before it is pushed or opened as a PR. No exceptions** — this applies to features, fixes, refactors, dependency bumps, infrastructure, workflows, scripts, **and documentation-only changes**.
-- Perform the review by invoking the code-review sub-agent (e.g. `rubber-duck`) with `model: "gpt-5.4"`. The sub-agent counts as a local review.
-- For **non-trivial** changes (multi-file, architectural, security-sensitive, or dependency/infra), also do a **plan review** with GPT-5.4 *before* implementing. Plan review may be skipped only for trivial changes (single small edit, typo fix, renaming).
+- **Every change must receive a local GPT-5.5 review of the final diff before it is pushed or opened as a PR. No exceptions** — this applies to features, fixes, refactors, dependency bumps, infrastructure, workflows, scripts, **and documentation-only changes**.
+- Perform the review by invoking the code-review sub-agent (e.g. `rubber-duck`) with `model: "gpt-5.5"`. The sub-agent counts as a local review.
+- For **non-trivial** changes (multi-file, architectural, security-sensitive, or dependency/infra), also do a **plan review** with GPT-5.5 *before* implementing. Plan review may be skipped only for trivial changes (single small edit, typo fix, renaming).
 - The review must cover correctness, security, edge cases, and blast radius. Adopt findings that prevent bugs, regressions, or merging a broken change. A finding may be dismissed only when clearly non-blocking; record a one-line rationale for each dismissed finding.
 - When summarizing review outcomes to the user, be concise: state the key findings and how you addressed each. Do not copy the critique verbatim.
 
 #### Pre-Push Verification (build + tests + e2e)
 
-- **Every non-docs change must pass full local verification before it is pushed or opened as a PR, and again before every subsequent push to the PR branch** (e.g., commits that address Copilot or GPT-5.4 review feedback). This is a mandatory pre-push gate, peer to the GPT-5.4 review above.
+- **Every non-docs change must pass full local verification before it is pushed or opened as a PR, and again before every subsequent push to the PR branch** (e.g., commits that address Copilot or GPT-5.5 review feedback). This is a mandatory pre-push gate, peer to the GPT-5.5 review above.
 - "Non-docs" uses the same definition as the Copilot PR Review Loop — paths outside the CI/CD workflow's `paths-ignore` list. Docs-only changes are exempt from build/test/e2e verification.
 - Verification runs on the change's affected sides; at minimum:
   - **Frontend changes** (`src/client/**`): `npm run lint && npm test -- --run && npm run build` from `src/client/`.
@@ -199,14 +208,14 @@ Single command to inspect most state: `gh pr view <N> --json mergeable,mergeStat
 
 #### Copilot PR Review Loop (non-docs changes)
 
-Any change that is **not docs-only** must additionally pass an iterative GitHub Copilot review on the pull request itself. This is in addition to (not a replacement for) the local GPT-5.4 review above. "Docs-only" here means the change touches only paths covered by the CI/CD workflow's `paths-ignore` list (Markdown, `LICENSE`, `.gitignore`, `.editorconfig`, copilot/contributor instructions, PR/issue templates).
+Any change that is **not docs-only** must additionally pass an iterative GitHub Copilot review on the pull request itself. This is in addition to (not a replacement for) the local GPT-5.5 review above. "Docs-only" here means the change touches only paths covered by the CI/CD workflow's `paths-ignore` list (Markdown, `LICENSE`, `.gitignore`, `.editorconfig`, copilot/contributor instructions, PR/issue templates).
 
-- **PR required.** Never push non-docs changes directly to `main`. **`gh pr merge --admin` is banned by default** for non-docs PRs and may be used only as a narrow exception when **all** of the following are true: (i) every other gate in this file is satisfied — local GPT-5.4 plan review (if applicable) and final-diff review, full pre-push verification (build + tests + e2e), Copilot PR review loop clean, and all review threads resolved; (ii) CI is green and the PR is otherwise mergeable (`mergeable == MERGEABLE`, no conflicts, not draft); (iii) the **only** remaining blocker is the missing `APPROVED` review and no human approver is available; and (iv) the rationale is documented in a PR comment before the merge. If any of these is false, do not use `--admin` — escalate to the user and ask for approval instead.
+- **PR required.** Never push non-docs changes directly to `main`. **`gh pr merge --admin` is banned by default** for non-docs PRs and may be used only as a narrow exception when **all** of the following are true: (i) every other gate in this file is satisfied — local GPT-5.5 plan review (if applicable) and final-diff review, full pre-push verification (build + tests + e2e), Copilot PR review loop clean, and all review threads resolved; (ii) CI is green and the PR is otherwise mergeable (`mergeable == MERGEABLE`, no conflicts, not draft); (iii) the **only** remaining blocker is the missing `APPROVED` review and no human approver is available; and (iv) the rationale is documented in a PR comment before the merge. If any of these is false, do not use `--admin` — escalate to the user and ask for approval instead.
 - **Add Copilot as a reviewer** as soon as the PR is opened: `gh pr edit <N> --add-reviewer "@copilot"` (or click "Request a review from Copilot" in the GitHub UI).
 - **Address every Copilot suggestion** — push fixes as additional commits on the PR branch. The dismissal policy from the Code Review section still applies: a suggestion may be dismissed only when clearly non-blocking, and the rationale must be recorded in a PR comment replying to that suggestion.
 - **Re-request Copilot review after each push** of new commits using the same `gh pr edit <N> --add-reviewer "@copilot"` invocation, or the "Re-request review" button in the UI.
 - **Loop until Copilot returns a clean review** with no further comments or change suggestions. **A clean Copilot review is necessary but not sufficient to merge** — old unresolved review threads can still exist, and a non-docs PR additionally needs an `APPROVED` review (Copilot reviews are always `COMMENTED`). See the Pre-Merge Checklist above.
-- The local pre-push GPT-5.4 review is still required for every commit pushed to the PR branch — including commits that address Copilot's feedback.
+- The local pre-push GPT-5.5 review is still required for every commit pushed to the PR branch — including commits that address Copilot's feedback.
 - **Dependabot/bot PRs:** the Copilot review loop applies to them too. If Copilot has actionable feedback on a bot PR, push fix-up commits directly to the bot's branch to address it. This will stop Dependabot from further auto-managing that PR (no more auto-rebase), which is acceptable because the PR is about to be merged. Only use `@dependabot rebase` when you genuinely want Dependabot to keep managing the PR (e.g., it's behind `main` and you have no fix-ups to push).
 
 ### Dependabot & Security PRs
@@ -218,7 +227,7 @@ Dependabot PRs (dependency bumps) and other automated security PRs are **first-c
 - **Patch / minor bumps without security impact**: validate and merge in normal cadence.
 - **Major bumps**: extra scrutiny — analyze breaking changes and peer-dep constraints.
 
-**Plan review:** dependency/infra changes are classed as non-trivial under the **Code Review** section, so a GPT-5.4 plan review applies. In practice, for a routine patch-level Dependabot PR (no breaking changes, narrow blast radius), the validation checklist below is itself the plan; for minor or major bumps run a separate plan review before starting validation.
+**Plan review:** dependency/infra changes are classed as non-trivial under the **Code Review** section, so a GPT-5.5 plan review applies. In practice, for a routine patch-level Dependabot PR (no breaking changes, narrow blast radius), the validation checklist below is itself the plan; for minor or major bumps run a separate plan review before starting validation.
 
 **Validation checklist — delegate to a sub-agent running in its own worktree** (see Worktree Isolation for Sub-Agents). The orchestrator creates worktree `<src-location>_wt-<N>` from the PR ref, hands the path to the sub-agent, and removes the worktree when done.
 
@@ -235,8 +244,8 @@ Dependabot PRs (dependency bumps) and other automated security PRs are **first-c
 5. **Lint, test, build** on the affected side:
    - Frontend (run from `src/client/`): `npm run lint && npm test -- --run && npm run build`
    - Backend: `dotnet build` from the worktree root (or `src/api/`), and `dotnet test` from the **worktree root** so the solution resolves the xUnit project at `tests/api/`. Do **not** run `dotnet test` from `src/api/` — that project is the web app, not the test project, so the suite would be silently skipped.
-6. **Run the GPT-5.4 `code-review` sub-agent** on the final diff (mandatory per Code Review section). The reviewer can read from the same worktree.
-7. **Re-run the validation checklist (steps 2–6) after every fix-up commit** pushed to the PR branch in response to Copilot or GPT-5.4 review feedback. The pre-push verification gate already covers build + unit tests + e2e for the new commit; this step ensures the diff scope, resolved versions, and final-diff GPT-5.4 review reflect the latest PR head before merge.
+6. **Run the GPT-5.5 `code-review` sub-agent** on the final diff (mandatory per Code Review section). The reviewer can read from the same worktree.
+7. **Re-run the validation checklist (steps 2–6) after every fix-up commit** pushed to the PR branch in response to Copilot or GPT-5.5 review feedback. The pre-push verification gate already covers build + unit tests + e2e for the new commit; this step ensures the diff scope, resolved versions, and final-diff GPT-5.5 review reflect the latest PR head before merge.
 8. **Remove the worktree** when validation is complete (orchestrator step): `git worktree remove <src-location>_wt-<N>`.
 
 **Merging:**
