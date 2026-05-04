@@ -145,7 +145,7 @@ export function QuizPage(): React.ReactNode {
             disabled={isLoading}
             className="w-full bg-green-700 dark:bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-800 dark:hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:outline-none transition-colors disabled:opacity-50"
           >
-            {isLoading ? 'Loading...' : 'Start Quiz'}
+            {isLoading ? 'Starting quiz…' : 'Start Quiz'}
           </button>
         </div>
       </main>

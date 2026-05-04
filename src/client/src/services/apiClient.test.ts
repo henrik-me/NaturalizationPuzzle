@@ -1,9 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { apiGet, apiPost } from './apiClient';
+import {
+  connectionStatus,
+  SLOW_REQUEST_THRESHOLD_MS,
+  __resetConnectionStatusForTests,
+} from './connectionStatus';
 
 describe('apiClient', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    __resetConnectionStatusForTests();
   });
 
   describe('apiGet', () => {
@@ -68,6 +74,66 @@ describe('apiClient', () => {
       const result = await apiPost('/test', {});
 
       expect(result).toEqual({ success: false, error: '500: Internal Server Error' });
+    });
+  });
+
+  describe('slow-request instrumentation', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('does not mark slow when the request resolves before the threshold', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ ok: true }),
+      } as Response);
+
+      await apiGet('/fast');
+
+      expect(connectionStatus.getSnapshot()).toBe(0);
+    });
+
+    it('marks slow once the threshold elapses, and clears on completion', async () => {
+      vi.useFakeTimers();
+      let resolveFetch!: (value: Response) => void;
+      const fetchPromise = new Promise<Response>(resolve => {
+        resolveFetch = resolve;
+      });
+      vi.spyOn(globalThis, 'fetch').mockReturnValue(fetchPromise);
+
+      const apiPromise = apiGet('/slow');
+
+      // Cross the slow threshold while the fetch is still in flight.
+      await vi.advanceTimersByTimeAsync(SLOW_REQUEST_THRESHOLD_MS + 1);
+      expect(connectionStatus.getSnapshot()).toBe(1);
+
+      // Resolve the fetch and finish the apiGet call.
+      resolveFetch({
+        ok: true,
+        json: async () => ({ ok: true }),
+      } as Response);
+      await apiPromise;
+
+      expect(connectionStatus.getSnapshot()).toBe(0);
+    });
+
+    it('clears the slow mark even when the fetch rejects after the threshold', async () => {
+      vi.useFakeTimers();
+      let rejectFetch!: (reason: Error) => void;
+      const fetchPromise = new Promise<Response>((_, reject) => {
+        rejectFetch = reject;
+      });
+      vi.spyOn(globalThis, 'fetch').mockReturnValue(fetchPromise);
+
+      const apiPromise = apiGet('/slow-failing');
+
+      await vi.advanceTimersByTimeAsync(SLOW_REQUEST_THRESHOLD_MS + 1);
+      expect(connectionStatus.getSnapshot()).toBe(1);
+
+      rejectFetch(new Error('boom'));
+      await apiPromise;
+
+      expect(connectionStatus.getSnapshot()).toBe(0);
     });
   });
 });
