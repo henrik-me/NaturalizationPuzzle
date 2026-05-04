@@ -4,6 +4,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navigation } from './components/Navigation';
 import { OfflineBanner } from './components/OfflineBanner';
+import { SlowConnectionBanner } from './components/SlowConnectionBanner';
 import { useWarmUpCache } from './hooks/useWarmUpCache';
 import { StudyPage } from './pages/StudyPage';
 import { QuizPage } from './pages/QuizPage';
@@ -17,6 +18,7 @@ function AppShell(): React.ReactNode {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-gray-900 dark:text-gray-100">
+        <SlowConnectionBanner />
         <OfflineBanner />
         <Navigation />
         <ErrorBoundary>
