@@ -146,7 +146,7 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 
 | Telemetry | What's Collected | Where to View |
 |-----------|-----------------|---------------|
-| **Requests** | Every HTTP request — duration, status code, URL, success/failure | Portal → Application Insights → Performance |
+| **Requests** | HTTP requests (subject to trace sampling — see below) — duration, status code, URL, success/failure | Portal → Application Insights → Performance |
 | **Failures** | Unhandled exceptions with full stack traces, error rates | Portal → Failures → drill into exception details |
 | **Dependencies** | Outbound calls (SQLite queries via EF Core) — duration, success | Portal → Performance → Dependencies |
 | **Traces / Logs** | ILogger output (structured logging with correlation IDs) | Portal → Transaction search, or Logs (KQL queries) |
@@ -154,6 +154,8 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 | **Metrics** | CPU, memory, request count, response time, active containers | Portal → Metrics explorer, or pin to Dashboards |
 
 **How to access**: Azure Portal → Resource Group `NaturalizationPuzzle` → Application Insights resource → choose a blade (Performance, Failures, Logs, Live Metrics). Use KQL queries in the Logs blade for custom analysis (e.g., `requests | where resultCode >= 500 | summarize count() by bin(timestamp, 1h)`).
+
+**Trace sampling**: As of `Azure.Monitor.OpenTelemetry.AspNetCore` 1.5.0 (PR #69), the package's default sampler is `RateLimitedSampler` at **5 traces/sec** (changed from 100% sampling in 1.4.0). This app accepts the new default — np.metzger.dk runs scale-to-zero with sustained traffic well below 5 req/sec, so 100% of traces continue to be retained in practice and the rate limit better aligns with the App Insights free 5 GB/mo tier. To restore 100% sampling if traffic ever exceeds the limit, configure `UseAzureMonitor(o => { o.SamplingRatio = 1.0f; o.TracesPerSecond = null; })` in `Program.cs`.
 
 ### Implementation (Three Phases)
 
