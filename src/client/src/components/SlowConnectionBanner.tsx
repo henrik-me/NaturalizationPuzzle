@@ -22,7 +22,11 @@ export function SlowConnectionBanner(): React.ReactNode {
     () => 0,
   );
   const isVisible = slowCount > 0;
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  // Counts ticks of the 1s setInterval below. Naming the state by what it
+  // measures (ticks) rather than what it usually displays (seconds) avoids
+  // a misleading variable name if TICK_MS is ever retuned. Display seconds
+  // and the rotating message index are derived from `tickCount * TICK_MS`.
+  const [tickCount, setTickCount] = useState(0);
 
   useEffect(() => {
     if (!isVisible) {
@@ -30,11 +34,11 @@ export function SlowConnectionBanner(): React.ReactNode {
       // back at the first message and 0s. The lint rule flags the synchronous
       // setState in an effect — that's the intended behavior here.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setElapsedSeconds(0);
+      setTickCount(0);
       return;
     }
     const interval = setInterval(() => {
-      setElapsedSeconds(s => s + 1);
+      setTickCount(t => t + 1);
     }, TICK_MS);
     return () => {
       clearInterval(interval);
@@ -43,8 +47,10 @@ export function SlowConnectionBanner(): React.ReactNode {
 
   if (!isVisible) return null;
 
+  const elapsedMs = tickCount * TICK_MS;
+  const displaySeconds = Math.floor(elapsedMs / 1000);
   const messageIndex = Math.min(
-    Math.floor((elapsedSeconds * TICK_MS) / MESSAGE_ROTATION_MS),
+    Math.floor(elapsedMs / MESSAGE_ROTATION_MS),
     SLOW_BANNER_MESSAGES.length - 1,
   );
   const message = SLOW_BANNER_MESSAGES[messageIndex];
@@ -67,7 +73,7 @@ export function SlowConnectionBanner(): React.ReactNode {
         />
         <span data-testid="slow-connection-message">{message}</span>
         <span data-testid="slow-connection-elapsed" className="opacity-70 tabular-nums text-xs">
-          ({elapsedSeconds}s)
+          ({displaySeconds}s)
         </span>
       </span>
     </div>

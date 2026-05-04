@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { SlowConnectionBanner } from './SlowConnectionBanner';
 import { SLOW_BANNER_MESSAGES, MESSAGE_ROTATION_MS } from './slowConnectionMessages';
-import { connectionStatus } from '../services/connectionStatus';
+import { connectionStatus, __resetConnectionStatusForTests } from '../services/connectionStatus';
 
 describe('SlowConnectionBanner', () => {
   beforeEach(() => {
-    connectionStatus.__reset();
+    __resetConnectionStatusForTests();
   });
 
   afterEach(() => {

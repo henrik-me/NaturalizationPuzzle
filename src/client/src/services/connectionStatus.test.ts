@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { connectionStatus, SLOW_REQUEST_THRESHOLD_MS } from './connectionStatus';
+import {
+  connectionStatus,
+  SLOW_REQUEST_THRESHOLD_MS,
+  __resetConnectionStatusForTests,
+} from './connectionStatus';
 
 describe('connectionStatus', () => {
   beforeEach(() => {
-    connectionStatus.__reset();
+    __resetConnectionStatusForTests();
   });
 
   it('starts with snapshot 0', () => {

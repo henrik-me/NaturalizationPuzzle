@@ -42,10 +42,19 @@ export const connectionStatus = {
       notify();
     }
   },
-
-  /** Test-only reset. Not used in production paths. */
-  __reset(): void {
-    slowCount = 0;
-    subscribers.clear();
-  },
 };
+
+/**
+ * @internal Test-only escape hatch. Resets the singleton's internal state
+ * so tests don't leak across each other. Intentionally NOT a member of
+ * `connectionStatus` — keeping it as a separate, explicitly-named export
+ * makes accidental production usage hard (you have to import this exact
+ * symbol by name, which any reviewer will flag).
+ *
+ * Tests import this directly from this module. Production code never
+ * imports it; tree-shaking should drop it from the production bundle.
+ */
+export function __resetConnectionStatusForTests(): void {
+  slowCount = 0;
+  subscribers.clear();
+}

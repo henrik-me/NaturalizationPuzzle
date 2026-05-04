@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { apiGet, apiPost } from './apiClient';
-import { connectionStatus, SLOW_REQUEST_THRESHOLD_MS } from './connectionStatus';
+import {
+  connectionStatus,
+  SLOW_REQUEST_THRESHOLD_MS,
+  __resetConnectionStatusForTests,
+} from './connectionStatus';
 
 describe('apiClient', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    connectionStatus.__reset();
+    __resetConnectionStatusForTests();
   });
 
   describe('apiGet', () => {
