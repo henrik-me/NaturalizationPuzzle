@@ -218,6 +218,56 @@ public sealed class StoryParserTests
     }
 
     [Fact]
+    public void Parse_DetectsModelMemoryMarker_ToleratesWhitespaceVariation()
+    {
+        // Final-diff Copilot review fix (round 10): SplitParagraphs trims
+        // whitespace inside <!-- ... --> when extracting the marker name,
+        // but ModelMemoryUsed used to be computed via an exact-string
+        // body.Contains. So a marker like "<!-- model-memory-->" (no
+        // trailing space) would pass the paragraph-citation exemption
+        // but silently bypass the disclosure flag. Now both code paths
+        // use a tolerant regex.
+        const string md = """
+            ---
+            slug: test
+            title: T
+            category: American Government
+            subCategory: System of Government
+            questionIds: [15]
+            readingLevelMin: 1
+            ---
+            ## Heading
+
+            <!--model-memory-->
+            A paragraph drafted from model memory.
+
+            A different paragraph with a citation [1].
+            """;
+        var story = StoryParser.Parse("test", md, SourcesJson("https://example.gov/x"));
+        Assert.True(story.ModelMemoryUsed,
+            "ModelMemoryUsed must be true when ANY tolerant <!-- model-memory --> marker variant is present");
+    }
+
+    [Fact]
+    public void Parse_RejectsDuplicateSourceIds()
+    {
+        // Final-diff Copilot review fix (round 10): duplicate source ids
+        // would break #story-source-{id} anchors and React list keys on the
+        // client and make [N] resolution ambiguous on the server.
+        const string sourcesWithDuplicateId = """
+            {
+              "sources": [
+                { "id": 1, "title": "A", "url": "https://example.gov/a", "type": "gov", "supportSnippet": "snip" },
+                { "id": 1, "title": "B", "url": "https://example.gov/b", "type": "gov", "supportSnippet": "snip" }
+              ]
+            }
+            """;
+        var ex = Assert.Throws<StoryValidationException>(() =>
+            StoryParser.Parse("test", MinimalFrontmatter, sourcesWithDuplicateId));
+        Assert.Contains("duplicate id", ex.Message);
+    }
+
+    [Fact]
     public void Parse_RecognizesMultiDigitOrderedListMarkers()
     {
         // Final-diff Copilot review fix: IsListOnly used to misclassify

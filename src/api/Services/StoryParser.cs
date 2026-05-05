@@ -17,8 +17,9 @@ internal static class StoryParser
 {
     private static readonly Regex CitationMarker = new(@"\[(\d+)\]", RegexOptions.Compiled);
     private static readonly Regex VowelGroup = new(@"[aeiouy]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private const string ModelMemoryMarker = "<!-- model-memory -->";
-    private const string NarrativeMarker = "<!-- narrative -->";
+    private static readonly Regex ModelMemoryMarkerRegex = new(@"<!--\s*model-memory\s*-->", RegexOptions.Compiled);
+    private const string ModelMemoryMarker = "model-memory";
+    private const string NarrativeMarker = "narrative";
 
     public static Story Parse(string slug, string markdown, string sourcesJson)
     {
@@ -30,7 +31,12 @@ internal static class StoryParser
         ValidateSourceSnippets(slug, sources);
         ValidateParagraphCitations(slug, body);
 
-        var modelMemory = body.Contains(ModelMemoryMarker, StringComparison.Ordinal);
+        // Use the same tolerant marker pattern that SplitParagraphs accepts
+        // (whitespace inside <!-- ... --> is normalized via .Trim()), so a
+        // slight typographic variation like "<!-- model-memory-->" cannot
+        // pass the paragraph exemption while silently bypassing the
+        // disclosure flag.
+        var modelMemory = ModelMemoryMarkerRegex.IsMatch(body);
         var fre = ComputeFleschReadingEase(body);
         var minLevel = fm.ReadingLevelMin ?? 70;
         if (fre < minLevel)
@@ -268,11 +274,20 @@ internal static class StoryParser
             }
 
             var sources = new List<StorySource>();
+            var seenIds = new HashSet<int>();
             int index = 0;
             foreach (var s in sourcesEl.EnumerateArray())
             {
                 int sourceIndex = index++;
                 int id = ReadRequiredInt(slug, s, "id", sourceIndex);
+                // Duplicate source ids would break #story-source-{id} anchors
+                // and React list keys on the client, and make [N] resolution
+                // ambiguous on the server. Reject at parse time.
+                if (!seenIds.Add(id))
+                {
+                    throw new StoryValidationException(
+                        slug, $"sources[{sourceIndex}] has duplicate id {id}");
+                }
                 string title = ReadRequiredString(slug, s, "title", sourceIndex);
                 string url = ReadRequiredString(slug, s, "url", sourceIndex);
                 string type = ReadRequiredString(slug, s, "type", sourceIndex);
@@ -387,7 +402,7 @@ internal static class StoryParser
     {
         foreach (var (paragraph, precedingMarker) in SplitParagraphs(body))
         {
-            if (precedingMarker is "narrative" or "model-memory")
+            if (precedingMarker == NarrativeMarker || precedingMarker == ModelMemoryMarker)
             {
                 continue;
             }
