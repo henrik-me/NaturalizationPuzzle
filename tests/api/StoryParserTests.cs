@@ -296,4 +296,30 @@ public sealed class StoryParserTests
         var story = StoryParser.Parse("test", md, SourcesJson("https://example.gov/x"));
         Assert.NotNull(story);
     }
+
+    [Fact]
+    public void Parse_RejectsCitationMarkerWithOverflowingInteger()
+    {
+        // Final-diff Copilot review fix (round 11): ValidateCitationsResolve
+        // used int.Parse, which throws OverflowException (uncaught -> 500)
+        // for pathologically large markers like '[99999999999999]'. Now
+        // wrapped in StoryValidationException with slug context.
+        const string md = """
+            ---
+            slug: test
+            title: T
+            category: American Government
+            subCategory: System of Government
+            questionIds: [15]
+            readingLevelMin: 1
+            ---
+            ## Heading
+
+            A paragraph with a huge citation [99999999999999].
+            """;
+        var ex = Assert.Throws<StoryValidationException>(() =>
+            StoryParser.Parse("test", md, SourcesJson("https://example.gov/x")));
+        Assert.Contains("citation marker", ex.Message);
+        Assert.Contains("not a valid integer", ex.Message);
+    }
 }

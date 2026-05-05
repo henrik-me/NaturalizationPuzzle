@@ -370,7 +370,14 @@ internal static class StoryParser
     {
         foreach (Match m in CitationMarker.Matches(body))
         {
-            var id = int.Parse(m.Groups[1].Value);
+            // Use TryParse so a pathologically large citation marker like
+            // '[999999999999]' fails validation cleanly instead of throwing
+            // an OverflowException (uncaught -> 500 on the API).
+            if (!int.TryParse(m.Groups[1].Value, out var id))
+            {
+                throw new StoryValidationException(
+                    slug, $"citation marker '{m.Value}' is not a valid integer");
+            }
             if (!sources.Any(s => s.Id == id))
             {
                 throw new StoryValidationException(
