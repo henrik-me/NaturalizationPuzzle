@@ -117,7 +117,7 @@ Both ship as `<EmbeddedResource>` in `src/api/NaturalizationPuzzle.Api.csproj` (
 
 ```yaml
 ---
-slug: my-story-slug                         # must equal the .md filename stem
+slug: my-story-slug                         # convention: equal the .md filename stem; if frontmatter slug differs, parser uses frontmatter (see Tech Debt)
 title: Human Title
 category: American Government               # must match a Question.Category value
 subCategory: System of Government           # must match a Question.SubCategory value
@@ -125,7 +125,7 @@ questionIds: [15, 16, 17]                   # in-scope questions covered by the 
 orphanedQuestionIds:                        # in-scope questions NOT covered (with reason)
   - id: 20
     reason: "Specific Congress powers — covered by future Legislative-Branch story"
-estReadMinutes: 4                           # optional; default = ceil(words/200)
+estReadMinutes: 4                           # optional; default = max(1, round(words/200))
 readingLevelMin: 70                         # optional; default = 70 (Flesch Reading Ease floor)
 stateAwarePreamble: false                   # set true when the story includes Q23/Q29/Q61/Q62
 ---
@@ -151,13 +151,13 @@ stateAwarePreamble: false                   # set true when the story includes Q
 ### Checklist for adding a story
 
 - [ ] Pick `(Category, SubCategory)` and identify in-scope questions.
-- [ ] Author `<slug>.md` body at FK ≥ 70.
+- [ ] Author `<slug>.md` body at Flesch Reading Ease ≥ 70 (default `readingLevelMin`).
 - [ ] Author `<slug>.sources.json` with one entry per `[N]` marker, each carrying a non-empty `supportSnippet`.
 - [ ] List every in-scope question in `QuestionIds` OR `OrphanedQuestionIds` (with reason).
 - [ ] Run `dotnet test tests/api/NaturalizationPuzzle.Api.Tests.csproj` from repo root — `StoryContentTests` will catch any rule violation before commit.
 - [ ] If the new story includes Q23/Q29/Q61/Q62 (state-specific), set `stateAwarePreamble: true` so `StoryPage` renders the user's state preamble.
 - [ ] Update `useWarmUpCache.ts` `PILOT_STORY_SLUGS` const (or migrate to `listStories()`-based warm-up if the catalog grows beyond a handful).
-- [ ] **Bump `stories-cache-vN`** in `vite.config.ts` if the new story changes any embedded question payload, so deployed clients don't serve stale cache.
+- [ ] **Bump `stories-cache-vN`** in `vite.config.ts` for *any* change that affects what `/api/v1/stories*` returns: a new story added to the catalog (changes the index payload), a body/sources/`QuestionIds` change on an existing story, OR a change to the embedded question text/answers that a story returns. This is wider than "embedded question payload only" — adding a story is enough on its own.
 
 ## Known Issues / Tech Debt
 
@@ -167,6 +167,7 @@ stateAwarePreamble: false                   # set true when the story includes Q
 - `GET /api/v1/representatives` (no subpath) silently returns the SPA `index.html` because the `MapGroup` defines only `/vacant`, `/{id}` (PUT), and `/reset` — request falls through to `MapFallbackToFile`. Latent (no client consumer) but surprising for anyone exploring the API. Tracked in **#72**.
 - `RepresentativeService.UpdateRepresentativeAsync` writes to the in-container SQLite file, which has no persistent volume on Container Apps Consumption. Edits are silently lost when the replica scales to zero (~5 min idle). Tracked in **#73** with three resolution options (persist, deprecate the endpoint, or move source-of-truth client-side).
 - `src/client/package.json` has no `engines.node` field, so `npm install` doesn't enforce Node 20.19+ even though `@vitejs/plugin-react@5.x` requires it. README also says "Node.js 20+" which under-specifies the patch version. Tracked in **#70**.
+- `StoryParser` does NOT enforce that the YAML frontmatter `slug` matches the `.md` filename stem — it falls back to the filename-derived slug when frontmatter `slug` is absent, but if both are present and differ, frontmatter wins silently. The Story Mode Authoring Guide treats matching as a convention; if a future story typos this, the URL `/stories/<filename-stem>` works but consumers reading `Story.Slug` see the frontmatter value. Low impact (the build still passes, the story still loads), but a small `StoryContentTests` assertion would close the footgun. Not yet ticketed.
 
 ## Azure Hosting Plan
 
@@ -361,3 +362,60 @@ Deferred / handled outside Phase 4:
 18. **Story Mode — UX risks to revisit if/when followed up**:
     - **Mobile nav at 5 tabs** — nav was widened from 4 to 5 columns at 375 px (~75 px per tab). v1 verified the existing `min-h-[44px] px-2` keeps the tap target at ≥ 44 px tall, and the longest label ("Settings", 8 chars) fits. If a 6th tab is ever added, fall back to a hamburger menu OR move "History" under "Settings".
     - **`react-markdown` footprint** — v1 deliberately ships a custom narrow renderer (`StoryRenderer.tsx`) instead of `react-markdown` to keep the JS bundle small AND to keep XSS posture explicit (no `dangerouslySetInnerHTML`, no plugin-allowlist debate). If a future story needs richer Markdown (tables, footnotes, embedded images) the trade-off may shift; before adopting `react-markdown` make sure the protocol allowlist + sanitizer still apply.
+
+19. **Story comprehension quiz: optional "real-quiz" (typed-input) mode** — v1 always hands the user off to `QuizCard` in `mode='study'` (reveal-on-click) for the end-of-story comprehension check. Add a per-story toggle (or a Settings preference) that runs the comprehension quiz in `mode='quiz'` instead — typed-answer input, auto-graded with the existing `answerChecker.ts` fuzzy match, no answer reveal until the end, scored. Same `QuizCard` component, just a different `mode` prop, so the implementation is small. The benefit: actually drills the user the way the real USCIS test does (oral typed-answer-equivalent), but **scoped to the story's questions** rather than randomized from the full 128 — this is intentional (a study tool, not a substitute for the real test). Decisions still open: (a) per-story toggle on `StoryPage` vs a Settings-level preference; (b) whether to record a `QuizHistoryEntry` in `naturalizationProgress.quizHistory` for these scoped runs, or keep that history limited to the full-pool quiz mode at `/quiz`. Tracker: not yet ticketed; this entry is the source of truth until a GitHub issue is opened.
+
+## Resume Guide (read this first when picking up after a restart)
+
+Session-only artifacts (e.g. `~/.copilot/session-state/<id>/plan.md`, the SQL todos table) **do not survive** a session restart. Everything you need to continue work is in the repository. Use this section as the entry point.
+
+### Last completed work
+
+The most recent feature is **Story Mode v1 (pilot)** — see Phase 14 in [Next Steps](#next-steps) for the full surface area, and the [Story Mode — Authoring Guide](#story-mode--authoring-guide) section for how to add a story.
+
+Active state at the time of writing this guide:
+
+- `main` is at the `feat: Story Mode v1` merge commit (PR #74). All CI green.
+- Production deploy goes through the normal `production` GitHub-environment approval gate; the merge of PR #74 will queue one.
+
+### Where the work that's still on the table lives
+
+| What | Where |
+|---|---|
+| All deferred / postponed work | [Next Steps](#next-steps) — items 9 and 15–19 are open |
+| Existing tech debt | [Known Issues / Tech Debt](#known-issues--tech-debt), plus tracked GitHub issues (#70, #72, #73) |
+| How to add another Story Mode story | [Story Mode — Authoring Guide](#story-mode--authoring-guide) — file layout, frontmatter spec, the 8 enforced body-markup rules, license posture, and a per-story checklist |
+| Project conventions, agent orchestration rules, review workflow | `.github/copilot-instructions.md` (single source of truth — keep that file authoritative) |
+
+### How to spin up local dev
+
+Two options, both documented in `README.md` → "Getting Started":
+
+- **`start.bat`** (root) — opens two console windows for the API + Vite client. Browser opens to `https://localhost:5173`.
+- **`servers.ps1 start` / `stop` / `status`** — same thing with explicit window-title tagging (`NatPuzzle-API`, `NatPuzzle-Client`) and persisted PIDs in `.servers/*.json`. Use this when you want the orchestrator to find/stop the right processes deterministically.
+
+For container parity (closer to production): `container-start.bat` builds the multi-stage image and runs it on `https://localhost:8080`.
+
+### How to validate before pushing
+
+Per `.github/copilot-instructions.md` Pre-Push Verification:
+
+```
+# Frontend (from src/client/)
+npm run lint && npm test -- --run && npm run build
+
+# Backend (from REPO ROOT — not src/api/, that's the web project)
+dotnet build && dotnet test
+
+# E2E (from tests/e2e/) — --reporter=list is mandatory
+npx playwright install chromium  # once per environment
+npx playwright test --reporter=list
+```
+
+### Picking up a deferred item
+
+1. Read this section + the relevant Next Steps entry.
+2. If it's a Story-Mode item: also read the Story Mode — Authoring Guide.
+3. For non-trivial work, do a GPT-5.5 plan review **before** writing code (see Code Review section in `.github/copilot-instructions.md`).
+4. Open a feature branch, commit, push, open PR, run the Copilot PR review loop until clean, then merge.
+5. After merging, sync `main` and update the Next Steps entry to `~~strikethrough ✅ complete~~` with a one-line summary of what shipped.
