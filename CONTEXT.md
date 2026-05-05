@@ -29,7 +29,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Endpoints: versioned under `/api/v1/` — questions, states, quiz, representatives, **stories**, health
 - Program.cs: DI registration, CORS, static file serving, SPA fallback, auto-create DB on startup, HTTPS redirect (dev only), Application Insights via OpenTelemetry (conditional)
 - `appsettings.Production.json` — production logging configuration (includes Azure Monitor log levels)
-- **Story content** lives in `content/stories/<slug>.md` + `<slug>.sources.json` (3 pilot stories) and ships as `<EmbeddedResource>` in `NaturalizationPuzzle.Api.csproj`
+- **Story content** lives in `content/stories/<slug>.md` + `<slug>.sources.json` and ships as `<EmbeddedResource>` in `NaturalizationPuzzle.Api.csproj`
 
 ### Frontend (`src/client/`)
 - React 19 + Vite + TypeScript (strict mode)

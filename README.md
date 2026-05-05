@@ -184,8 +184,8 @@ All endpoints are versioned under `/api/v1/`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/stories` | List all Story Mode pilot stories (3 in v1) with title, category, est. read time, reading-level, and question count. |
-| `GET` | `/api/v1/stories/{id}` | Get a story's full body (Markdown), citation sources, and the embedded comprehension-quiz questions. Optional `?stateId=` resolves state-aware answers (e.g. *Who is one of your state's U.S. senators now?*). |
+| `GET` | `/api/v1/stories` | List the available Story Mode stories with title, category, est. read time, reading-level, and question count. |
+| `GET` | `/api/v1/stories/{slug}` | Get a story's full body (Markdown), citation sources, and the embedded comprehension-quiz questions, addressed by URL slug. Optional `?stateId=` resolves state-aware answers (e.g. *Who is one of your state's U.S. senators now?*). |
 
 ### Running Backend Tests
 
@@ -287,7 +287,7 @@ All filters compose. Filter state is session-only (not persisted). The progress 
 
 ### Story Mode (Pilot)
 
-Story Mode adds short, cited narratives that connect related civics questions into a single explanation, then ends in an end-of-story comprehension quiz built from the actual USCIS questions for that area. The pilot ships **three stories**, one per USCIS category:
+Story Mode adds short, cited narratives that connect related civics questions into a single explanation, then ends in an end-of-story comprehension quiz built from the actual USCIS questions for that area. The pilot ships one story per USCIS category:
 
 - **The Three Branches of Government** (American Government → System of Government) — covers a curated set of 16 questions about the three-branch system, including the state-aware questions Q23 (your state's senator) and Q29 (your U.S. representative). The remaining detail questions in *System of Government* (officeholder names, cabinet specifics, Electoral College, etc.) are listed in `OrphanedQuestionIds` with reasons and will be picked up by future per-branch stories.
 - **The Civil War and Reconstruction** (American History → The 1800s) — Q92–Q99.

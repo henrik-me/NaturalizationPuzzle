@@ -18,15 +18,15 @@ public static class StoryEndpoints
         })
         .WithName("ListStories");
 
-        group.MapGet("/{id}", async (
-            string id,
+        group.MapGet("/{slug}", async (
+            string slug,
             int? stateId,
             IStoryService storyService,
             CancellationToken cancellationToken) =>
         {
-            var story = await storyService.GetAsync(id, stateId, cancellationToken);
+            var story = await storyService.GetAsync(slug, stateId, cancellationToken);
             return story is null ? Results.NotFound() : Results.Ok(story);
         })
-        .WithName("GetStoryById");
+        .WithName("GetStoryBySlug");
     }
 }
