@@ -13,6 +13,7 @@ describe('Navigation', () => {
 
     expect(screen.getByRole('menuitem', { name: 'Study' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Quiz' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Stories' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'History' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeInTheDocument();
   });
@@ -46,6 +47,7 @@ describe('Navigation', () => {
 
     expect(screen.getByRole('menuitem', { name: 'Study' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('menuitem', { name: 'Quiz' })).toHaveAttribute('href', '/quiz');
+    expect(screen.getByRole('menuitem', { name: 'Stories' })).toHaveAttribute('href', '/stories');
     expect(screen.getByRole('menuitem', { name: 'History' })).toHaveAttribute('href', '/history');
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute('href', '/settings');
   });

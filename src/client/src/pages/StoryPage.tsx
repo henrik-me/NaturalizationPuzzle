@@ -1,0 +1,199 @@
+import { useCallback, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import type { StoryDetailDto } from '../types/api';
+import { getStory } from '../services/storyService';
+import { useAppContext } from '../context/AppContext';
+import { useProgress } from '../hooks/useProgress';
+import { useFetch } from '../hooks/useFetch';
+import { StoryRenderer } from '../components/StoryRenderer';
+import { QuizCard } from '../components/QuizCard';
+
+export function StoryPage(): React.ReactNode {
+  const { slug } = useParams<{ slug: string }>();
+  const { state } = useAppContext();
+  const { markStoryRead, isStoryRead } = useProgress();
+
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [quizIndex, setQuizIndex] = useState(0);
+
+  const stateId = state.selectedStateId ?? undefined;
+
+  const fetchFn = useCallback(async () => {
+    const detail = slug ? await getStory(slug, stateId) : null;
+    return detail
+      ? ({ success: true, data: detail } as const)
+      : ({ success: false, error: 'not-found' } as const);
+  }, [slug, stateId]);
+
+  const { data: story, isLoading } = useFetch<StoryDetailDto>(fetchFn, [slug, stateId]);
+
+  const onQuizNext = useCallback((): void => {
+    if (!story) return;
+    if (quizIndex + 1 >= story.questions.length) {
+      if (story.slug && !isStoryRead(story.slug)) {
+        markStoryRead(story.slug);
+      }
+    }
+    setQuizIndex(quizIndex + 1);
+  }, [story, quizIndex, isStoryRead, markStoryRead]);
+
+  const showStatePreamble = useMemo(
+    () => Boolean(story?.stateAwarePreamble && state.selectedState),
+    [story, state.selectedState]
+  );
+
+  if (isLoading) {
+    return (
+      <main className="max-w-3xl mx-auto p-4">
+        <p className="text-gray-500 dark:text-gray-400" aria-live="polite">Loading story…</p>
+      </main>
+    );
+  }
+
+  if (!story) {
+    return (
+      <main className="max-w-3xl mx-auto p-4">
+        <p className="text-gray-700 dark:text-gray-200">This story could not be found.</p>
+        <Link to="/stories" className="text-blue-700 dark:text-blue-300 underline mt-3 inline-block">
+          ← Back to all stories
+        </Link>
+      </main>
+    );
+  }
+
+  const stateInfo = state.selectedState;
+  const quizDone = quizStarted && quizIndex >= story.questions.length;
+  const currentQuestion = quizStarted && quizIndex < story.questions.length
+    ? story.questions[quizIndex]
+    : null;
+
+  return (
+    <main className="max-w-3xl mx-auto p-4">
+      <Link to="/stories" className="text-sm text-blue-700 dark:text-blue-300 underline">
+        ← Back to all stories
+      </Link>
+
+      <header className="mt-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {story.category} › {story.subCategory}
+        </p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{story.title}</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+          ~{story.estReadMinutes} min read · {story.questions.length} comprehension question{story.questions.length === 1 ? '' : 's'}
+        </p>
+      </header>
+
+      {showStatePreamble && stateInfo && (
+        <aside
+          className="mt-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-sm"
+          data-testid="state-preamble"
+        >
+          <p className="text-gray-800 dark:text-gray-200">
+            <strong>You live in {stateInfo.name}.</strong> Your two U.S. senators are{' '}
+            <strong>{stateInfo.senatorOne}</strong> and <strong>{stateInfo.senatorTwo}</strong>.
+            {stateInfo.representatives.length > 0 && (
+              <>
+                {' '}You are represented in the House by{' '}
+                <strong>
+                  {stateInfo.representatives.length === 1
+                    ? stateInfo.representatives[0]
+                    : `${stateInfo.representatives.length} representatives`}
+                </strong>
+                .
+              </>
+            )}
+          </p>
+        </aside>
+      )}
+
+      <section className="mt-6">
+        <StoryRenderer markdown={story.bodyMarkdown} sources={story.sources} />
+      </section>
+
+      {story.modelMemoryUsed && (
+        <aside
+          className="mt-6 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-sm"
+          data-testid="model-memory-disclosure"
+          role="note"
+        >
+          <p className="text-amber-900 dark:text-amber-100">
+            <strong>Note:</strong> Parts of this story were drafted from the language model&apos;s general
+            knowledge rather than from a cited external source. We recommend verifying any details
+            against the listed references before test day.
+          </p>
+        </aside>
+      )}
+
+      <section className="mt-8" aria-labelledby="story-sources-heading">
+        <h2 id="story-sources-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+          Sources
+        </h2>
+        <ol className="list-decimal list-inside space-y-2 text-sm">
+          {story.sources.map(s => (
+            <li
+              key={s.id}
+              id={`story-source-${s.id}`}
+              className="text-gray-700 dark:text-gray-300"
+            >
+              <a
+                href={s.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-700 dark:text-blue-300 underline"
+                aria-label={`${s.title} (opens in new tab)`}
+              >
+                {s.title}
+              </a>
+              <span className="text-gray-500 dark:text-gray-400"> — {s.type}</span>
+              <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 italic">
+                &ldquo;{s.supportSnippet}&rdquo;
+              </p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="mt-10" aria-labelledby="story-quiz-heading">
+        <h2 id="story-quiz-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+          Check your understanding
+        </h2>
+        {!quizStarted && (
+          <button
+            type="button"
+            onClick={() => setQuizStarted(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            data-testid="start-comprehension-quiz"
+          >
+            Start the comprehension quiz ({story.questions.length} question{story.questions.length === 1 ? '' : 's'})
+          </button>
+        )}
+        {currentQuestion && (
+          <div className="flex justify-center">
+            <QuizCard
+              question={currentQuestion}
+              onNext={onQuizNext}
+              questionNumber={quizIndex + 1}
+              totalQuestions={story.questions.length}
+              mode="study"
+            />
+          </div>
+        )}
+        {quizDone && (
+          <div
+            className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 text-sm"
+            role="status"
+            aria-live="polite"
+            data-testid="story-quiz-done"
+          >
+            <p className="text-green-900 dark:text-green-100">
+              <strong>Done!</strong> You worked through all {story.questions.length} comprehension question{story.questions.length === 1 ? '' : 's'} for this story.
+            </p>
+            <Link to="/stories" className="text-blue-700 dark:text-blue-300 underline mt-2 inline-block">
+              ← Back to all stories
+            </Link>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}

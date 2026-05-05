@@ -56,6 +56,18 @@ export default defineConfig({
             options: { cacheName: 'states-cache' },
           },
           {
+            // Story Mode pilot. Cache the index AND each detail response
+            // (the warm-up hook fetches all three pilot detail endpoints on
+            // first online load so they're available offline). Bump the -vN
+            // suffix on any change to: story body, sources list, story
+            // QuestionIds, or the embedded question text/answers a story
+            // returns. Bump questions-cache-vN independently for changes to
+            // the standalone /api/v1/questions payload.
+            urlPattern: /\/api\/v1\/stories/,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'stories-cache-v1' },
+          },
+          {
             urlPattern: ({ request, sameOrigin }) =>
               sameOrigin &&
               ['script', 'style', 'worker', 'image', 'font'].includes(request.destination),

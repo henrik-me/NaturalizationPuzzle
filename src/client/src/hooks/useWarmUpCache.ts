@@ -1,6 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { getAllQuestions, get6520Questions } from '../services/questionService';
 import { getAllStates, getStateById } from '../services/stateService';
+import { listStories, getStory } from '../services/storyService';
+
+// Pilot-story slugs to warm so that every Story Mode v1 detail page is
+// available offline after the first online load. When the catalog grows
+// past the pilot, switch to listStories() -> warm each returned slug.
+const PILOT_STORY_SLUGS = [
+  'three-branches',
+  'civil-war-and-reconstruction',
+  'national-symbols-and-holidays',
+] as const;
 
 /**
  * Eagerly fetches all key API endpoints so the service worker caches
@@ -45,6 +55,12 @@ export function useWarmUpCache(stateId: number | null): void {
         get6520Questions(stateId ?? undefined),
         getAllStates(),
         ...(stateId ? [getStateById(stateId)] : []),
+        listStories(),
+        // Warm each pilot story detail (with stateId where set) so the
+        // state-aware variant is the cached one. This satisfies the offline
+        // contract: every pilot story is fully readable offline after the
+        // first online visit.
+        ...PILOT_STORY_SLUGS.map(slug => getStory(slug, stateId ?? undefined)),
       ]);
     })();
   }, [stateId]);

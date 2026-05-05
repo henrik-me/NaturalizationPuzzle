@@ -12,8 +12,14 @@ vi.mock('../services/stateService', () => ({
   getStateById: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('../services/storyService', () => ({
+  listStories: vi.fn().mockResolvedValue([]),
+  getStory: vi.fn().mockResolvedValue(null),
+}));
+
 import { getAllQuestions, get6520Questions } from '../services/questionService';
 import { getAllStates, getStateById } from '../services/stateService';
+import { listStories, getStory } from '../services/storyService';
 
 describe('useWarmUpCache', () => {
   beforeEach(() => {
@@ -39,6 +45,27 @@ describe('useWarmUpCache', () => {
       expect(get6520Questions).toHaveBeenCalledWith(5);
       expect(getAllStates).toHaveBeenCalled();
       expect(getStateById).toHaveBeenCalledWith(5);
+    });
+  });
+
+  it('warms the stories index AND every pilot story detail (offline contract)', async () => {
+    renderHook(() => useWarmUpCache(7));
+
+    await vi.waitFor(() => {
+      expect(listStories).toHaveBeenCalled();
+      expect(getStory).toHaveBeenCalledWith('three-branches', 7);
+      expect(getStory).toHaveBeenCalledWith('civil-war-and-reconstruction', 7);
+      expect(getStory).toHaveBeenCalledWith('national-symbols-and-holidays', 7);
+    });
+  });
+
+  it('warms pilot story details with undefined stateId when no state is selected', async () => {
+    renderHook(() => useWarmUpCache(null));
+
+    await vi.waitFor(() => {
+      expect(getStory).toHaveBeenCalledWith('three-branches', undefined);
+      expect(getStory).toHaveBeenCalledWith('civil-war-and-reconstruction', undefined);
+      expect(getStory).toHaveBeenCalledWith('national-symbols-and-holidays', undefined);
     });
   });
 
