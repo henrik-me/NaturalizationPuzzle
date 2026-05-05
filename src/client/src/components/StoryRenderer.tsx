@@ -46,10 +46,14 @@ interface ListBlock { readonly kind: 'list'; readonly ordered: boolean; readonly
 type Block = ParagraphBlock | HeadingBlock | ListBlock;
 
 function parseBlocks(markdown: string): readonly Block[] {
-  // Strip HTML comments (the <!-- model-memory --> and <!-- narrative -->
-  // markers are metadata for the parser/renderer, not visible content).
-  const cleaned = markdown.replace(/<!--[\s\S]*?-->/g, '');
-  const lines = cleaned.replace(/\r\n/g, '\n').split('\n');
+  // Note: HTML-comment markers like <!-- narrative --> and
+  // <!-- model-memory --> are stripped server-side by StoryParser before
+  // the body reaches the client. We do not strip here, which sidesteps a
+  // CodeQL "incomplete multi-character sanitization" finding on regex-based
+  // comment removal. Even if a future server regression let a marker
+  // through, it would render as plain text (React text-node escaping)
+  // — never as live HTML.
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
   const blocks: Block[] = [];
   let buffer: string[] = [];
 

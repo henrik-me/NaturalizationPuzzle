@@ -42,13 +42,20 @@ internal static class StoryParser
         var wordCount = CountWords(body);
         var estMinutes = fm.EstReadMinutes ?? Math.Max(1, (int)Math.Round(wordCount / 200.0));
 
+        // Strip the parser-only HTML-comment markers (<!-- narrative -->,
+        // <!-- model-memory -->) from the body before it leaves the server.
+        // This sidesteps a CodeQL "incomplete multi-character sanitization"
+        // finding on the client renderer (which previously did the strip)
+        // and keeps the wire payload free of internal markup.
+        var renderableBody = StripCommentMarkers(body);
+
         return new Story
         {
             Slug = fm.Slug ?? slug,
             Title = fm.Title ?? throw new StoryValidationException(slug, "frontmatter 'title' is required"),
             Category = fm.Category ?? throw new StoryValidationException(slug, "frontmatter 'category' is required"),
             SubCategory = fm.SubCategory ?? throw new StoryValidationException(slug, "frontmatter 'subCategory' is required"),
-            BodyMarkdown = body,
+            BodyMarkdown = renderableBody,
             Sources = sources,
             QuestionIds = fm.QuestionIds ?? new List<int>(),
             OrphanedQuestionIds = fm.OrphanedQuestionIds ?? new List<OrphanedQuestion>(),
@@ -58,6 +65,28 @@ internal static class StoryParser
             ModelMemoryUsed = modelMemory,
             StateAwarePreamble = fm.StateAwarePreamble ?? false
         };
+    }
+
+    /// <summary>
+    /// Robustly remove all HTML comments. A loop guarantees that nested or
+    /// interleaved comment markers (`<!-- a <!-- b -->`) cannot leave a
+    /// partial `<!--` behind. Validation and ModelMemoryUsed computation
+    /// have already consumed the markers; the renderer should never see them.
+    /// </summary>
+    private static string StripCommentMarkers(string body)
+    {
+        var result = body;
+        for (int i = 0; i < 8; i++)
+        {
+            var stripped = Regex.Replace(result, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            if (stripped == result)
+            {
+                return stripped;
+            }
+            result = stripped;
+        }
+        // After 8 passes, drop any residual marker tokens defensively.
+        return result.Replace("<!--", string.Empty).Replace("-->", string.Empty);
     }
 
     private static (string frontmatter, string body) SplitFrontmatter(string slug, string md)
@@ -163,20 +192,50 @@ internal static class StoryParser
                 case "title": fm.Title = value; break;
                 case "category": fm.Category = value; break;
                 case "subCategory": fm.SubCategory = value; break;
-                case "estReadMinutes": fm.EstReadMinutes = int.Parse(value); break;
-                case "readingLevelMin": fm.ReadingLevelMin = int.Parse(value); break;
-                case "stateAwarePreamble": fm.StateAwarePreamble = bool.Parse(value); break;
+                case "estReadMinutes":
+                    fm.EstReadMinutes = ParseIntField(slug, key, value);
+                    break;
+                case "readingLevelMin":
+                    fm.ReadingLevelMin = ParseIntField(slug, key, value);
+                    break;
+                case "stateAwarePreamble":
+                    if (!bool.TryParse(value, out var b))
+                    {
+                        throw new StoryValidationException(
+                            slug, $"frontmatter '{key}' must be 'true' or 'false', got '{value}'");
+                    }
+                    fm.StateAwarePreamble = b;
+                    break;
                 case "questionIds":
                     var inner = value.Trim('[', ']');
-                    fm.QuestionIds = inner
-                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .Select(int.Parse)
-                        .ToList();
+                    var parts = inner
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    var ids = new List<int>(parts.Length);
+                    foreach (var p in parts)
+                    {
+                        if (!int.TryParse(p, out var qid))
+                        {
+                            throw new StoryValidationException(
+                                slug, $"frontmatter 'questionIds' contains a non-integer entry: '{p}'");
+                        }
+                        ids.Add(qid);
+                    }
+                    fm.QuestionIds = ids;
                     break;
             }
         }
 
         return fm;
+    }
+
+    private static int ParseIntField(string slug, string key, string value)
+    {
+        if (!int.TryParse(value, out var n))
+        {
+            throw new StoryValidationException(
+                slug, $"frontmatter '{key}' must be an integer, got '{value}'");
+        }
+        return n;
     }
 
     private static string StripQuotes(string s)
@@ -231,6 +290,11 @@ internal static class StoryParser
         var scheme = parsed.Scheme.ToLowerInvariant();
         if (scheme is not ("http" or "https" or "mailto"))
         {
+            // Note: a relative path like "/foo/bar" parses as Absolute with the
+            // "file" scheme on Linux .NET (and on Windows in some configurations).
+            // It still fails this allowlist check, just with a "disallowed
+            // scheme" message rather than "not absolute". Both are correct
+            // rejections.
             throw new StoryValidationException(
                 slug, $"source url uses disallowed scheme '{scheme}': must be http, https, or mailto");
         }

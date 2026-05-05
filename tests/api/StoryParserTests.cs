@@ -82,10 +82,116 @@ public sealed class StoryParserTests
     }
 
     [Fact]
-    public void Parse_RejectsRelativeSourceUrl()
+    public void Parse_RejectsRelativeOrPathOnlySourceUrl()
     {
+        // Cross-platform note: `Uri.TryCreate("/relative/path", UriKind.Absolute, ...)`
+        // returns false on Windows but true (with `file:` scheme) on Linux .NET.
+        // Either way the parser rejects: Windows hits the "not absolute" branch,
+        // Linux hits the "disallowed scheme 'file'" branch. Both are correct.
         var ex = Assert.Throws<StoryValidationException>(() =>
             StoryParser.Parse("test", MinimalFrontmatter, SourcesJson("/relative/path")));
+        Assert.True(
+            ex.Message.Contains("not absolute") || ex.Message.Contains("disallowed scheme"),
+            $"Expected 'not absolute' or 'disallowed scheme' in: {ex.Message}");
+    }
+
+    [Fact]
+    public void Parse_RejectsBareWord_AsSourceUrl()
+    {
+        var ex = Assert.Throws<StoryValidationException>(() =>
+            StoryParser.Parse("test", MinimalFrontmatter, SourcesJson("not-a-url")));
         Assert.Contains("not absolute", ex.Message);
+    }
+
+    [Fact]
+    public void Parse_StripsHtmlCommentMarkersFromBody()
+    {
+        // Final-diff Copilot review fix: the renderer no longer strips HTML
+        // comments — the parser does so, robustly. Verify markers don't reach
+        // BodyMarkdown.
+        const string mdWithMarkers = """
+            ---
+            slug: test
+            title: T
+            category: American Government
+            subCategory: System of Government
+            questionIds: [15]
+            readingLevelMin: 1
+            ---
+            <!-- narrative -->
+            Opening scene.
+
+            <!-- model-memory -->
+            A paragraph.
+            """;
+        var story = StoryParser.Parse("test", mdWithMarkers, SourcesJson("https://example.gov/x"));
+        Assert.DoesNotContain("<!--", story.BodyMarkdown);
+        Assert.DoesNotContain("-->", story.BodyMarkdown);
+        // The model-memory marker was present, so the flag must still be true.
+        Assert.True(story.ModelMemoryUsed);
+    }
+
+    [Fact]
+    public void Parse_StripsInterleavedHtmlCommentsRobustly()
+    {
+        // Defense in depth: even pathological "<!-- a <!-- b -->" inputs leave
+        // no leading "<!--" behind. The parser's loop guarantees stability.
+        const string mdWithEvilMarkers = """
+            ---
+            slug: test
+            title: T
+            category: American Government
+            subCategory: System of Government
+            questionIds: [15]
+            readingLevelMin: 1
+            ---
+            <!-- a <!-- b -->
+            A paragraph with citation [1].
+            """;
+        var story = StoryParser.Parse("test", mdWithEvilMarkers, SourcesJson("https://example.gov/x"));
+        Assert.DoesNotContain("<!--", story.BodyMarkdown);
+        Assert.DoesNotContain("-->", story.BodyMarkdown);
+    }
+
+    [Fact]
+    public void Parse_FrontmatterIntegerTypoThrowsStoryValidationException()
+    {
+        // Final-diff Copilot review fix: int.Parse/bool.Parse used to bubble
+        // a FormatException without slug context. Now wrapped.
+        const string md = """
+            ---
+            slug: test
+            title: T
+            category: American Government
+            subCategory: System of Government
+            questionIds: [15]
+            estReadMinutes: not-a-number
+            readingLevelMin: 1
+            ---
+            A paragraph [1].
+            """;
+        var ex = Assert.Throws<StoryValidationException>(() =>
+            StoryParser.Parse("test", md, SourcesJson("https://example.gov/x")));
+        Assert.Contains("estReadMinutes", ex.Message);
+        Assert.Contains("must be an integer", ex.Message);
+    }
+
+    [Fact]
+    public void Parse_QuestionIdsTypoThrowsStoryValidationException()
+    {
+        const string md = """
+            ---
+            slug: test
+            title: T
+            category: American Government
+            subCategory: System of Government
+            questionIds: [15, sixteen]
+            readingLevelMin: 1
+            ---
+            A paragraph [1].
+            """;
+        var ex = Assert.Throws<StoryValidationException>(() =>
+            StoryParser.Parse("test", md, SourcesJson("https://example.gov/x")));
+        Assert.Contains("questionIds", ex.Message);
     }
 }

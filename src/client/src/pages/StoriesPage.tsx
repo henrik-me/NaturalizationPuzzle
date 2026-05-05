@@ -29,33 +29,30 @@ function groupByCategory(stories: readonly StoryListItemDto[]): Map<string, read
 export function StoriesPage(): React.ReactNode {
   const { storiesRead, isStoryRead } = useProgress();
   const [stories, setStories] = useState<readonly StoryListItemDto[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      try {
-        const result = await listStories();
-        if (!cancelled) setStories(result);
-      } catch {
-        if (!cancelled) setLoadError('Could not load stories.');
-      }
+      // listStories swallows network/HTTP errors and returns []; an empty
+      // result is rendered as the "no stories yet" empty state below.
+      const result = await listStories();
+      if (!cancelled) setStories(result);
     })();
     return () => { cancelled = true; };
   }, []);
-
-  if (loadError) {
-    return (
-      <main className="max-w-4xl mx-auto p-4">
-        <p className="text-red-700 dark:text-red-300">{loadError}</p>
-      </main>
-    );
-  }
 
   if (stories === null) {
     return (
       <main className="max-w-4xl mx-auto p-4">
         <p className="text-gray-500 dark:text-gray-400" aria-live="polite">Loading stories…</p>
+      </main>
+    );
+  }
+
+  if (stories.length === 0) {
+    return (
+      <main className="max-w-4xl mx-auto p-4">
+        <p className="text-gray-700 dark:text-gray-200">No stories are available right now.</p>
       </main>
     );
   }

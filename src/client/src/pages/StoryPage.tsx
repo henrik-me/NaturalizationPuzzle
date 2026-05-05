@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { StoryDetailDto } from '../types/api';
+import type { QuestionDto, StoryDetailDto } from '../types/api';
 import { getStory } from '../services/storyService';
 import { useAppContext } from '../context/AppContext';
 import { useProgress } from '../hooks/useProgress';
@@ -26,13 +26,80 @@ function isSafeSourceUrl(url: string): boolean {
   }
 }
 
+/**
+ * The comprehension quiz lives in its own child component so the parent
+ * can reset its state by changing `key={slug}`. React Router reuses the
+ * same `StoryPage` instance across route changes; without the key reset,
+ * `quizStarted`/`quizIndex` would carry over from one story to the next.
+ */
+interface ComprehensionQuizProps {
+  readonly questions: readonly QuestionDto[];
+  readonly onComplete: () => void;
+}
+
+function ComprehensionQuiz({ questions, onComplete }: ComprehensionQuizProps): React.ReactNode {
+  const [started, setStarted] = useState(false);
+  const [index, setIndex] = useState(0);
+
+  const onNext = useCallback((): void => {
+    setIndex(prev => {
+      const next = prev + 1;
+      if (next >= questions.length) {
+        onComplete();
+      }
+      return next;
+    });
+  }, [questions.length, onComplete]);
+
+  const done = started && index >= questions.length;
+  const current = started && index < questions.length ? questions[index] : null;
+
+  return (
+    <>
+      {!started && (
+        <button
+          type="button"
+          onClick={() => setStarted(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          data-testid="start-comprehension-quiz"
+        >
+          Start the comprehension quiz ({questions.length} question{questions.length === 1 ? '' : 's'})
+        </button>
+      )}
+      {current && (
+        <div className="flex justify-center">
+          <QuizCard
+            question={current}
+            onNext={onNext}
+            questionNumber={index + 1}
+            totalQuestions={questions.length}
+            mode="study"
+          />
+        </div>
+      )}
+      {done && (
+        <div
+          className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 text-sm"
+          role="status"
+          aria-live="polite"
+          data-testid="story-quiz-done"
+        >
+          <p className="text-green-900 dark:text-green-100">
+            <strong>Done!</strong> You worked through all {questions.length} comprehension question{questions.length === 1 ? '' : 's'} for this story.
+          </p>
+          <Link to="/stories" className="text-blue-700 dark:text-blue-300 underline mt-2 inline-block">
+            ← Back to all stories
+          </Link>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function StoryPage(): React.ReactNode {
   const { slug } = useParams<{ slug: string }>();
   const { state } = useAppContext();
   const { markStoryRead, isStoryRead } = useProgress();
-
-  const [quizStarted, setQuizStarted] = useState(false);
-  const [quizIndex, setQuizIndex] = useState(0);
 
   const stateId = state.selectedStateId ?? undefined;
 
@@ -45,20 +112,16 @@ export function StoryPage(): React.ReactNode {
 
   const { data: story, isLoading } = useFetch<StoryDetailDto>(fetchFn, [slug, stateId]);
 
-  const onQuizNext = useCallback((): void => {
-    if (!story) return;
-    if (quizIndex + 1 >= story.questions.length) {
-      if (story.slug && !isStoryRead(story.slug)) {
-        markStoryRead(story.slug);
-      }
-    }
-    setQuizIndex(quizIndex + 1);
-  }, [story, quizIndex, isStoryRead, markStoryRead]);
-
   const showStatePreamble = useMemo(
     () => Boolean(story?.stateAwarePreamble && state.selectedState),
     [story, state.selectedState]
   );
+
+  const handleQuizComplete = useCallback(() => {
+    if (story?.slug && !isStoryRead(story.slug)) {
+      markStoryRead(story.slug);
+    }
+  }, [story, isStoryRead, markStoryRead]);
 
   if (isLoading) {
     return (
@@ -80,10 +143,6 @@ export function StoryPage(): React.ReactNode {
   }
 
   const stateInfo = state.selectedState;
-  const quizDone = quizStarted && quizIndex >= story.questions.length;
-  const currentQuestion = quizStarted && quizIndex < story.questions.length
-    ? story.questions[quizIndex]
-    : null;
 
   return (
     <main className="max-w-3xl mx-auto p-4">
@@ -179,42 +238,11 @@ export function StoryPage(): React.ReactNode {
         <h2 id="story-quiz-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
           Check your understanding
         </h2>
-        {!quizStarted && (
-          <button
-            type="button"
-            onClick={() => setQuizStarted(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-            data-testid="start-comprehension-quiz"
-          >
-            Start the comprehension quiz ({story.questions.length} question{story.questions.length === 1 ? '' : 's'})
-          </button>
-        )}
-        {currentQuestion && (
-          <div className="flex justify-center">
-            <QuizCard
-              question={currentQuestion}
-              onNext={onQuizNext}
-              questionNumber={quizIndex + 1}
-              totalQuestions={story.questions.length}
-              mode="study"
-            />
-          </div>
-        )}
-        {quizDone && (
-          <div
-            className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 text-sm"
-            role="status"
-            aria-live="polite"
-            data-testid="story-quiz-done"
-          >
-            <p className="text-green-900 dark:text-green-100">
-              <strong>Done!</strong> You worked through all {story.questions.length} comprehension question{story.questions.length === 1 ? '' : 's'} for this story.
-            </p>
-            <Link to="/stories" className="text-blue-700 dark:text-blue-300 underline mt-2 inline-block">
-              ← Back to all stories
-            </Link>
-          </div>
-        )}
+        <ComprehensionQuiz
+          key={story.slug}
+          questions={story.questions}
+          onComplete={handleQuizComplete}
+        />
       </section>
     </main>
   );

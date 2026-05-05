@@ -43,15 +43,11 @@ public sealed class StoryService : IStoryService
             return null;
         }
 
-        var questions = new List<QuestionDto>(story.QuestionIds.Count);
-        foreach (var id in story.QuestionIds)
-        {
-            var q = await _questionService.GetQuestionByIdAsync(id, stateId, cancellationToken);
-            if (q is not null)
-            {
-                questions.Add(q);
-            }
-        }
+        // Bulk fetch — loads state + representatives once instead of N times
+        // (one per question). Resolves Copilot review feedback on the N+1
+        // pattern.
+        var questions = await _questionService
+            .GetQuestionsByIdsAsync(story.QuestionIds, stateId, cancellationToken);
 
         return new StoryDetailDto(
             story.Slug,
