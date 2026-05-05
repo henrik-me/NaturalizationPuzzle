@@ -199,16 +199,41 @@ internal static class StoryParser
         var sources = new List<StorySource>();
         foreach (var s in sourcesEl.EnumerateArray())
         {
+            var url = s.GetProperty("url").GetString() ?? string.Empty;
+            ValidateSourceUrl(slug, url);
             sources.Add(new StorySource
             {
                 Id = s.GetProperty("id").GetInt32(),
                 Title = s.GetProperty("title").GetString() ?? string.Empty,
-                Url = s.GetProperty("url").GetString() ?? string.Empty,
+                Url = url,
                 Type = s.GetProperty("type").GetString() ?? string.Empty,
                 SupportSnippet = s.GetProperty("supportSnippet").GetString() ?? string.Empty
             });
         }
         return sources;
+    }
+
+    /// <summary>
+    /// Defense in depth (mirrors the StoryRenderer client-side guard): every
+    /// source URL must use http(s) or mailto. Reject javascript:/data:/vbscript:
+    /// /file:/ etc. at parse time so an unsafe URL never reaches the wire.
+    /// </summary>
+    private static void ValidateSourceUrl(string slug, string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            throw new StoryValidationException(slug, "source has empty url");
+        }
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed))
+        {
+            throw new StoryValidationException(slug, $"source url is not absolute: {url}");
+        }
+        var scheme = parsed.Scheme.ToLowerInvariant();
+        if (scheme is not ("http" or "https" or "mailto"))
+        {
+            throw new StoryValidationException(
+                slug, $"source url uses disallowed scheme '{scheme}': must be http, https, or mailto");
+        }
     }
 
     private static void ValidateCitationsResolve(string slug, string body, IReadOnlyList<StorySource> sources)

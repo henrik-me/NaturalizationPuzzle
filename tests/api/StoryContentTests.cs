@@ -172,6 +172,25 @@ public sealed class StoryContentTests : IDisposable
     }
 
     [Fact]
+    public void EveryStorySource_UsesAllowlistedUrlScheme()
+    {
+        // Defense in depth (final-diff review fix #1): unsafe URL schemes in
+        // sources.json (e.g. javascript:/data:/vbscript:) must not survive
+        // parse, otherwise StoryPage would render them into a raw href.
+        var allowed = new HashSet<string> { "http", "https", "mailto" };
+        foreach (var story in _sut.GetAllStories())
+        {
+            foreach (var source in story.Sources)
+            {
+                Assert.True(Uri.TryCreate(source.Url, UriKind.Absolute, out var parsed),
+                    $"Story '{story.Slug}' source [{source.Id}] url is not absolute: {source.Url}");
+                Assert.True(allowed.Contains(parsed!.Scheme.ToLowerInvariant()),
+                    $"Story '{story.Slug}' source [{source.Id}] uses disallowed scheme '{parsed.Scheme}'");
+            }
+        }
+    }
+
+    [Fact]
     public void ThreeBranchesStory_IncludesStateAwareQuestions_Q23_AndQ29()
     {
         // Plan-review fix #1: the pilot must actually exercise the state-aware

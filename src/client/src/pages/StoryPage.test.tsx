@@ -137,4 +137,29 @@ describe('StoryPage', () => {
       expect(screen.getByText(/could not be found/i)).toBeInTheDocument();
     });
   });
+
+  it('renders source URLs as plain text when the protocol is unsafe (defense in depth)', async () => {
+    // Final-diff review fix #1: server validates source URLs at parse time, but the
+    // client adds a defensive isSafeSourceUrl() guard so a future regression in
+    // the parser cannot turn the source list into an XSS vector.
+    vi.mocked(getStory).mockResolvedValueOnce({
+      ...STORY,
+      sources: [
+        { id: 1, title: 'Bad Source', url: 'javascript:alert(1)', type: 'wikipedia', supportSnippet: 'snip' },
+        { id: 2, title: 'Good Source', url: 'https://en.wikipedia.org/wiki/Test', type: 'wikipedia', supportSnippet: 'snip' },
+      ],
+    });
+    const { container } = renderAt('/stories/three-branches');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 2, name: 'Sources' })).toBeInTheDocument();
+    });
+
+    // Bad source: rendered as plain text via the data-testid sentinel; no anchor for it.
+    expect(screen.getByTestId('source-url-blocked-1')).toBeInTheDocument();
+    expect(container.querySelector('a[href="javascript:alert(1)"]')).toBeNull();
+
+    // Good source still renders as a real anchor.
+    expect(container.querySelector('a[href="https://en.wikipedia.org/wiki/Test"]')).not.toBeNull();
+  });
 });

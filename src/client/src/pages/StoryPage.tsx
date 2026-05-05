@@ -8,6 +8,24 @@ import { useFetch } from '../hooks/useFetch';
 import { StoryRenderer } from '../components/StoryRenderer';
 import { QuizCard } from '../components/QuizCard';
 
+const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
+
+/**
+ * Defense in depth: the server (`StoryParser.ValidateSourceUrl`) rejects
+ * unsafe source URLs at parse time, but the client renders the URL into a
+ * raw `href` attribute. Validating again here ensures that a misconfigured
+ * server, a future change that loosens the parser, or a sources.json that
+ * sneaks past validation cannot turn the source list into an XSS vector.
+ */
+function isSafeSourceUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return SAFE_PROTOCOLS.has(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
 export function StoryPage(): React.ReactNode {
   const { slug } = useParams<{ slug: string }>();
   const { state } = useAppContext();
@@ -135,15 +153,19 @@ export function StoryPage(): React.ReactNode {
               id={`story-source-${s.id}`}
               className="text-gray-700 dark:text-gray-300"
             >
-              <a
-                href={s.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-700 dark:text-blue-300 underline"
-                aria-label={`${s.title} (opens in new tab)`}
-              >
-                {s.title}
-              </a>
+              {isSafeSourceUrl(s.url) ? (
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-700 dark:text-blue-300 underline"
+                  aria-label={`${s.title} (opens in new tab)`}
+                >
+                  {s.title}
+                </a>
+              ) : (
+                <span data-testid={`source-url-blocked-${s.id}`}>{s.title}</span>
+              )}
               <span className="text-gray-500 dark:text-gray-400"> — {s.type}</span>
               <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 italic">
                 &ldquo;{s.supportSnippet}&rdquo;

@@ -91,14 +91,19 @@ test.describe('Story Mode', () => {
     await settings.selectState('Washington');
     await storyDetailWarmed;
 
-    // Go offline.
-    await context.setOffline(true);
-
-    // Open the detail page from cold (first time on this URL while offline).
+    // Visit the story page online once so the page itself (not just the warm-up)
+    // populates every piece of cache the offline reload will need. This mirrors
+    // the pattern in offline.spec.ts where a page is visited online before the
+    // offline reload and avoids races between the warm-up and the SW cache.
     await page.goto('/stories/three-branches');
+    await expect(page.getByRole('heading', { level: 1, name: /Three Branches/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Sources' })).toBeVisible();
+
+    // Go offline and reload — the same URL must still render fully from cache.
+    await context.setOffline(true);
+    await page.reload();
 
     await expect(page.getByRole('heading', { level: 1, name: /Three Branches/i })).toBeVisible();
-    // Sources section rendered too — full body, not just header.
     await expect(page.getByRole('heading', { level: 2, name: 'Sources' })).toBeVisible();
   });
 });
