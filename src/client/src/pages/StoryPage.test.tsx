@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { StoryPage } from './StoryPage';
 import type { StoryDetailDto } from '../types/api';
 
@@ -138,19 +138,65 @@ describe('StoryPage', () => {
     });
   });
 
-  it('does NOT keep stale story content visible after a failed re-fetch', async () => {
-    // Final-diff Copilot review fix: useFetch caches the previous successful
-    // `data`. Without the error guard in StoryPage, navigating from a known
-    // story to an unknown slug would leave the previous title visible.
-    // Verify the fresh component sees the not-found state cleanly.
+  it('does NOT keep stale story content visible after a failed re-fetch (navigation A -> unknown)', async () => {
+    // Final-diff Copilot review fix (round 9): the previous test for this
+    // contract just rendered an unknown slug at mount and asserted the
+    // not-found UI — that didn't actually exercise the
+    // 'previous-fetch-success-then-failure' path, because nothing had been
+    // successfully loaded first.
+    //
+    // This test simulates real navigation: render '/stories/story-a', let
+    // it resolve to a real STORY, then click a button that navigates to
+    // '/stories/unknown' which resolves to null. With the StoryPage error
+    // guard, the not-found state must replace the previous title cleanly.
+    const A: StoryDetailDto = { ...STORY, slug: 'story-a', title: 'Story A Title' };
+    vi.mocked(getStory)
+      .mockResolvedValueOnce(A)      // load /stories/story-a
+      .mockResolvedValueOnce(null);  // navigate to /stories/unknown
+
+    function NavTo({ to }: { readonly to: string }): React.ReactNode {
+      const navigate = useNavigate();
+      return (
+        <button type="button" data-testid="navigate-button" onClick={() => navigate(to)}>
+          go
+        </button>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(
+      <AppProvider>
+        <MemoryRouter initialEntries={['/stories/story-a']}>
+          <Routes>
+            <Route path="/stories/:slug" element={<StoryPage />} />
+          </Routes>
+          <NavTo to="/stories/unknown" />
+        </MemoryRouter>
+      </AppProvider>
+    );
+
+    // Story A loads successfully.
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: 'Story A Title' })).toBeInTheDocument();
+    });
+
+    // Navigate to an unknown slug.
+    await user.click(screen.getByTestId('navigate-button'));
+
+    // The not-found UI replaces the previous title cleanly.
+    await waitFor(() => {
+      expect(screen.getByText(/could not be found/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('heading', { level: 1, name: 'Story A Title' })).toBeNull();
+  });
+
+  it('shows not-found cleanly when the very first fetch fails', async () => {
     vi.mocked(getStory).mockResolvedValueOnce(null);
     renderAt('/stories/three-branches');
 
     await waitFor(() => {
       expect(screen.getByText(/could not be found/i)).toBeInTheDocument();
     });
-    // The previous title must NOT appear from a cached useFetch data slot.
-    expect(screen.queryByRole('heading', { level: 1, name: STORY.title })).toBeNull();
   });
 
   it('renders source URLs as plain text when the protocol is unsafe (defense in depth)', async () => {
