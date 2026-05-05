@@ -125,4 +125,27 @@ describe('StoryRenderer', () => {
     );
     expect(container.querySelector('a')).toBeNull();
   });
+
+  it('refuses RELATIVE URLs in markdown links (must be absolute http/https/mailto)', () => {
+    // Final-diff Copilot review fix: previous isSafeUrl passed a dummy base
+    // URL to the URL constructor, which silently resolved '/admin/delete' as
+    // 'http://_dummy/admin/delete' and reported the http: scheme as safe.
+    // That contradicted the stated allowlist (only ABSOLUTE http/https/mailto)
+    // and would have rendered same-origin admin-style URLs as live links.
+    // Now require absolute URLs.
+    const { container } = render(
+      <StoryRenderer markdown={'A [bad](/admin/delete) link.'} sources={SOURCES} />
+    );
+    expect(container.querySelector('a')).toBeNull();
+    expect(container.textContent).toContain('bad');
+  });
+
+  it('refuses protocol-relative URLs in markdown links', () => {
+    // '//evil.example.com/x' is also a relative form (protocol-relative) and
+    // must be rejected for the same reason.
+    const { container } = render(
+      <StoryRenderer markdown={'A [bad](//evil.example.com/x) link.'} sources={SOURCES} />
+    );
+    expect(container.querySelector('a')).toBeNull();
+  });
 });

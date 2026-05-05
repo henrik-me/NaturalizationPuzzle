@@ -27,7 +27,7 @@ function groupByCategory(stories: readonly StoryListItemDto[]): Map<string, read
 }
 
 export function StoriesPage(): React.ReactNode {
-  const { storiesRead, isStoryRead } = useProgress();
+  const { isStoryRead } = useProgress();
   const [stories, setStories] = useState<readonly StoryListItemDto[] | null>(null);
 
   useEffect(() => {
@@ -74,8 +74,6 @@ export function StoriesPage(): React.ReactNode {
           data-testid="stories-progress"
         >
           {readCount} of {total} stories read
-          {storiesRead.length > 0 && ' — '}
-          <span className="sr-only">{readCount} out of {total}</span>
         </p>
       </header>
 

@@ -60,7 +60,12 @@ describe('StoriesPage', () => {
     render(<MemoryRouter><StoriesPage /></MemoryRouter>);
 
     await waitFor(() => {
-      expect(screen.getByTestId('stories-progress')).toHaveTextContent('1 of 3 stories read');
+      const progress = screen.getByTestId('stories-progress');
+      expect(progress).toHaveTextContent('1 of 3 stories read');
+      // Final-diff Copilot review fix: the line previously rendered a
+      // dangling '— ' followed only by an sr-only span; verify that's gone.
+      expect(progress.textContent?.endsWith('—')).toBe(false);
+      expect(progress.textContent?.endsWith('— ')).toBe(false);
     });
   });
 

@@ -32,8 +32,13 @@ export interface StoryRendererProps {
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 
 function isSafeUrl(url: string): boolean {
+  // Require an ABSOLUTE URL with an allowlisted scheme. Passing a base to
+  // `new URL` would silently accept relative URLs like `/admin/delete` (it
+  // would resolve them against the base and report the base's `http:`
+  // scheme), which contradicts the stated allowlist and creates a CSRF
+  // surface. Relative URLs in a Markdown body are treated as plain text.
   try {
-    const parsed = new URL(url, 'http://_naturalizationpuzzle.invalid');
+    const parsed = new URL(url);
     return SAFE_PROTOCOLS.has(parsed.protocol);
   } catch {
     return false;
