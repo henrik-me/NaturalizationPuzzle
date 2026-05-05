@@ -51,7 +51,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 ### Tests (`tests/api/`)
 - xUnit project with API tests covering questions, quiz, representatives, story content, and story service
 - QuestionServiceTests, QuizServiceTests, RepresentativeSeedDataTests, RepresentativeServiceTests, QuestionTagsPersistenceTests
-- **StoryContentTests**: drives `StoryParser` over every embedded pilot story; asserts every `QuestionId` exists in seed data, `(Category, SubCategory)` matches, every source has a non-empty `SupportSnippet`, every `[N]` marker resolves to a source, `ReadingLevelFleschKincaid >= readingLevelMin`, the **coverage contract** (every Question whose `(Category, SubCategory)` matches a pilot story's scope is in `QuestionIds` OR `OrphanedQuestionIds` with a reason), and that `three-branches` includes the state-aware Q23+Q29.
+- **StoryContentTests**: drives `StoryParser` over every embedded pilot story; asserts every `QuestionId` exists in seed data, `(Category, SubCategory)` matches, every source has a non-empty `SupportSnippet`, every `[N]` marker resolves to a source, `FleschReadingEase >= ReadingLevelMin`, the **coverage contract** (every Question whose `(Category, SubCategory)` matches a pilot story's scope is in `QuestionIds` OR `OrphanedQuestionIds` with a reason), and that `three-branches` includes the state-aware Q23+Q29.
 - **StoryServiceTests**: list returns all pilots; `GetAsync` returns null for unknown slug; `GetAsync("three-branches", stateId: <CA>)` resolves Q23 to non-`[Answers vary by state]` strings; `Sources`/Markdown pass through unchanged; `GetAllStories()` is memoized via `Lazy<T>`.
 
 ### Tests (`src/client/` — co-located)
@@ -363,7 +363,7 @@ Deferred / handled outside Phase 4:
     - **Mobile nav at 5 tabs** — nav was widened from 4 to 5 columns at 375 px (~75 px per tab). v1 verified the existing `min-h-[44px] px-2` keeps the tap target at ≥ 44 px tall, and the longest label ("Settings", 8 chars) fits. If a 6th tab is ever added, fall back to a hamburger menu OR move "History" under "Settings".
     - **`react-markdown` footprint** — v1 deliberately ships a custom narrow renderer (`StoryRenderer.tsx`) instead of `react-markdown` to keep the JS bundle small AND to keep XSS posture explicit (no `dangerouslySetInnerHTML`, no plugin-allowlist debate). If a future story needs richer Markdown (tables, footnotes, embedded images) the trade-off may shift; before adopting `react-markdown` make sure the protocol allowlist + sanitizer still apply.
 
-19. **Story comprehension quiz: optional "real-quiz" (typed-input) mode** — v1 always hands the user off to `QuizCard` in `mode='study'` (reveal-on-click) for the end-of-story comprehension check. Add a per-story toggle (or a Settings preference) that runs the comprehension quiz in `mode='quiz'` instead — typed-answer input, auto-graded with the existing `answerChecker.ts` fuzzy match, no answer reveal until the end, scored. Same `QuizCard` component, just a different `mode` prop, so the implementation is small. The benefit: actually drills the user the way the real USCIS test does (oral typed-answer-equivalent), but **scoped to the story's questions** rather than randomized from the full 128 — this is intentional (a study tool, not a substitute for the real test). Decisions still open: (a) per-story toggle on `StoryPage` vs a Settings-level preference; (b) whether to record a `QuizHistoryEntry` in `naturalizationProgress.quizHistory` for these scoped runs, or keep that history limited to the full-pool quiz mode at `/quiz`. Tracker: not yet ticketed; this entry is the source of truth until a GitHub issue is opened.
+19. **Story comprehension quiz: optional "real-quiz" (typed-input) mode** — v1 always hands the user off to `QuizCard` in `mode='study'` (reveal-on-click) for the end-of-story comprehension check. Add a per-story toggle (or a Settings preference) that runs the comprehension quiz in `mode='quiz'` instead — typed-answer input, no answer reveal until the end, scored. The benefit: actually drills the user the way the real USCIS test does (typed-answer-equivalent of an oral response), but **scoped to the story's questions** rather than randomized from the full 128 — this is intentional (a study tool, not a substitute for the real test). **Implementation note: this is more than swapping a prop.** `QuizCard` in `mode='quiz'` only renders the input + a Submit button and calls `onSubmitAnswer`; grading and advancement happen in the parent (see how `QuizPage` does it: keeps a `quizState` of typed answers, calls `checkAnswer` from `answerChecker.ts` to grade each submission, advances `currentIndex`, computes pass/fail, and tracks the running score). The follow-up needs to add equivalent state to `StoryPage` (or the `ComprehensionQuiz` child component) and an `onSubmitAnswer` handler that does the grading. Decisions still open: (a) per-story toggle on `StoryPage` vs a Settings-level preference; (b) whether to record a `QuizHistoryEntry` in `naturalizationProgress.quizHistory` for these scoped runs, or keep that history limited to the full-pool quiz mode at `/quiz`. Tracker: not yet ticketed; this entry is the source of truth until a GitHub issue is opened.
 
 ## Resume Guide (read this first when picking up after a restart)
 
@@ -375,8 +375,8 @@ The most recent feature is **Story Mode v1 (pilot)** — see Phase 14 in [Next S
 
 Active state at the time of writing this guide:
 
-- `main` is at the `feat: Story Mode v1` merge commit (PR #74). All CI green.
-- Production deploy goes through the normal `production` GitHub-environment approval gate; the merge of PR #74 will queue one.
+- Story Mode v1 was merged via PR #74; the docs commits in this section follow it. CI is green on `main` at the time of writing.
+- Production deploy follows the normal `production` GitHub-environment approval gate; check Actions for the latest run state if uncertain.
 
 ### Where the work that's still on the table lives
 
@@ -394,7 +394,7 @@ Two options, both documented in `README.md` → "Getting Started":
 - **`start.bat`** (root) — opens two console windows for the API + Vite client. Browser opens to `https://localhost:5173`.
 - **`servers.ps1 start` / `stop` / `status`** — same thing with explicit window-title tagging (`NatPuzzle-API`, `NatPuzzle-Client`) and persisted PIDs in `.servers/*.json`. Use this when you want the orchestrator to find/stop the right processes deterministically.
 
-For container parity (closer to production): `container-start.bat` builds the multi-stage image and runs it on `https://localhost:8080`.
+For container parity (closer to production): `container-start.bat` builds the multi-stage image and runs it on `http://localhost:8080`.
 
 ### How to validate before pushing
 
@@ -408,6 +408,7 @@ npm run lint && npm test -- --run && npm run build
 dotnet build && dotnet test
 
 # E2E (from tests/e2e/) — --reporter=list is mandatory
+npm ci                           # once per environment / fresh checkout
 npx playwright install chromium  # once per environment
 npx playwright test --reporter=list
 ```
