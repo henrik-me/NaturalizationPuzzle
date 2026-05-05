@@ -59,6 +59,16 @@ orphanedQuestionIds:
     reason: "Why life tenure — covered by future Judicial-Branch story"
   - id: 57
     reason: "Current Chief Justice — covered by future Judicial-Branch story"
+  - id: 58
+    reason: "Federalism (federal-only powers) — covered by future Federalism story"
+  - id: 59
+    reason: "Federalism (state-only powers) — covered by future Federalism story"
+  - id: 60
+    reason: "10th Amendment / Federalism — covered by future Federalism story"
+  - id: 61
+    reason: "State governor (state-level question) — covered by future State Government story"
+  - id: 62
+    reason: "State capital (state-level question) — covered by future State Government story"
 estReadMinutes: 5
 readingLevelMin: 70
 stateAwarePreamble: true
@@ -81,7 +91,7 @@ The Senate has **100** members — two from each of the 50 states [3]. A senator
 
 The House has **435** voting members. The number of representatives a state has depends on its population [4]. A representative's term is **2 years** [4].
 
-Because each state has two senators no matter its size, every state has equal power in the Senate. The number of representatives is set by population, so larger states have more.
+Because each state has two senators no matter its size, every state has equal power in the Senate [3]. The number of representatives is set by population, so larger states have more [4].
 
 ## The Executive Branch
 
