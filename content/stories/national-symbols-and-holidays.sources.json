@@ -1,0 +1,60 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "Flag of the United States",
+      "url": "https://en.wikipedia.org/wiki/Flag_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The flag has 13 horizontal stripes, alternating red and white, representing the 13 original colonies, and 50 white five-pointed stars on a blue rectangle for the 50 states. Common nicknames include Old Glory and the Stars and Stripes."
+    },
+    {
+      "id": 2,
+      "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
+      "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
+      "type": "gov",
+      "supportSnippet": "Q122 — Why does the flag have 50 stars? Answer: There is one star for each state."
+    },
+    {
+      "id": 3,
+      "title": "The Star-Spangled Banner",
+      "url": "https://en.wikipedia.org/wiki/The_Star-Spangled_Banner",
+      "type": "wikipedia",
+      "supportSnippet": "The Star-Spangled Banner is the national anthem of the United States. Its lyrics were written in September 1814 by Francis Scott Key after he witnessed the bombardment of Fort McHenry. Congress designated it the national anthem on March 3, 1931."
+    },
+    {
+      "id": 4,
+      "title": "E pluribus unum",
+      "url": "https://en.wikipedia.org/wiki/E_pluribus_unum",
+      "type": "wikipedia",
+      "supportSnippet": "E pluribus unum is a Latin phrase meaning 'out of many, one'. It was the de facto motto of the United States until 1956, and it appears on the Great Seal and on U.S. coinage from the late 18th century onward."
+    },
+    {
+      "id": 5,
+      "title": "Federal holidays in the United States",
+      "url": "https://en.wikipedia.org/wiki/Federal_holidays_in_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "5 U.S.C. §6103 establishes 11 permanent federal holidays: New Year's Day, MLK Jr. Day, Washington's Birthday (Presidents' Day), Memorial Day, Juneteenth, Independence Day, Labor Day, Columbus Day, Veterans Day, Thanksgiving, and Christmas."
+    },
+    {
+      "id": 6,
+      "title": "Independence Day (United States)",
+      "url": "https://en.wikipedia.org/wiki/Independence_Day_(United_States)",
+      "type": "wikipedia",
+      "supportSnippet": "Independence Day, also known as the Fourth of July, is a federal holiday commemorating the Declaration of Independence, which was adopted on July 4, 1776, by the Second Continental Congress, declaring the thirteen American colonies a new nation independent from the Kingdom of Great Britain."
+    },
+    {
+      "id": 7,
+      "title": "Memorial Day",
+      "url": "https://en.wikipedia.org/wiki/Memorial_Day",
+      "type": "wikipedia",
+      "supportSnippet": "Memorial Day is observed on the last Monday of May. It honors the U.S. military personnel who have died while serving in the United States Armed Forces."
+    },
+    {
+      "id": 8,
+      "title": "Veterans Day",
+      "url": "https://en.wikipedia.org/wiki/Veterans_Day",
+      "type": "wikipedia",
+      "supportSnippet": "Veterans Day is a federal holiday observed annually on November 11 in the United States, for honoring military veterans of the United States Armed Forces."
+    }
+  ]
+}
