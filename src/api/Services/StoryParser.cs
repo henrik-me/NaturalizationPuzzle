@@ -249,27 +249,78 @@ internal static class StoryParser
 
     private static IReadOnlyList<StorySource> ParseSources(string slug, string json)
     {
-        using var doc = JsonDocument.Parse(json);
-        if (!doc.RootElement.TryGetProperty("sources", out var sourcesEl))
+        JsonDocument doc;
+        try
         {
-            throw new StoryValidationException(slug, "sources.json is missing the 'sources' array");
+            doc = JsonDocument.Parse(json);
+        }
+        catch (JsonException ex)
+        {
+            throw new StoryValidationException(slug, $"sources.json is not valid JSON: {ex.Message}");
         }
 
-        var sources = new List<StorySource>();
-        foreach (var s in sourcesEl.EnumerateArray())
+        try
         {
-            var url = s.GetProperty("url").GetString() ?? string.Empty;
-            ValidateSourceUrl(slug, url);
-            sources.Add(new StorySource
+            if (!doc.RootElement.TryGetProperty("sources", out var sourcesEl)
+                || sourcesEl.ValueKind != JsonValueKind.Array)
             {
-                Id = s.GetProperty("id").GetInt32(),
-                Title = s.GetProperty("title").GetString() ?? string.Empty,
-                Url = url,
-                Type = s.GetProperty("type").GetString() ?? string.Empty,
-                SupportSnippet = s.GetProperty("supportSnippet").GetString() ?? string.Empty
-            });
+                throw new StoryValidationException(slug, "sources.json is missing the 'sources' array");
+            }
+
+            var sources = new List<StorySource>();
+            int index = 0;
+            foreach (var s in sourcesEl.EnumerateArray())
+            {
+                int sourceIndex = index++;
+                int id = ReadRequiredInt(slug, s, "id", sourceIndex);
+                string title = ReadRequiredString(slug, s, "title", sourceIndex);
+                string url = ReadRequiredString(slug, s, "url", sourceIndex);
+                string type = ReadRequiredString(slug, s, "type", sourceIndex);
+                string supportSnippet = ReadRequiredString(slug, s, "supportSnippet", sourceIndex);
+
+                ValidateSourceUrl(slug, url);
+
+                sources.Add(new StorySource
+                {
+                    Id = id,
+                    Title = title,
+                    Url = url,
+                    Type = type,
+                    SupportSnippet = supportSnippet
+                });
+            }
+            return sources;
         }
-        return sources;
+        finally
+        {
+            doc.Dispose();
+        }
+    }
+
+    private static int ReadRequiredInt(string slug, JsonElement el, string property, int sourceIndex)
+    {
+        if (!el.TryGetProperty(property, out var p) || p.ValueKind != JsonValueKind.Number)
+        {
+            throw new StoryValidationException(
+                slug, $"sources[{sourceIndex}] is missing required integer property '{property}'");
+        }
+        return p.GetInt32();
+    }
+
+    private static string ReadRequiredString(string slug, JsonElement el, string property, int sourceIndex)
+    {
+        if (!el.TryGetProperty(property, out var p) || p.ValueKind != JsonValueKind.String)
+        {
+            throw new StoryValidationException(
+                slug, $"sources[{sourceIndex}] is missing required string property '{property}'");
+        }
+        var value = p.GetString();
+        if (value is null)
+        {
+            throw new StoryValidationException(
+                slug, $"sources[{sourceIndex}] property '{property}' is null");
+        }
+        return value;
     }
 
     /// <summary>

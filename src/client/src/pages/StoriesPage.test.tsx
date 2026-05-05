@@ -95,4 +95,28 @@ describe('StoriesPage', () => {
       expect(card).toHaveTextContent(/fairly easy English/i);
     });
   });
+
+  it('uses slugified, whitespace-free HTML ids for category aria-labelledby', async () => {
+    // Final-diff Copilot review fix: HTML ids must not contain whitespace, and
+    // aria-labelledby splits on whitespace to support multiple ids — so a raw
+    // category like "American Government" would silently break the label
+    // association. Verify the id is slugified.
+    vi.mocked(listStories).mockResolvedValueOnce(PILOT);
+    const { container } = render(<MemoryRouter><StoriesPage /></MemoryRouter>);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 2, name: 'American Government' })).toBeInTheDocument();
+    });
+
+    const section = container.querySelector('section[aria-labelledby="category-american-government"]');
+    expect(section).not.toBeNull();
+    const heading = container.querySelector('#category-american-government');
+    expect(heading?.textContent).toBe('American Government');
+
+    // Also verify no element id contains whitespace.
+    const allIds = Array.from(container.querySelectorAll('[id]')).map(el => el.getAttribute('id'));
+    for (const id of allIds) {
+      expect(id).not.toMatch(/\s/);
+    }
+  });
 });

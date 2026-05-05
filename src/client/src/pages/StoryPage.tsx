@@ -110,7 +110,14 @@ export function StoryPage(): React.ReactNode {
       : ({ success: false, error: 'not-found' } as const);
   }, [slug, stateId]);
 
-  const { data: story, isLoading } = useFetch<StoryDetailDto>(fetchFn, [slug, stateId]);
+  const { data: storyData, isLoading, error } = useFetch<StoryDetailDto>(fetchFn, [slug, stateId]);
+
+  // Final-diff Copilot review fix: useFetch keeps the previous successful
+  // `data` when a subsequent fetch fails. That would leave stale story
+  // content visible after navigating from a known slug to an unknown one.
+  // Treat any error as not-found (the only error path here is the
+  // 'not-found' sentinel returned by fetchFn above).
+  const story = error ? null : storyData;
 
   const showStatePreamble = useMemo(
     () => Boolean(story?.stateAwarePreamble && state.selectedState),

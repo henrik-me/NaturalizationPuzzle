@@ -177,21 +177,43 @@ public sealed class StoryParserTests
     }
 
     [Fact]
-    public void Parse_QuestionIdsTypoThrowsStoryValidationException()
+    public void Parse_RejectsMalformedSourcesJson()
     {
-        const string md = """
-            ---
-            slug: test
-            title: T
-            category: American Government
-            subCategory: System of Government
-            questionIds: [15, sixteen]
-            readingLevelMin: 1
-            ---
-            A paragraph [1].
+        var ex = Assert.Throws<StoryValidationException>(() =>
+            StoryParser.Parse("test", MinimalFrontmatter, "{ this is not json"));
+        Assert.Contains("not valid JSON", ex.Message);
+    }
+
+    [Fact]
+    public void Parse_RejectsSourcesJson_MissingRequiredProperty()
+    {
+        // 'supportSnippet' is required — Copilot flagged that the original
+        // ParseSources called GetProperty(...) directly, throwing
+        // KeyNotFoundException without slug context.
+        const string sourcesMissingSnippet = """
+            {
+              "sources": [
+                { "id": 1, "title": "T", "url": "https://example.gov/x", "type": "gov" }
+              ]
+            }
             """;
         var ex = Assert.Throws<StoryValidationException>(() =>
-            StoryParser.Parse("test", md, SourcesJson("https://example.gov/x")));
-        Assert.Contains("questionIds", ex.Message);
+            StoryParser.Parse("test", MinimalFrontmatter, sourcesMissingSnippet));
+        Assert.Contains("supportSnippet", ex.Message);
+    }
+
+    [Fact]
+    public void Parse_RejectsSourcesJson_PropertyOfWrongType()
+    {
+        const string sourcesIdAsString = """
+            {
+              "sources": [
+                { "id": "not-a-number", "title": "T", "url": "https://example.gov/x", "type": "gov", "supportSnippet": "snip" }
+              ]
+            }
+            """;
+        var ex = Assert.Throws<StoryValidationException>(() =>
+            StoryParser.Parse("test", MinimalFrontmatter, sourcesIdAsString));
+        Assert.Contains("id", ex.Message);
     }
 }

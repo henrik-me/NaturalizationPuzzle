@@ -289,7 +289,7 @@ All filters compose. Filter state is session-only (not persisted). The progress 
 
 Story Mode adds short, cited narratives that connect related civics questions into a single explanation, then ends in an end-of-story comprehension quiz built from the actual USCIS questions for that area. The pilot ships **three stories**, one per USCIS category:
 
-- **The Three Branches of Government** (American Government → System of Government) — covers Q15–Q57 with hand-curated coverage; includes the state-aware questions (Q23 your state's senator, Q29 your U.S. representative).
+- **The Three Branches of Government** (American Government → System of Government) — covers a curated set of 16 questions about the three-branch system, including the state-aware questions Q23 (your state's senator) and Q29 (your U.S. representative). The remaining detail questions in *System of Government* (officeholder names, cabinet specifics, Electoral College, etc.) are listed in `OrphanedQuestionIds` with reasons and will be picked up by future per-branch stories.
 - **The Civil War and Reconstruction** (American History → The 1800s) — Q92–Q99.
 - **National Symbols and Holidays** (Integrated Civics → Symbols and Holidays) — Q121–Q128.
 

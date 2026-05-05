@@ -20,18 +20,23 @@ describe('StoryRenderer', () => {
     // The server-side StoryParser strips <!-- narrative --> and
     // <!-- model-memory --> markers from BodyMarkdown before it reaches the
     // client. The renderer therefore receives marker-free input. This test
-    // verifies that even if a future server bug let a marker through, it
-    // would render as plain escaped text — never as live HTML.
+    // simulates a future server bug that lets a marker through and verifies
+    // the renderer renders it as inert escaped text — never as a live HTML
+    // comment node.
+    const malformedFromServer = 'A paragraph.\n\n<!-- this should not be here -->\n\nAnother paragraph.';
     const { container } = render(
-      <StoryRenderer
-        markdown={'A paragraph.\n\nAnother paragraph with a leftover marker.'}
-        sources={SOURCES}
-      />
+      <StoryRenderer markdown={malformedFromServer} sources={SOURCES} />
     );
     expect(screen.getByText('A paragraph.')).toBeInTheDocument();
-    expect(screen.getByText('Another paragraph with a leftover marker.')).toBeInTheDocument();
-    // No HTML comments rendered as actual comment nodes.
-    expect(container.innerHTML).not.toContain('<!--');
+    expect(screen.getByText('Another paragraph.')).toBeInTheDocument();
+    // Crucially: the leftover '<!--' is in the visible text content, not in
+    // an HTML comment node. React text-content escaping makes this safe.
+    expect(container.textContent).toContain('<!-- this should not be here -->');
+    // Verify there is NO actual HTML comment node in the DOM.
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_COMMENT);
+    let commentNodeCount = 0;
+    while (walker.nextNode()) commentNodeCount++;
+    expect(commentNodeCount).toBe(0);
   });
 
   it('renders [N] citation markers as superscript anchors to source list', () => {

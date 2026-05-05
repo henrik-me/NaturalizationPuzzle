@@ -138,6 +138,21 @@ describe('StoryPage', () => {
     });
   });
 
+  it('does NOT keep stale story content visible after a failed re-fetch', async () => {
+    // Final-diff Copilot review fix: useFetch caches the previous successful
+    // `data`. Without the error guard in StoryPage, navigating from a known
+    // story to an unknown slug would leave the previous title visible.
+    // Verify the fresh component sees the not-found state cleanly.
+    vi.mocked(getStory).mockResolvedValueOnce(null);
+    renderAt('/stories/three-branches');
+
+    await waitFor(() => {
+      expect(screen.getByText(/could not be found/i)).toBeInTheDocument();
+    });
+    // The previous title must NOT appear from a cached useFetch data slot.
+    expect(screen.queryByRole('heading', { level: 1, name: STORY.title })).toBeNull();
+  });
+
   it('renders source URLs as plain text when the protocol is unsafe (defense in depth)', async () => {
     // Final-diff review fix #1: server validates source URLs at parse time, but the
     // client adds a defensive isSafeSourceUrl() guard so a future regression in
