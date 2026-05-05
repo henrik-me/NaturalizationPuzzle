@@ -27,7 +27,7 @@ const STORY: StoryDetailDto = {
     { id: 1, title: 'Wiki', url: 'https://en.wikipedia.org/wiki/X', type: 'wikipedia', supportSnippet: 'snip' },
   ],
   estReadMinutes: 5,
-  readingLevelFleschKincaid: 75,
+  fleschReadingEase: 75,
   modelMemoryUsed: false,
   stateAwarePreamble: true,
   questions: [

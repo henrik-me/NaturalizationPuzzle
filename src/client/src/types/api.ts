@@ -73,7 +73,7 @@ export interface StoryListItemDto {
   readonly category: string;
   readonly subCategory: string;
   readonly estReadMinutes: number;
-  readonly readingLevelFleschKincaid: number;
+  readonly fleschReadingEase: number;
   readonly questionCount: number;
   readonly modelMemoryUsed: boolean;
   readonly stateAwarePreamble: boolean;
@@ -87,7 +87,7 @@ export interface StoryDetailDto {
   readonly bodyMarkdown: string;
   readonly sources: readonly StorySource[];
   readonly estReadMinutes: number;
-  readonly readingLevelFleschKincaid: number;
+  readonly fleschReadingEase: number;
   readonly modelMemoryUsed: boolean;
   readonly stateAwarePreamble: boolean;
   readonly questions: readonly QuestionDto[];

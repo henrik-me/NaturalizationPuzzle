@@ -12,7 +12,7 @@ public sealed record Story
     public required IReadOnlyList<OrphanedQuestion> OrphanedQuestionIds { get; init; }
     public int EstReadMinutes { get; init; }
     public int ReadingLevelMin { get; init; } = 70;
-    public int ReadingLevelFleschKincaid { get; init; }
+    public int FleschReadingEase { get; init; }
     public bool ModelMemoryUsed { get; init; }
     public bool StateAwarePreamble { get; init; }
 }
@@ -38,7 +38,7 @@ public sealed record StoryListItemDto(
     string Category,
     string SubCategory,
     int EstReadMinutes,
-    int ReadingLevelFleschKincaid,
+    int FleschReadingEase,
     int QuestionCount,
     bool ModelMemoryUsed,
     bool StateAwarePreamble);
@@ -51,7 +51,7 @@ public sealed record StoryDetailDto(
     string BodyMarkdown,
     IReadOnlyList<StorySource> Sources,
     int EstReadMinutes,
-    int ReadingLevelFleschKincaid,
+    int FleschReadingEase,
     bool ModelMemoryUsed,
     bool StateAwarePreamble,
     IReadOnlyList<QuestionDto> Questions);

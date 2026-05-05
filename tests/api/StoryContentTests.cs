@@ -93,8 +93,8 @@ public sealed class StoryContentTests : IDisposable
     {
         foreach (var story in _sut.GetAllStories())
         {
-            Assert.True(story.ReadingLevelFleschKincaid >= story.ReadingLevelMin,
-                $"Story '{story.Slug}' FK={story.ReadingLevelFleschKincaid} below required {story.ReadingLevelMin}");
+            Assert.True(story.FleschReadingEase >= story.ReadingLevelMin,
+                $"Story '{story.Slug}' Flesch Reading Ease={story.FleschReadingEase} below required {story.ReadingLevelMin}");
         }
     }
 

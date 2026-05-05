@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { listStories, getStory } from './storyService';
 
 const fetchMock = vi.fn();
@@ -6,6 +6,13 @@ const fetchMock = vi.fn();
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+  // Final-diff Copilot review fix: vi.stubGlobal does not auto-restore
+  // between tests, so the fetch stub would otherwise leak into other
+  // tests that share this jsdom global. Explicitly unstub.
+  vi.unstubAllGlobals();
 });
 
 describe('storyService', () => {

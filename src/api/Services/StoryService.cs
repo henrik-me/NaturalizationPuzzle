@@ -26,7 +26,7 @@ public sealed class StoryService : IStoryService
                 s.Category,
                 s.SubCategory,
                 s.EstReadMinutes,
-                s.ReadingLevelFleschKincaid,
+                s.FleschReadingEase,
                 s.QuestionIds.Count,
                 s.ModelMemoryUsed,
                 s.StateAwarePreamble))
@@ -57,7 +57,7 @@ public sealed class StoryService : IStoryService
             story.BodyMarkdown,
             story.Sources,
             story.EstReadMinutes,
-            story.ReadingLevelFleschKincaid,
+            story.FleschReadingEase,
             story.ModelMemoryUsed,
             story.StateAwarePreamble,
             questions);

@@ -31,12 +31,12 @@ internal static class StoryParser
         ValidateParagraphCitations(slug, body);
 
         var modelMemory = body.Contains(ModelMemoryMarker, StringComparison.Ordinal);
-        var fk = ComputeFleschKincaid(body);
+        var fre = ComputeFleschReadingEase(body);
         var minLevel = fm.ReadingLevelMin ?? 70;
-        if (fk < minLevel)
+        if (fre < minLevel)
         {
             throw new StoryValidationException(
-                slug, $"Flesch-Kincaid score {fk} is below required minimum {minLevel}");
+                slug, $"Flesch Reading Ease score {fre} is below required minimum {minLevel}");
         }
 
         var wordCount = CountWords(body);
@@ -61,7 +61,7 @@ internal static class StoryParser
             OrphanedQuestionIds = fm.OrphanedQuestionIds ?? new List<OrphanedQuestion>(),
             EstReadMinutes = estMinutes,
             ReadingLevelMin = minLevel,
-            ReadingLevelFleschKincaid = fk,
+            FleschReadingEase = fre,
             ModelMemoryUsed = modelMemory,
             StateAwarePreamble = fm.StateAwarePreamble ?? false
         };
@@ -467,7 +467,15 @@ internal static class StoryParser
 
     private static readonly Regex OrderedListMarker = new(@"^\d+\.\s+", RegexOptions.Compiled);
 
-    private static int ComputeFleschKincaid(string body)
+    /// <summary>
+    /// Computes the Flesch Reading Ease score
+    /// (206.835 - 1.015 * (words/sentences) - 84.6 * (syllables/words)).
+    /// HIGHER values mean EASIER prose (90+ very easy, 60-70 plain English,
+    /// below 30 college-level). This is NOT the Flesch-Kincaid Grade Level
+    /// formula despite the loose colloquial usage of "Flesch-Kincaid"
+    /// elsewhere — name and behavior must agree.
+    /// </summary>
+    private static int ComputeFleschReadingEase(string body)
     {
         var stripped = StripMarkdown(body);
         var words = stripped.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);

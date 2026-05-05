@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom';
 import type { StoryListItemDto } from '../types/api';
 import { listStories } from '../services/storyService';
 import { useProgress } from '../hooks/useProgress';
+import { CATEGORY_ORDER, orderedUnique } from '../utils/categoryOrder';
 
-function readingLevelLabel(fk: number): string {
-  if (fk >= 90) return 'very easy';
-  if (fk >= 80) return 'easy';
-  if (fk >= 70) return 'fairly easy';
-  if (fk >= 60) return 'standard';
+function readingLevelLabel(fre: number): string {
+  // Flesch Reading Ease bands (higher = easier).
+  if (fre >= 90) return 'very easy';
+  if (fre >= 80) return 'easy';
+  if (fre >= 70) return 'fairly easy';
+  if (fre >= 60) return 'standard';
   return 'harder';
 }
 
@@ -22,8 +24,15 @@ function groupByCategory(stories: readonly StoryListItemDto[]): Map<string, read
       map.set(s.category, [s]);
     }
   }
-  // Make the inner arrays readonly to the outside.
-  return new Map(Array.from(map.entries(), ([k, v]) => [k, v as readonly StoryListItemDto[]]));
+  // Apply the shared CATEGORY_ORDER (matching StudyPage) so categories appear
+  // in a deterministic, conventional order across the app rather than in
+  // whatever order the API returned them in.
+  const orderedCategories = orderedUnique(map.keys(), CATEGORY_ORDER);
+  const ordered = new Map<string, readonly StoryListItemDto[]>();
+  for (const cat of orderedCategories) {
+    ordered.set(cat, map.get(cat) as readonly StoryListItemDto[]);
+  }
+  return ordered;
 }
 
 export function StoriesPage(): React.ReactNode {
@@ -119,9 +128,9 @@ export function StoriesPage(): React.ReactNode {
                       </span>
                       <span
                         className="bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded"
-                        aria-label={`Reading level: ${readingLevelLabel(s.readingLevelFleschKincaid)}`}
+                        aria-label={`Reading level: ${readingLevelLabel(s.fleschReadingEase)}`}
                       >
-                        {readingLevelLabel(s.readingLevelFleschKincaid)} English
+                        {readingLevelLabel(s.fleschReadingEase)} English
                       </span>
                       <span className="bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded">
                         {s.questionCount} questions

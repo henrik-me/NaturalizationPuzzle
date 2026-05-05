@@ -13,15 +13,15 @@ import { listStories } from '../services/storyService';
 const PILOT: readonly StoryListItemDto[] = [
   { slug: 'three-branches', title: 'The Three Branches of Government',
     category: 'American Government', subCategory: 'System of Government',
-    estReadMinutes: 5, readingLevelFleschKincaid: 75, questionCount: 16,
+    estReadMinutes: 5, fleschReadingEase: 75, questionCount: 16,
     modelMemoryUsed: false, stateAwarePreamble: true },
   { slug: 'civil-war-and-reconstruction', title: 'The Civil War and Reconstruction',
     category: 'American History', subCategory: 'The 1800s',
-    estReadMinutes: 4, readingLevelFleschKincaid: 80, questionCount: 8,
+    estReadMinutes: 4, fleschReadingEase: 80, questionCount: 8,
     modelMemoryUsed: false, stateAwarePreamble: false },
   { slug: 'national-symbols-and-holidays', title: 'National Symbols and Holidays',
     category: 'Integrated Civics', subCategory: 'Symbols and Holidays',
-    estReadMinutes: 3, readingLevelFleschKincaid: 85, questionCount: 8,
+    estReadMinutes: 3, fleschReadingEase: 85, questionCount: 8,
     modelMemoryUsed: false, stateAwarePreamble: false },
 ];
 
