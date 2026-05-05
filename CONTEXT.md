@@ -104,6 +104,9 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Playwright E2E tests require both .NET API and Vite dev server running (config handles auto-start)
 - State seed data uses "Varies by district" for multi-district states — a future enhancement could let users specify their congressional district
 - 3 House seats vacant in 119th Congress (CA-1, GA-14, NJ-11) — seeded as "Vacant", update when filled
+- `GET /api/v1/representatives` (no subpath) silently returns the SPA `index.html` because the `MapGroup` defines only `/vacant`, `/{id}` (PUT), and `/reset` — request falls through to `MapFallbackToFile`. Latent (no client consumer) but surprising for anyone exploring the API. Tracked in **#72**.
+- `RepresentativeService.UpdateRepresentativeAsync` writes to the in-container SQLite file, which has no persistent volume on Container Apps Consumption. Edits are silently lost when the replica scales to zero (~5 min idle). Tracked in **#73** with three resolution options (persist, deprecate the endpoint, or move source-of-truth client-side).
+- `src/client/package.json` has no `engines.node` field, so `npm install` doesn't enforce Node 20.19+ even though `@vitejs/plugin-react@5.x` requires it. README also says "Node.js 20+" which under-specifies the patch version. Tracked in **#70**.
 
 ## Azure Hosting Plan
 
@@ -128,7 +131,7 @@ Browser (PWA) ──HTTPS──▶ Azure Container Apps (Consumption)
 
 **Image registry**: GitHub Container Registry (GHCR) — free, integrated with GitHub Actions. No Azure Container Registry needed.
 
-**Storage**: No persistent storage required. The SQLite database contains only read-only seed data (128 questions, 50 states, 435 representatives) and is recreated identically on every container start via `EnsureCreatedAsync()`.
+**Storage**: No persistent storage volume is currently provisioned. The SQLite database is mostly read-only seed data (128 questions, 50 states, 435 representatives) recreated identically on every container start via `EnsureCreatedAsync()`. **Caveat:** `RepresentativeService.UpdateRepresentativeAsync` does write back to the same in-container DB; those edits are silently lost on scale-to-zero. Tracked in **#73**.
 
 ### Azure Resources (all in `NaturalizationPuzzle` resource group)
 
@@ -156,6 +159,16 @@ Application Insights (free tier, 5 GB/mo ingest) provides production observabili
 **How to access**: Azure Portal → Resource Group `NaturalizationPuzzle` → Application Insights resource → choose a blade (Performance, Failures, Logs, Live Metrics). Use KQL queries in the Logs blade for custom analysis (e.g., `requests | where resultCode >= 500 | summarize count() by bin(timestamp, 1h)`).
 
 **Trace sampling**: As of `Azure.Monitor.OpenTelemetry.AspNetCore` 1.5.0 (PR #69), the package's default sampler is `RateLimitedSampler` at **5 traces/sec** (changed from 100% sampling in 1.4.0). This app accepts the new default — np.metzger.dk runs scale-to-zero with sustained traffic well below 5 req/sec, so 100% of traces continue to be retained in practice and the rate limit better aligns with the App Insights free 5 GB/mo tier. To restore 100% sampling if traffic ever exceeds the limit, configure `UseAzureMonitor(o => { o.SamplingRatio = 1.0f; o.TracesPerSecond = null; })` in `Program.cs`.
+
+### Production Performance Characteristics
+
+Measured on np.metzger.dk during the 2026-05-04 cold-start investigation. Useful baseline for any future "the site feels slow" diagnosis — start by checking whether the user hit a cold replica before investigating anywhere else.
+
+- **Scale-to-zero is by design.** Container App is configured `minReplicas: 0`, `maxReplicas: 2`, scale rule `http-concurrency: 50`. Replicas are reaped after the default Container Apps cooldown (~5 min idle).
+- **Cold start ≈ 22 seconds before App Insights sees the request.** Breakdown for a fresh replica: image pull from GHCR (private; uses Container App secret) + .NET host start + `EnsureDatabaseSchemaAsync` running `EnsureCreatedAsync` (seeds 128 questions + 50 states + 435 reps into a fresh in-container SQLite file) + readiness probe pass. The user's HTTP request queues at the Container Apps front door for the entire duration; App Insights only records the request once the host is ready.
+- **Warm-state TTFB is excellent** — `/api/health` ≈ 14–70 ms, `/api/v1/states` ≈ 50 ms, `/api/v1/questions` ≈ 70 ms (38 KB). First-hit JIT cost on `/api/health` is ~324 ms, then drops to <70 ms within seconds.
+- **Mitigation chosen:** UI feedback via `SlowConnectionBanner` (PR #71) — when any API request exceeds 3 s, an animated amber banner with a pulsing dot, rotating civics-themed messages, and an elapsed-seconds counter appears at the top of the page. No warmup ping, no `minReplicas: 1` (deliberately keeping the $0/mo scale-to-zero budget). Pre-seeding the SQLite file at image build time would shave only ~3–5 s off the ~22 s cold start, so it's not currently worth the Dockerfile complexity.
+- **Diagnosing a slow-load report:** check `az containerapp replica list -g rg-naturalizationpuzzle-prod -n ca-natpuzzle-prod` and compare the replica `createdTime` to the user's report timestamp. If they're within ~30 s of each other, it was a cold start.
 
 ### Implementation (Three Phases)
 

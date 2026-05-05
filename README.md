@@ -459,7 +459,7 @@ docker compose down
 
 **Image registry**: GitHub Container Registry (GHCR) — free, integrated with GitHub Actions. No Azure Container Registry (ACR) needed.
 
-**Storage**: No persistent storage required. The SQLite database contains only read-only seed data (128 questions, 50 states, 435 representatives) and is recreated identically on every container start.
+**Storage**: No persistent storage volume is currently provisioned. The SQLite database is mostly read-only seed data (128 questions, 50 states, 435 representatives) recreated identically on every container start. The `Representative` table has a write path (`UpdateRepresentativeAsync`) whose edits are lost on scale-to-zero — see CONTEXT.md and issue #73.
 
 **Request routing**: Container Apps ingress terminates TLS and forwards requests to the container on port 8080. Requests to `/api/*` are handled by the .NET Minimal API. All other requests fall through to the React SPA via `MapFallbackToFile("index.html")`, enabling client-side routing.
 
