@@ -19,7 +19,7 @@ describe('storyService', () => {
   it('listStories returns the array on a 200 response', async () => {
     const dto = [
       { slug: 's1', title: 'S1', category: 'AG', subCategory: 'X',
-        estReadMinutes: 3, readingLevelFleschKincaid: 80,
+        estReadMinutes: 3, fleschReadingEase: 80,
         questionCount: 8, modelMemoryUsed: false, stateAwarePreamble: false },
     ];
     fetchMock.mockResolvedValueOnce({
@@ -62,7 +62,7 @@ describe('storyService', () => {
       bodyMarkdown: '## Hi\n\nBody [1].',
       sources: [{ id: 1, title: 'Wiki', url: 'https://example.com', type: 'wikipedia', supportSnippet: 'snip' }],
       estReadMinutes: 5,
-      readingLevelFleschKincaid: 80,
+      fleschReadingEase: 80,
       modelMemoryUsed: false,
       stateAwarePreamble: true,
       questions: [],
