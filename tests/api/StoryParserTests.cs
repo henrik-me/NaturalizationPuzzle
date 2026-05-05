@@ -216,4 +216,34 @@ public sealed class StoryParserTests
             StoryParser.Parse("test", MinimalFrontmatter, sourcesIdAsString));
         Assert.Contains("id", ex.Message);
     }
+
+    [Fact]
+    public void Parse_RecognizesMultiDigitOrderedListMarkers()
+    {
+        // Final-diff Copilot review fix: IsListOnly used to misclassify
+        // '10.' as not-a-list (the old check only handled single-digit
+        // markers). The parser would then demand a citation marker on a
+        // list-only paragraph and fail validation.
+        const string md = """
+            ---
+            slug: test
+            title: T
+            category: American Government
+            subCategory: System of Government
+            questionIds: [15]
+            readingLevelMin: 1
+            ---
+            ## Heading
+
+            A paragraph with a citation [1].
+
+            1. first item
+            10. tenth item
+            100. hundredth item
+            """;
+        // Should parse without throwing — the multi-digit list paragraph is
+        // exempt from the citation requirement because it is list-only.
+        var story = StoryParser.Parse("test", md, SourcesJson("https://example.gov/x"));
+        Assert.NotNull(story);
+    }
 }

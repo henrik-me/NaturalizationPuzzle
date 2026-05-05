@@ -456,9 +456,16 @@ internal static class StoryParser
             return string.IsNullOrWhiteSpace(t)
                 || t.StartsWith("- ", StringComparison.Ordinal)
                 || t.StartsWith("* ", StringComparison.Ordinal)
-                || (t.Length > 2 && char.IsDigit(t[0]) && t[1] == '.');
+                // Ordered-list marker: ^\d+\.\s — supports any digit width
+                // (1., 10., 100., ...). The previous check `char.IsDigit(t[0])
+                // && t[1] == '.'` only recognized single-digit markers and
+                // misclassified `10.` as not-a-list, leading the parser to
+                // demand a citation on a list-only paragraph.
+                || OrderedListMarker.IsMatch(t);
         });
     }
+
+    private static readonly Regex OrderedListMarker = new(@"^\d+\.\s+", RegexOptions.Compiled);
 
     private static int ComputeFleschKincaid(string body)
     {
@@ -522,6 +529,11 @@ internal static class StoryParser
         s = Regex.Replace(s, @"\[([^\]]+)\]\([^)]+\)", "$1");             // markdown links
         s = Regex.Replace(s, @"^#+\s*", string.Empty, RegexOptions.Multiline);
         s = Regex.Replace(s, @"^[-*]\s+", string.Empty, RegexOptions.Multiline);
+        // Strip ordered-list markers (1., 10., ...) so they don't pollute
+        // word/sentence counts in the Flesch-Kincaid score. Without this
+        // strip, "1. one" was being counted as a word "1" and the trailing
+        // period was inflating sentence count.
+        s = Regex.Replace(s, @"^\d+\.\s+", string.Empty, RegexOptions.Multiline);
         s = Regex.Replace(s, @"\*+", string.Empty);
         s = Regex.Replace(s, @"_+", string.Empty);
         return s;
