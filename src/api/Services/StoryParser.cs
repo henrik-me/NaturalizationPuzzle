@@ -9,7 +9,7 @@ namespace NaturalizationPuzzle.Api.Services;
 /// Parses an embedded story Markdown file plus its sources.json companion into
 /// a validated <see cref="Story"/>. Enforces the authoring rules captured in
 /// the Story Mode plan (paragraph-level citations, source-snippet presence,
-/// citation-marker resolution, Flesch-Kincaid floor, model-memory flag).
+/// citation-marker resolution, Flesch Reading Ease floor, model-memory flag).
 /// Throws <see cref="StoryValidationException"/> on any rule violation; this
 /// fails the test suite, which is the enforcement layer.
 /// </summary>
@@ -560,7 +560,7 @@ internal static class StoryParser
         s = Regex.Replace(s, @"^#+\s*", string.Empty, RegexOptions.Multiline);
         s = Regex.Replace(s, @"^[-*]\s+", string.Empty, RegexOptions.Multiline);
         // Strip ordered-list markers (1., 10., ...) so they don't pollute
-        // word/sentence counts in the Flesch-Kincaid score. Without this
+        // word/sentence counts in the Flesch Reading Ease score. Without this
         // strip, "1. one" was being counted as a word "1" and the trailing
         // period was inflating sentence count.
         s = Regex.Replace(s, @"^\d+\.\s+", string.Empty, RegexOptions.Multiline);

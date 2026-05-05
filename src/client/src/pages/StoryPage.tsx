@@ -203,13 +203,11 @@ export function StoryPage(): React.ReactNode {
             <strong>{stateInfo.senatorOne}</strong> and <strong>{stateInfo.senatorTwo}</strong>.
             {stateInfo.representatives.length > 0 && (
               <>
-                {' '}You are represented in the House by{' '}
-                <strong>
-                  {stateInfo.representatives.length === 1
-                    ? stateInfo.representatives[0]
-                    : `${stateInfo.representatives.length} representatives`}
-                </strong>
-                .
+                {' '}
+                {stateInfo.representatives.length === 1
+                  ? <>Your state&apos;s sole U.S. representative is <strong>{stateInfo.representatives[0]}</strong>.</>
+                  : <>Your state has <strong>{stateInfo.representatives.length}</strong> members in the U.S. House of Representatives — your specific representative depends on your congressional district.</>
+                }
               </>
             )}
           </p>

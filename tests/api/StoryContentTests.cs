@@ -9,7 +9,7 @@ namespace NaturalizationPuzzle.Api.Tests;
 /// Drives <see cref="StoryParser"/> over every embedded pilot story and
 /// asserts the authoring rules from the Story Mode plan: every QuestionId
 /// resolves to a real Question, the questions live in the story's declared
-/// (Category, SubCategory), Flesch-Kincaid meets the per-story floor,
+/// (Category, SubCategory), Flesch Reading Ease meets the per-story floor,
 /// every source has a non-empty SupportSnippet, every [N] marker resolves
 /// to a source, and the COVERAGE CONTRACT — every question whose
 /// (Category, SubCategory) matches a story's scope is either in that
