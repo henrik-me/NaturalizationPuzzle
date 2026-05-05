@@ -22,38 +22,37 @@ Full-stack application scaffolded and building. Backend API is functional with s
 
 ### Backend (`src/api/`)
 - .NET 10 Minimal API project with EF Core + SQLite
-- Models: Question, Answer, UsState, QuizSession + record DTOs
+- Models: Question, Answer, UsState, QuizSession, Representative + record DTOs; **Story / StorySource / OrphanedQuestion** + StoryListItemDto / StoryDetailDto (POCOs, not EF entities — story content ships as embedded resources)
 - SeedData: all 128 USCIS 2025 civics questions with answers, categories, 65/20 designations
 - RepresentativeSeedData: all 435 U.S. House Representatives (119th Congress) by state and district
-- Models: Representative entity (Id, StateId, District, Name) for per-district House rep data
-- Services: QuestionService (state-specific answer resolution with per-rep data), StateService, QuizService, RepresentativeService (vacant seat detection & update)
-- Endpoints: versioned under `/api/v1/` — questions, states, quiz, representatives, health
+- Services: QuestionService (state-specific answer resolution with per-rep data), StateService, QuizService, RepresentativeService (vacant seat detection & update), **StoryService** (lazy-loads embedded stories on first use, resolves state-aware Questions[] via IQuestionService) + internal **StoryParser** (paragraph-citation enforcement, source-snippet enforcement, FK floor, model-memory marker computation)
+- Endpoints: versioned under `/api/v1/` — questions, states, quiz, representatives, **stories**, health
 - Program.cs: DI registration, CORS, static file serving, SPA fallback, auto-create DB on startup, HTTPS redirect (dev only), Application Insights via OpenTelemetry (conditional)
 - `appsettings.Production.json` — production logging configuration (includes Azure Monitor log levels)
+- **Story content** lives in `content/stories/<slug>.md` + `<slug>.sources.json` (3 pilot stories) and ships as `<EmbeddedResource>` in `NaturalizationPuzzle.Api.csproj`
 
 ### Frontend (`src/client/`)
 - React 19 + Vite + TypeScript (strict mode)
 - Tailwind CSS v4 for styling
 - PWA via vite-plugin-pwa with service worker and runtime caching
-- React Router DOM (/, /quiz, /history, /settings)
+- React Router DOM (`/`, `/quiz`, **`/stories`**, **`/stories/:slug`**, `/history`, `/settings`)
 - AppContext with useReducer for state management (hydrates persisted state on load)
 - Typed API client with ApiResult<T> union type
-- Service layer: questionService, stateService, quizService
-- Components: Navigation, OfflineBanner, StateSelector, QuizCard (study + quiz modes)
-- Pages: StudyPage (with progress tracking and keyword search/filter), QuizPage (with scoring), HistoryPage (quiz attempt history with summary stats), SettingsPage
+- Service layer: questionService, stateService, quizService, **storyService**
+- Components: Navigation, OfflineBanner, StateSelector, QuizCard (study + quiz modes), **StoryRenderer** (narrow custom Markdown renderer with XSS guards: no `dangerouslySetInnerHTML`, link-protocol allowlist `http`/`https`/`mailto`, explicit allowlist of supported Markdown constructs)
+- Pages: StudyPage (with progress tracking and keyword search/filter), QuizPage (with scoring), HistoryPage (quiz attempt history with summary stats), SettingsPage, **StoriesPage** (cards grouped by category, X-of-N progress), **StoryPage** (state-personalized preamble for `stateAwarePreamble` stories, body rendered via StoryRenderer, sources list with quoted support snippets, end-of-story comprehension quiz that hands off to QuizCard, model-memory disclosure shown only when flag is true)
 - Quiz mode: typed answer input, no answer reveal until results, auto-grading with fuzzy matching
 - Quiz scoring: real-time pass/fail (12/20 standard, 6/10 for 65/20), early stop on pass/fail
-- Progress tracking: localStorage-based tracking of studied questions and quiz history via useProgress hook
+- Progress tracking: localStorage-based tracking of studied questions, quiz history, **and `storiesRead` slugs** via useProgress hook (with backward-compatible migration for users whose stored shape predates Story Mode)
 - Quiz history page: summary stats (total quizzes, pass rate, best score, current streak), reverse-chronological attempt list, clear history with confirmation
 - Answer checking: case-insensitive normalized matching with substring and word-overlap strategies
-- Cache warm-up: useWarmUpCache hook eagerly fetches all API endpoints on mount for offline readiness
+- Cache warm-up: useWarmUpCache hook eagerly fetches all API endpoints on mount for offline readiness, **including the stories index and every pilot story detail** (with `stateId` where set) so all pilots are fully readable offline after the first online visit
 
 ### Tests (`tests/api/`)
-- xUnit project with 30 passing tests
-- QuestionServiceTests: 6 tests (CRUD, filtering, state resolution)
-- QuizServiceTests: 4 tests (create, retrieve, modes)
-- RepresentativeSeedDataTests: 12 tests (count=435, all states covered, no duplicate districts, unique IDs, non-empty names, at-large states, per-state counts)
-- RepresentativeServiceTests: 8 tests (vacant seat detection, update, persistence, refetch validation, state-filtered queries)
+- xUnit project with API tests covering questions, quiz, representatives, story content, and story service
+- QuestionServiceTests, QuizServiceTests, RepresentativeSeedDataTests, RepresentativeServiceTests, QuestionTagsPersistenceTests
+- **StoryContentTests**: drives `StoryParser` over every embedded pilot story; asserts every `QuestionId` exists in seed data, `(Category, SubCategory)` matches, every source has a non-empty `SupportSnippet`, every `[N]` marker resolves to a source, `ReadingLevelFleschKincaid >= readingLevelMin`, the **coverage contract** (every Question whose `(Category, SubCategory)` matches a pilot story's scope is in `QuestionIds` OR `OrphanedQuestionIds` with a reason), and that `three-branches` includes the state-aware Q23+Q29.
+- **StoryServiceTests**: list returns all pilots; `GetAsync` returns null for unknown slug; `GetAsync("three-branches", stateId: <CA>)` resolves Q23 to non-`[Answers vary by state]` strings; `Sources`/Markdown pass through unchanged; `GetAllStories()` is memoized via `Lazy<T>`.
 
 ### Tests (`src/client/` — co-located)
 - Vitest with jsdom, @testing-library/react, @testing-library/user-event
@@ -73,10 +72,12 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Playwright with Chromium, Page Object Model pattern
 - @axe-core/playwright for WCAG 2.1 AA automated accessibility checks
 - SettingsPage/StudyPage/QuizPage page objects
-- state-selection.spec.ts: 2 tests (select state, persistence)
-- study-flow.spec.ts: 3 tests (display, reveal/advance, 65/20 filter)
-- offline.spec.ts: 5 tests (study offline, answers offline, navigation offline, quiz load offline, offline banner)
-- accessibility.spec.ts: 7 tests (settings, settings+state, study, study+answer, quiz start, quiz in-progress, quiz typed answer)
+- state-selection.spec.ts (state selection + persistence)
+- study-flow.spec.ts (display, reveal/advance, 65/20 filter, category, tag, studied status)
+- offline.spec.ts (study, answers, navigation, quiz, banner — all offline)
+- accessibility.spec.ts (settings, study, quiz, **stories index, story detail**)
+- dark-mode.spec.ts (theme selector + system preference + FOUC prevention + keyboard nav)
+- **story-flow.spec.ts** (Stories index renders all 3 pilot cards; state-aware preamble on three-branches with a state selected; complete comprehension quiz marks story read and persists across reload; story remains readable offline after warm-up)
 
 ### Error Handling
 - React ErrorBoundary wrapping Routes with user-friendly fallback
@@ -273,3 +274,5 @@ Deferred / handled outside Phase 4:
 12. ~~**Collapsible 'More filters' disclosure**~~ ✅ complete (PR #61) — wraps tag-namespace chip groups in a button-controlled, collapsed-by-default disclosure with an aria-labelled count badge so the panel surfaces hidden active filters without taking permanent vertical space.
 
 13. ~~**Additional tag namespaces (branches, amendments, civicConcepts)**~~ ✅ complete — extends the tag system from 4 to 7 namespaces. `branches:Legislative|Executive|Judicial` (40 questions tagged where the question is structurally about that branch); `amendments:Bill of Rights|10th|14th|15th|19th|24th|26th` (8 question-tag pairs across 7 distinct amendments, strict named-in-text or explicit-set rule); `civicConcepts:Rule of Law|Separation of Powers|Federalism|Civic Participation|Civil Rights` (9 questions, conservative scope). Schema unchanged (still `List<string>`). SW runtime cache for questions bumped to `questions-cache-v3` so deployed clients don't serve a stale cached response missing the new tags. New API sentinel-set theory tests cover every new tag value; `AllTagsAreNamespaced` allowlist updated; persistence test's empty-tags subject moved from Q15 (now tagged) to Q1.
+
+14. ~~**Story Mode v1 (pilot)**~~ ✅ complete — adds 3 short cited narratives (one per USCIS category) that connect related questions into coherent explanations, ending in an embedded comprehension quiz. Pilot scope: `three-branches` (American Government / System of Government, 16 questions including the state-aware Q23 and Q29), `civil-war-and-reconstruction` (American History / The 1800s, 8 questions), `national-symbols-and-holidays` (Integrated Civics / Symbols and Holidays, 8 questions). Story content lives in `content/stories/*.md` + `*.sources.json`, ships as `<EmbeddedResource>` in the API assembly, and is parsed lazily by `StoryService` on first use — no SQL schema changes. Authoring rules enforced by `StoryParser` and `StoryContentTests`: paragraph-level `[N]` citations or explicit `<!-- model-memory -->` markers, every source has a non-empty `SupportSnippet` (the layer that catches AI-fabricated citations), Flesch-Kincaid ≥ per-story `readingLevelMin`, **coverage contract** (every Question in the story's `(Category, SubCategory)` is either in `QuestionIds` or `OrphanedQuestionIds` with a reason — fails CI on silent omissions). Frontend ships `StoriesPage` (cards grouped by category, X-of-N progress) and `StoryPage` (state-personalized preamble for stories with `stateAwarePreamble`, body via narrow `StoryRenderer` with XSS guards — no `dangerouslySetInnerHTML`, link-protocol allowlist `http`/`https`/`mailto`, explicit Markdown subset; sources list with quoted support snippets; end-of-story comprehension quiz reusing `QuizCard`; model-memory disclosure only when flag is true). `useProgress` extended with `storiesRead: string[]` and a backward-compat migration that preserves old-shape `naturalizationProgress` instead of resetting it. PWA: `stories-cache-v1` runtime cache (StaleWhileRevalidate); `useWarmUpCache` warms the index plus every pilot detail (with `stateId` where set) so all pilots are fully readable offline after first visit. Navigation gained a 5th tab "Stories" between Quiz and History. New tests: 19 xUnit + 30 Vitest + 4 Playwright + 2 axe. Cache-versioning rule documented: bump `stories-cache-vN` for any story body / sources / `QuestionIds` / embedded-question change; bump `questions-cache-vN` independently for standalone `/api/v1/questions` payload changes.

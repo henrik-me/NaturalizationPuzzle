@@ -180,6 +180,13 @@ All endpoints are versioned under `/api/v1/`.
 | `GET` | `/api/v1/representatives/vacant` | Get all vacant House seats. Optional `?stateId=` filter. |
 | `PUT` | `/api/v1/representatives/{id}` | Update a representative's name. Body: `{ "name": "string" }`. |
 
+#### Stories
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/stories` | List all Story Mode pilot stories (3 in v1) with title, category, est. read time, reading-level, and question count. |
+| `GET` | `/api/v1/stories/{id}` | Get a story's full body (Markdown), citation sources, and the embedded comprehension-quiz questions. Optional `?stateId=` resolves state-aware answers (e.g. *Who is one of your state's U.S. senators now?*). |
+
 ### Running Backend Tests
 
 ```bash
@@ -242,6 +249,8 @@ src/client/
 |------|------|-------------|
 | `/` | StudyPage | Browse and study all 128 civics questions; filter by category, subcategory, 65/20 set, studied/unstudied status, and namespaced tag chips (people, wars, documents, time period); keyword search; progress tracking |
 | `/quiz` | QuizPage | Take a practice quiz with typed answers and real-time scoring |
+| `/stories` | StoriesPage | Browse the Story Mode pilot — short, cited narratives that connect related civics questions into a coherent explanation, grouped by USCIS category, with an *X of N* read-progress count |
+| `/stories/:slug` | StoryPage | Read a single story (Markdown body, sources list with quoted support snippets), then take the embedded comprehension quiz. State-aware stories show a personalized preamble with the user's senators/representatives. |
 | `/history` | HistoryPage | View all past quiz attempts with summary stats (pass rate, best score, streak) and clear history |
 | `/settings` | SettingsPage | Select U.S. state, manage preferences |
 
@@ -276,6 +285,18 @@ The Study page exposes five composable filters on top of the keyword search:
 
 All filters compose. Filter state is session-only (not persisted). The progress bar's denominator reflects the *current filtered set* so it always tells you "how much of what you're looking at have you studied"; the global *N total studied* counter sits next to it.
 
+### Story Mode (Pilot)
+
+Story Mode adds short, cited narratives that connect related civics questions into a single explanation, then ends in an end-of-story comprehension quiz built from the actual USCIS questions for that area. The pilot ships **three stories**, one per USCIS category:
+
+- **The Three Branches of Government** (American Government → System of Government) — covers Q15–Q57 with hand-curated coverage; includes the state-aware questions (Q23 your state's senator, Q29 your U.S. representative).
+- **The Civil War and Reconstruction** (American History → The 1800s) — Q92–Q99.
+- **National Symbols and Holidays** (Integrated Civics → Symbols and Holidays) — Q121–Q128.
+
+Each story is authored as Markdown in `content/stories/<slug>.md` with a companion `<slug>.sources.json` carrying one entry per `[N]` citation marker, including a non-empty `supportSnippet` (the layer that catches AI-fabricated citations during human review). Stories ship as `<EmbeddedResource>` in the API assembly and are parsed lazily by `StoryService` on first use; no SQL schema changes were required.
+
+The `StoryRenderer` component renders the body via a narrow custom Markdown renderer that does **not** use `dangerouslySetInnerHTML`, allowlists link protocols to `http`/`https`/`mailto`, and renders an explicit subset (paragraphs, h2/h3, lists, bold/italic, links, citation markers). XSS posture is covered by dedicated tests for `<script>` tags, event-handler attributes, and `javascript:` / `data:` / `vbscript:` URLs.
+
 ### Dark Mode
 
 The app supports **Light**, **Dark**, and **System** themes (default: System, which follows the OS `prefers-color-scheme`). The theme is selected from a 3-way segmented control on the **Settings** page under the *Appearance* section, persisted to `localStorage` as `themePreference`, and applied app-wide before React mounts (no flash of unstyled content). The `<meta name="theme-color">` tag and `color-scheme` CSS property are updated to match the resolved theme so browser chrome and native form controls render correctly. When the OS theme changes while the app is running in System mode, the UI updates live.
@@ -287,7 +308,7 @@ All user data is stored **client-side only** in the browser's `localStorage`. Th
 | Data | Storage | Key | Details |
 |------|---------|-----|---------|
 | Selected state ID | `localStorage` | `selectedStateId` | Numeric ID of the user's chosen U.S. state. On page load, the app hydrates full state details (capital, governor, senators, representatives) from the API. |
-| Study progress | `localStorage` | `naturalizationProgress` | Studied question IDs and quiz history (date, mode, score, pass/fail). |
+| Study progress | `localStorage` | `naturalizationProgress` | Studied question IDs, quiz history (date, mode, score, pass/fail), and `storiesRead` (slugs of completed Story Mode pilots). |
 | Theme preference | `localStorage` | `themePreference` | `'light'`, `'dark'`, or `'system'` (default). Drives the app-wide color theme. |
 | State details (capital, governor, senators, reps) | Backend API | — | Read-only, fetched from `/api/v1/states/{id}`. Cached by the service worker for offline use. |
 | Question data (128 questions) | Backend API | — | Read-only, fetched from `/api/v1/questions`. Cached by the service worker for offline use. |
