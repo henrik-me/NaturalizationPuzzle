@@ -58,3 +58,37 @@ export interface RepresentativeDto {
   readonly district: string;
   readonly name: string;
 }
+
+export interface StorySource {
+  readonly id: number;
+  readonly title: string;
+  readonly url: string;
+  readonly type: string;
+  readonly supportSnippet: string;
+}
+
+export interface StoryListItemDto {
+  readonly slug: string;
+  readonly title: string;
+  readonly category: string;
+  readonly subCategory: string;
+  readonly estReadMinutes: number;
+  readonly fleschReadingEase: number;
+  readonly questionCount: number;
+  readonly modelMemoryUsed: boolean;
+  readonly stateAwarePreamble: boolean;
+}
+
+export interface StoryDetailDto {
+  readonly slug: string;
+  readonly title: string;
+  readonly category: string;
+  readonly subCategory: string;
+  readonly bodyMarkdown: string;
+  readonly sources: readonly StorySource[];
+  readonly estReadMinutes: number;
+  readonly fleschReadingEase: number;
+  readonly modelMemoryUsed: boolean;
+  readonly stateAwarePreamble: boolean;
+  readonly questions: readonly QuestionDto[];
+}

@@ -104,4 +104,30 @@ test.describe('Accessibility — WCAG 2.1 AA', () => {
       expect(results.violations).toEqual([]);
     });
   });
+
+  test.describe('Stories', () => {
+    test('Stories index has no a11y violations', async ({ page }) => {
+      await page.goto('/stories');
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+        .analyze();
+
+      expect(results.violations).toEqual([]);
+    });
+
+    test('Story detail page has no a11y violations', async ({ page }) => {
+      const settings = new SettingsPage(page);
+      await settings.goto();
+      await settings.selectState('California');
+
+      await page.goto('/stories/three-branches');
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+        .analyze();
+
+      expect(results.violations).toEqual([]);
+    });
+  });
 });

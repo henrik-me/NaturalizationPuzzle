@@ -85,6 +85,63 @@ describe('useProgress', () => {
 
     expect(result.current.studiedQuestionIds).toEqual([]);
     expect(result.current.quizHistory).toEqual([]);
+    expect(result.current.storiesRead).toEqual([]);
+  });
+
+  it('migrates an old shape (missing storiesRead) without resetting other progress', () => {
+    // Plan-review fix #8: a stored object that predates Story Mode must be
+    // preserved (studiedQuestionIds + quizHistory intact) and given an empty
+    // storiesRead, NOT reset wholesale. Persisting the migrated shape is a
+    // side-effect of the next write, not an immediate write — verify both.
+    const oldShape = {
+      studiedQuestionIds: [10, 20, 30],
+      quizHistory: [{ date: '2026-01-01', mode: 'standard', correct: 18, total: 20, passed: true }],
+      // no storiesRead field
+    };
+    localStorage.setItem('naturalizationProgress', JSON.stringify(oldShape));
+
+    const { result } = renderHook(() => useProgress());
+
+    expect(result.current.studiedQuestionIds).toEqual([10, 20, 30]);
+    expect(result.current.quizHistory).toHaveLength(1);
+    expect(result.current.storiesRead).toEqual([]);
+
+    // Stored object on disk is still the old shape — migration is in-memory only
+    // until the next write. This avoids gratuitously rewriting localStorage on
+    // every hook mount.
+    const stored = JSON.parse(localStorage.getItem('naturalizationProgress')!);
+    expect(stored).not.toHaveProperty('storiesRead');
+
+    // Now perform a write and verify the persisted shape is migrated.
+    act(() => {
+      result.current.markStoryRead('three-branches');
+    });
+
+    const after = JSON.parse(localStorage.getItem('naturalizationProgress')!);
+    expect(after.storiesRead).toEqual(['three-branches']);
+    expect(after.studiedQuestionIds).toEqual([10, 20, 30]);
+    expect(after.quizHistory).toHaveLength(1);
+  });
+
+  it('markStoryRead persists and de-duplicates', () => {
+    const { result } = renderHook(() => useProgress());
+
+    act(() => {
+      result.current.markStoryRead('three-branches');
+    });
+    act(() => {
+      result.current.markStoryRead('three-branches');
+    });
+    act(() => {
+      result.current.markStoryRead('civil-war-and-reconstruction');
+    });
+
+    expect(result.current.storiesRead).toEqual(['three-branches', 'civil-war-and-reconstruction']);
+    expect(result.current.isStoryRead('three-branches')).toBe(true);
+    expect(result.current.isStoryRead('national-symbols-and-holidays')).toBe(false);
+
+    const stored = JSON.parse(localStorage.getItem('naturalizationProgress')!);
+    expect(stored.storiesRead).toEqual(['three-branches', 'civil-war-and-reconstruction']);
   });
 
   it('clears quiz history while preserving studied questions', () => {

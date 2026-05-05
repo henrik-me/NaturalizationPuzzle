@@ -10,6 +10,8 @@ import { StudyPage } from './pages/StudyPage';
 import { QuizPage } from './pages/QuizPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { StoriesPage } from './pages/StoriesPage';
+import { StoryPage } from './pages/StoryPage';
 
 function AppShell(): React.ReactNode {
   const { state } = useAppContext();
@@ -25,6 +27,8 @@ function AppShell(): React.ReactNode {
           <Routes>
             <Route path="/" element={<StudyPage />} />
             <Route path="/quiz" element={<QuizPage />} />
+            <Route path="/stories" element={<StoriesPage />} />
+            <Route path="/stories/:slug" element={<StoryPage />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>

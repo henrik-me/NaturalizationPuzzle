@@ -14,9 +14,10 @@ export function Navigation(): React.ReactNode {
         <h1 className="text-xl font-bold text-blue-800 dark:text-blue-300 truncate">
           🇺🇸 Naturalization Puzzle
         </h1>
-        <div className="grid grid-cols-4 gap-1 w-full sm:flex sm:gap-2 sm:w-auto" role="menubar">
+        <div className="grid grid-cols-5 gap-1 w-full sm:flex sm:gap-2 sm:w-auto" role="menubar">
           <NavLink to="/" className={linkClass} role="menuitem">Study</NavLink>
           <NavLink to="/quiz" className={linkClass} role="menuitem">Quiz</NavLink>
+          <NavLink to="/stories" className={linkClass} role="menuitem">Stories</NavLink>
           <NavLink to="/history" className={linkClass} role="menuitem">History</NavLink>
           <NavLink to="/settings" className={linkClass} role="menuitem">Settings</NavLink>
         </div>

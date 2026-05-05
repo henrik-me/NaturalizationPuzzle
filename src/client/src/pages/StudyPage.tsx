@@ -6,40 +6,16 @@ import { useAppContext } from '../context/AppContext';
 import { QuizCard } from '../components/QuizCard';
 import { TagFilterPanel } from '../components/TagFilterPanel';
 import { useProgress } from '../hooks/useProgress';
+import { CATEGORY_ORDER, orderedUnique } from '../utils/categoryOrder';
 
 type ScopeFilter = 'all' | '6520';
 type StudiedFilter = 'all' | 'unstudied' | 'studied';
 const ALL_CATEGORIES = '__all__';
 const ALL_SUBCATEGORIES = '__all__';
 
-// Preferred display order for the three known civics-test categories.
-// Any category present in loaded data but not in this list falls back
-// to alphabetical order at the end, so unexpected backend changes don't
-// silently drop options.
-const CATEGORY_ORDER: readonly string[] = [
-  'American Government',
-  'American History',
-  'Integrated Civics',
-];
-
 function matchesSearch(question: QuestionDto, terms: readonly string[]): boolean {
   const haystack = `${question.text} ${question.answers.join(' ')} ${question.category} ${question.subCategory}`.toLowerCase();
   return terms.every(term => haystack.includes(term));
-}
-
-function orderedUnique(values: readonly string[], preferred: readonly string[]): readonly string[] {
-  const seen = new Set(values);
-  const ordered: string[] = [];
-  for (const p of preferred) {
-    if (seen.has(p)) {
-      ordered.push(p);
-      seen.delete(p);
-    }
-  }
-  for (const remaining of [...seen].sort()) {
-    ordered.push(remaining);
-  }
-  return ordered;
 }
 
 export function StudyPage(): React.ReactNode {

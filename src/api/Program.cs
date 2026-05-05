@@ -21,6 +21,7 @@ builder.Services.AddScoped<IQuestionService, QuestionService>();
 builder.Services.AddScoped<IStateService, StateService>();
 builder.Services.AddScoped<IQuizService, QuizService>();
 builder.Services.AddScoped<IRepresentativeService, RepresentativeService>();
+builder.Services.AddScoped<IStoryService, StoryService>();
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -60,6 +61,7 @@ app.MapQuestionEndpoints();
 app.MapStateEndpoints();
 app.MapQuizEndpoints();
 app.MapRepresentativeEndpoints();
+app.MapStoryEndpoints();
 app.MapHealthEndpoints();
 app.MapFallbackToFile("index.html");
 

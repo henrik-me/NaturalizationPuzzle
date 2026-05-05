@@ -81,6 +81,39 @@ public sealed class QuestionService(AppDbContext db) : IQuestionService
         return questions.Select(q => MapToDto(q, state, representatives)).ToList();
     }
 
+    public async Task<IReadOnlyList<QuestionDto>> GetQuestionsByIdsAsync(IReadOnlyList<int> ids, int? stateId, CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var idSet = ids.ToHashSet();
+        var questions = await db.Questions
+            .Include(q => q.Answers)
+            .Where(q => idSet.Contains(q.Id))
+            .ToListAsync(cancellationToken);
+
+        var state = stateId.HasValue
+            ? await db.States.FindAsync([stateId.Value], cancellationToken)
+            : null;
+
+        var representatives = stateId.HasValue
+            ? await db.Representatives.Where(r => r.StateId == stateId.Value).ToListAsync(cancellationToken)
+            : [];
+
+        var byId = questions.ToDictionary(q => q.Id, q => MapToDto(q, state, representatives));
+        var ordered = new List<QuestionDto>(ids.Count);
+        foreach (var id in ids)
+        {
+            if (byId.TryGetValue(id, out var dto))
+            {
+                ordered.Add(dto);
+            }
+        }
+        return ordered;
+    }
+
     private static QuestionDto MapToDto(Question question, UsState? state, IReadOnlyList<Representative> representatives)
     {
         var answers = new List<string>();

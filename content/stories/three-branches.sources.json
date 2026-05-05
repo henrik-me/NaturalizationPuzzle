@@ -1,0 +1,53 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "Separation of powers under the United States Constitution",
+      "url": "https://en.wikipedia.org/wiki/Separation_of_powers_under_the_United_States_Constitution",
+      "type": "wikipedia",
+      "supportSnippet": "The doctrine of the separation of powers in the U.S. Constitution divides the federal government into three branches — Legislative, Executive, and Judicial — each with distinct powers. Through a system of checks and balances each branch can limit the actions of the others."
+    },
+    {
+      "id": 2,
+      "title": "United States Congress",
+      "url": "https://en.wikipedia.org/wiki/United_States_Congress",
+      "type": "wikipedia",
+      "supportSnippet": "The United States Congress is the legislature of the federal government of the United States. It is bicameral, composed of an upper body, the Senate, and a lower body, the House of Representatives. It writes federal laws."
+    },
+    {
+      "id": 3,
+      "title": "United States Senate",
+      "url": "https://en.wikipedia.org/wiki/United_States_Senate",
+      "type": "wikipedia",
+      "supportSnippet": "The Senate is composed of 100 senators, two for each of the 50 states. Senators serve staggered six-year terms."
+    },
+    {
+      "id": 4,
+      "title": "United States House of Representatives",
+      "url": "https://en.wikipedia.org/wiki/United_States_House_of_Representatives",
+      "type": "wikipedia",
+      "supportSnippet": "The House of Representatives is composed of 435 voting members, each of whom represents a congressional district for a two-year term. The number of representatives a state has is based on its population, as determined by the most recent decennial census."
+    },
+    {
+      "id": 5,
+      "title": "President of the United States",
+      "url": "https://en.wikipedia.org/wiki/President_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The president of the United States is the head of state and head of government of the United States. The president directs the executive branch of the federal government, is the commander-in-chief of the armed forces, signs laws passed by Congress, and serves a four-year term."
+    },
+    {
+      "id": 6,
+      "title": "Supreme Court of the United States",
+      "url": "https://en.wikipedia.org/wiki/Supreme_Court_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The Supreme Court of the United States is the highest court in the federal judiciary. It consists of nine justices: the chief justice of the United States and eight associate justices."
+    },
+    {
+      "id": 7,
+      "title": "Judicial review in the United States",
+      "url": "https://en.wikipedia.org/wiki/Judicial_review_in_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "Judicial review in the United States is the ability of a court to examine and decide if a statute, treaty or administrative regulation contradicts or violates the provisions of existing law, a State Constitution, or ultimately the United States Constitution."
+    }
+  ]
+}
