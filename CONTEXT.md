@@ -100,6 +100,65 @@ Full-stack application scaffolded and building. Backend API is functional with s
 | Conventional Commits | Clear commit history, separate functional from refactoring changes |
 | HTTPS in development | `@vitejs/plugin-basic-ssl` for Vite, .NET dev cert for API; ensures dev parity with production |
 
+## Story Mode — Authoring Guide
+
+Required reading for adding any new Story Mode story. Captures the conventions baked into `StoryParser` and `StoryContentTests` so the build/CI fail-fast invariants stay correct as the catalog grows.
+
+### File layout
+
+Each story is two files under `content/stories/`:
+
+- `<slug>.md` — YAML frontmatter + Markdown body
+- `<slug>.sources.json` — citation sources (one per `[N]` marker)
+
+Both ship as `<EmbeddedResource>` in `src/api/NaturalizationPuzzle.Api.csproj` (the existing wildcard pattern picks them up automatically — no csproj change needed when adding a story).
+
+### Frontmatter fields
+
+```yaml
+---
+slug: my-story-slug                         # must equal the .md filename stem
+title: Human Title
+category: American Government               # must match a Question.Category value
+subCategory: System of Government           # must match a Question.SubCategory value
+questionIds: [15, 16, 17]                   # in-scope questions covered by the story body
+orphanedQuestionIds:                        # in-scope questions NOT covered (with reason)
+  - id: 20
+    reason: "Specific Congress powers — covered by future Legislative-Branch story"
+estReadMinutes: 4                           # optional; default = ceil(words/200)
+readingLevelMin: 70                         # optional; default = 70 (Flesch Reading Ease floor)
+stateAwarePreamble: false                   # set true when the story includes Q23/Q29/Q61/Q62
+---
+```
+
+### Body markup rules (all enforced by `StoryContentTests`; build fails on violation)
+
+1. **Paragraph-level citation** — every body paragraph must contain at least one `[N]` citation marker, OR be preceded by an explicit `<!-- model-memory -->` HTML comment (signals "drafted from model memory; verify before test day"), OR be preceded by `<!-- narrative -->` (signals an opening scene-setting hook). Headings and list-only paragraphs are exempt.
+2. **Citation marker resolution** — every `[N]` must reference an `id: N` entry in `<slug>.sources.json`.
+3. **Source uniqueness** — every `id` in `sources.json` must be unique (parser rejects duplicates).
+4. **Source URL allowlist** — every `url` must be an absolute `http`/`https`/`mailto` URL. Other schemes (and relative URLs) are rejected at parse time.
+5. **`StorySource.supportSnippet` is required and non-empty** — 1–3 sentences quoting or paraphrasing the supporting passage. **This is the layer that catches AI-fabricated citations** during human review: the reviewer can quickly check "did this snippet really come from the linked URL?" without re-reading the whole source.
+6. **`Story.ModelMemoryUsed`** is computed by the parser from the presence of `<!-- model-memory -->` markers (whitespace-tolerant: `<!--model-memory-->` also counts). Renderer shows the disclosure block only when `true`.
+7. **Readability lint** — Flesch Reading Ease score ≥ `readingLevelMin` (default 70 = "fairly easy English"). Higher = easier; this is the **Flesch Reading Ease** formula, NOT Flesch-Kincaid Grade Level.
+8. **Coverage contract** — every Question whose `(Category, SubCategory)` matches a story's scope must be in that story's `QuestionIds` OR `OrphanedQuestionIds` (with a reason). Adding a new question to seed data without classifying it for every in-scope story fails CI.
+
+### License posture
+
+- **Wikipedia** content: paraphrased, attributed (CC-BY-SA). Don't copy-paste blocks.
+- **`.gov` sources** (USCIS, archives.gov, loc.gov): public domain.
+- **Educational nonprofits** (Bill of Rights Institute, Khan Academy, etc.): link out only — don't reproduce.
+
+### Checklist for adding a story
+
+- [ ] Pick `(Category, SubCategory)` and identify in-scope questions.
+- [ ] Author `<slug>.md` body at FK ≥ 70.
+- [ ] Author `<slug>.sources.json` with one entry per `[N]` marker, each carrying a non-empty `supportSnippet`.
+- [ ] List every in-scope question in `QuestionIds` OR `OrphanedQuestionIds` (with reason).
+- [ ] Run `dotnet test tests/api/NaturalizationPuzzle.Api.Tests.csproj` from repo root — `StoryContentTests` will catch any rule violation before commit.
+- [ ] If the new story includes Q23/Q29/Q61/Q62 (state-specific), set `stateAwarePreamble: true` so `StoryPage` renders the user's state preamble.
+- [ ] Update `useWarmUpCache.ts` `PILOT_STORY_SLUGS` const (or migrate to `listStories()`-based warm-up if the catalog grows beyond a handful).
+- [ ] **Bump `stories-cache-vN`** in `vite.config.ts` if the new story changes any embedded question payload, so deployed clients don't serve stale cache.
+
 ## Known Issues / Tech Debt
 
 - Playwright E2E tests require both .NET API and Vite dev server running (config handles auto-start)
@@ -276,3 +335,29 @@ Deferred / handled outside Phase 4:
 13. ~~**Additional tag namespaces (branches, amendments, civicConcepts)**~~ ✅ complete — extends the tag system from 4 to 7 namespaces. `branches:Legislative|Executive|Judicial` (40 questions tagged where the question is structurally about that branch); `amendments:Bill of Rights|10th|14th|15th|19th|24th|26th` (8 question-tag pairs across 7 distinct amendments, strict named-in-text or explicit-set rule); `civicConcepts:Rule of Law|Separation of Powers|Federalism|Civic Participation|Civil Rights` (9 questions, conservative scope). Schema unchanged (still `List<string>`). SW runtime cache for questions bumped to `questions-cache-v3` so deployed clients don't serve a stale cached response missing the new tags. New API sentinel-set theory tests cover every new tag value; `AllTagsAreNamespaced` allowlist updated; persistence test's empty-tags subject moved from Q15 (now tagged) to Q1.
 
 14. ~~**Story Mode v1 (pilot)**~~ ✅ complete — adds 3 short cited narratives (one per USCIS category) that connect related questions into coherent explanations, ending in an embedded comprehension quiz. Pilot scope: `three-branches` (American Government / System of Government, 16 questions including the state-aware Q23 and Q29), `civil-war-and-reconstruction` (American History / The 1800s, 8 questions), `national-symbols-and-holidays` (Integrated Civics / Symbols and Holidays, 8 questions). Story content lives in `content/stories/*.md` + `*.sources.json`, ships as `<EmbeddedResource>` in the API assembly, and is parsed lazily by `StoryService` on first use — no SQL schema changes. Authoring rules enforced by `StoryParser` and `StoryContentTests`: paragraph-level `[N]` citations or explicit `<!-- model-memory -->` markers, every source has a non-empty `SupportSnippet` (the layer that catches AI-fabricated citations), Flesch Reading Ease ≥ per-story `readingLevelMin` (NOT the Flesch-Kincaid Grade Level formula despite the loose colloquial usage; higher = easier prose), **coverage contract** (every Question in the story's `(Category, SubCategory)` is either in `QuestionIds` or `OrphanedQuestionIds` with a reason — fails CI on silent omissions). Frontend ships `StoriesPage` (cards grouped by category, X-of-N progress) and `StoryPage` (state-personalized preamble for stories with `stateAwarePreamble`, body via narrow `StoryRenderer` with XSS guards — no `dangerouslySetInnerHTML`, link-protocol allowlist `http`/`https`/`mailto`, explicit Markdown subset; sources list with quoted support snippets; end-of-story comprehension quiz reusing `QuizCard`; model-memory disclosure only when flag is true). `useProgress` extended with `storiesRead: string[]` and a backward-compat migration that preserves old-shape `naturalizationProgress` instead of resetting it. PWA: `stories-cache-v1` runtime cache (StaleWhileRevalidate); `useWarmUpCache` warms the index plus every pilot detail (with `stateId` where set) so all pilots are fully readable offline after first visit. Navigation gained a 5th tab "Stories" between Quiz and History. Cache-versioning rule documented: bump `stories-cache-vN` for any story body / sources / `QuestionIds` / embedded-question change; bump `questions-cache-vN` independently for standalone `/api/v1/questions` payload changes.
+
+### Story Mode — postponed work (deferred from v1, not yet ticketed)
+
+15. **Additional pilot stories** — the v1 pilot ships one story per USCIS category (3 stories covering ~32 questions). The original idea catalog (issue #66) sketches ~25 total stories. Each below is a candidate follow-up issue; an example slug + scope is suggested but final naming/grouping is open.
+    - **American Government** (Principles of American Government subcategory, 14 Qs): `principles-of-american-democracy`, `declaration-of-independence`, `constitution-and-bill-of-rights` (split or combined). Plus `executive-branch`, `legislative-branch`, `judicial-branch` (per-branch stories that pick up the Q-IDs `three-branches` parked in `OrphanedQuestionIds`), `federalism` (Q58–Q60), `political-parties-and-elections`, `rights-and-responsibilities` (Rights and Responsibilities subcategory, 10 Qs).
+    - **American History** (Colonial Period and Independence subcategory, 17 Qs): `colonial-era-and-why-colonists-came`, `american-revolution`, `founding-the-nation`. (Recent American History subcategory, 19 Qs): `early-republic-and-war-of-1812`, `westward-expansion-and-louisiana-purchase`, `industrialization-and-immigration`, `world-war-i`, `great-depression-and-world-war-ii`, `cold-war-and-civil-rights`, `recent-american-history`.
+    - **Integrated Civics**: `us-geography` (Q119–Q120 plus the geography-flavored Qs currently parked outside any story), `the-fifty-states-and-territories`. The Symbols and Holidays subcategory is already covered by `national-symbols-and-holidays`.
+    - Each story should follow the **Story Mode Authoring Guide** above. The coverage contract guarantees that adding a new story can be done incrementally without disturbing existing stories — the new story claims its own `QuestionIds` and either picks them up from another story's `OrphanedQuestionIds` or adds them fresh.
+
+16. **Story Mode v2 — engagement mechanics** (deferred from v1 to keep the pilot scope bounded):
+    - **Inline "Quick check" mini-quizzes** inside the story body — 1–2 in-story checks with instant feedback, between paragraphs, before the end-of-story comprehension quiz. Likely needs a Markdown extension (e.g. `{{quickcheck:Q23}}`) and a renderer hook that swaps the marker for a `QuizCard` instance.
+    - **Glossary popovers** for USCIS reading-vocabulary words ("Congress", "right", "amendment", …) — hover/tap a glossary word to see a one-sentence definition and mark it as known. Bridges Story Mode to the reading portion of the actual exam.
+    - **Search/filter** on the Stories index (out of scope at 3 cards; revisit when the catalog passes ~10).
+    - **Per-story 65/20 mode** — let the comprehension quiz follow the user's 65/20 preference instead of always running standard mode.
+    - **Per-story analytics beyond local progress** (would need backend persistence — currently rejected by the "backend stays read-only" rule; revisit only if that rule changes).
+    - **Audio narration / TTS** — out per the original issue scope, but logical extension once the writing mechanic exists.
+
+17. **Story Mode v2 — full naturalization-interview support** (the wider goal beyond the 20-question civics oral, sketched in the v1 plan):
+    - **Reading practice card** — surface USCIS reading-vocabulary sentences for the learner to read aloud. v1 idea: no STT, just self-rated easy/hard. Source: USCIS Reading Vocabulary List PDF (~80 words).
+    - **Writing practice card** — show a sentence audibly (or as a prompt) and let the learner type it back. Source: USCIS Writing Vocabulary List PDF (~80 words).
+    - **N-400 vocabulary primer** — plain-English explanations of the terms the officer uses ("oath of allegiance", "good moral character", "continuous residence"). Surfaced from Story #10-equivalent (Rights & Responsibilities) and Principles stories once those land.
+    - These are out of scope for "civics test prep" but very much in scope for "naturalization interview prep" and complete the goal Story Mode was aimed at.
+
+18. **Story Mode — UX risks to revisit if/when followed up**:
+    - **Mobile nav at 5 tabs** — nav was widened from 4 to 5 columns at 375 px (~75 px per tab). v1 verified the existing `min-h-[44px] px-2` keeps the tap target at ≥ 44 px tall, and the longest label ("Settings", 8 chars) fits. If a 6th tab is ever added, fall back to a hamburger menu OR move "History" under "Settings".
+    - **`react-markdown` footprint** — v1 deliberately ships a custom narrow renderer (`StoryRenderer.tsx`) instead of `react-markdown` to keep the JS bundle small AND to keep XSS posture explicit (no `dangerouslySetInnerHTML`, no plugin-allowlist debate). If a future story needs richer Markdown (tables, footnotes, embedded images) the trade-off may shift; before adopting `react-markdown` make sure the protocol allowlist + sanitizer still apply.
