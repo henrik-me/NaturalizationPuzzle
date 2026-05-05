@@ -16,21 +16,21 @@ describe('StoryRenderer', () => {
     expect(screen.getByText('italic').tagName).toBe('EM');
   });
 
-  it('does not render HTML-comment markers as visible text (server strips them; defense-in-depth: any leftover renders inert via React escaping)', () => {
-    // The server-side StoryParser strips <!-- narrative --> and
-    // <!-- model-memory --> markers from BodyMarkdown before it reaches the
-    // client. The renderer therefore receives marker-free input. This test
-    // simulates a future server bug that lets a marker through and verifies
-    // the renderer renders it as inert escaped text — never as a live HTML
-    // comment node.
+  it('renders leftover HTML-comment markers as inert escaped text (no live comment node in the DOM)', () => {
+    // Server-side StoryParser strips <!-- narrative --> and <!-- model-memory -->
+    // markers before BodyMarkdown reaches the client, so the renderer normally
+    // sees marker-free input. This test simulates a future server bug that
+    // lets a marker through and verifies the renderer renders it as inert
+    // escaped text (literal '<!-- ... -->' as visible characters) rather than
+    // as a live HTML comment node — the safety property that matters.
     const malformedFromServer = 'A paragraph.\n\n<!-- this should not be here -->\n\nAnother paragraph.';
     const { container } = render(
       <StoryRenderer markdown={malformedFromServer} sources={SOURCES} />
     );
     expect(screen.getByText('A paragraph.')).toBeInTheDocument();
     expect(screen.getByText('Another paragraph.')).toBeInTheDocument();
-    // Crucially: the leftover '<!--' is in the visible text content, not in
-    // an HTML comment node. React text-content escaping makes this safe.
+    // Crucially: the leftover '<!--' is in visible text content (escaped),
+    // not in an HTML comment node. React text-content escaping makes this safe.
     expect(container.textContent).toContain('<!-- this should not be here -->');
     // Verify there is NO actual HTML comment node in the DOM.
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_COMMENT);

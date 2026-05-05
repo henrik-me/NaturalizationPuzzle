@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { QuestionDto, StoryDetailDto } from '../types/api';
 import { getStory } from '../services/storyService';
@@ -42,16 +42,21 @@ function ComprehensionQuiz({ questions, onComplete }: ComprehensionQuizProps): R
   const [index, setIndex] = useState(0);
 
   const onNext = useCallback((): void => {
-    setIndex(prev => {
-      const next = prev + 1;
-      if (next >= questions.length) {
-        onComplete();
-      }
-      return next;
-    });
-  }, [questions.length, onComplete]);
+    setIndex(prev => prev + 1);
+  }, []);
 
   const done = started && index >= questions.length;
+
+  // Final-diff Copilot review fix: don't call onComplete from inside the
+  // setIndex updater callback — under React StrictMode (and concurrent
+  // rendering) the updater can run twice, double-invoking onComplete.
+  // The effect runs once per state transition into the done state.
+  useEffect(() => {
+    if (done) {
+      onComplete();
+    }
+  }, [done, onComplete]);
+
   const current = started && index < questions.length ? questions[index] : null;
 
   return (
