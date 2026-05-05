@@ -13,8 +13,8 @@ vi.mock('../services/stateService', () => ({
 }));
 
 vi.mock('../services/storyService', () => ({
-  listStories: vi.fn().mockResolvedValue([]),
-  getStory: vi.fn().mockResolvedValue(null),
+  listStories: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getStory: vi.fn().mockResolvedValue({ success: false, error: 'not-loaded' }),
 }));
 
 import { getAllQuestions, get6520Questions } from '../services/questionService';

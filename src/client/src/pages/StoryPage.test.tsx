@@ -57,7 +57,7 @@ function renderAt(path: string): ReturnType<typeof render> {
 
 describe('StoryPage', () => {
   it('renders the story body, sources, and est read metadata', async () => {
-    vi.mocked(getStory).mockResolvedValueOnce(STORY);
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
     renderAt('/stories/three-branches');
 
     await waitFor(() => {
@@ -73,7 +73,7 @@ describe('StoryPage', () => {
   });
 
   it('renders the model-memory disclosure ONLY when the flag is true', async () => {
-    vi.mocked(getStory).mockResolvedValueOnce({ ...STORY, modelMemoryUsed: true });
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: { ...STORY, modelMemoryUsed: true } });
     renderAt('/stories/three-branches');
 
     await waitFor(() => {
@@ -82,7 +82,7 @@ describe('StoryPage', () => {
   });
 
   it('does NOT render the disclosure when modelMemoryUsed is false', async () => {
-    vi.mocked(getStory).mockResolvedValueOnce(STORY);
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
     renderAt('/stories/three-branches');
 
     await waitFor(() => {
@@ -92,7 +92,7 @@ describe('StoryPage', () => {
   });
 
   it('does NOT render the state preamble when no state is selected', async () => {
-    vi.mocked(getStory).mockResolvedValueOnce(STORY);
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
     renderAt('/stories/three-branches');
 
     await waitFor(() => {
@@ -102,7 +102,7 @@ describe('StoryPage', () => {
   });
 
   it('starts the comprehension quiz, hands off to QuizCard, and marks read on completion', async () => {
-    vi.mocked(getStory).mockResolvedValueOnce(STORY);
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
     const user = userEvent.setup();
 
     renderAt('/stories/three-branches');
@@ -130,7 +130,7 @@ describe('StoryPage', () => {
   });
 
   it('shows a not-found message when the slug is unknown', async () => {
-    vi.mocked(getStory).mockResolvedValueOnce(null);
+    vi.mocked(getStory).mockResolvedValueOnce({ success: false, error: '404: Not Found' });
     renderAt('/stories/unknown-slug');
 
     await waitFor(() => {
@@ -151,8 +151,8 @@ describe('StoryPage', () => {
     // guard, the not-found state must replace the previous title cleanly.
     const A: StoryDetailDto = { ...STORY, slug: 'story-a', title: 'Story A Title' };
     vi.mocked(getStory)
-      .mockResolvedValueOnce(A)      // load /stories/story-a
-      .mockResolvedValueOnce(null);  // navigate to /stories/unknown
+      .mockResolvedValueOnce({ success: true, data: A })      // load /stories/story-a
+      .mockResolvedValueOnce({ success: false, error: '404: Not Found' });  // navigate to /stories/unknown
 
     function NavTo({ to }: { readonly to: string }): React.ReactNode {
       const navigate = useNavigate();
@@ -191,7 +191,7 @@ describe('StoryPage', () => {
   });
 
   it('shows not-found cleanly when the very first fetch fails', async () => {
-    vi.mocked(getStory).mockResolvedValueOnce(null);
+    vi.mocked(getStory).mockResolvedValueOnce({ success: false, error: '404: Not Found' });
     renderAt('/stories/three-branches');
 
     await waitFor(() => {
@@ -204,11 +204,14 @@ describe('StoryPage', () => {
     // client adds a defensive isSafeSourceUrl() guard so a future regression in
     // the parser cannot turn the source list into an XSS vector.
     vi.mocked(getStory).mockResolvedValueOnce({
-      ...STORY,
-      sources: [
-        { id: 1, title: 'Bad Source', url: 'javascript:alert(1)', type: 'wikipedia', supportSnippet: 'snip' },
-        { id: 2, title: 'Good Source', url: 'https://en.wikipedia.org/wiki/Test', type: 'wikipedia', supportSnippet: 'snip' },
-      ],
+      success: true,
+      data: {
+        ...STORY,
+        sources: [
+          { id: 1, title: 'Bad Source', url: 'javascript:alert(1)', type: 'wikipedia', supportSnippet: 'snip' },
+          { id: 2, title: 'Good Source', url: 'https://en.wikipedia.org/wiki/Test', type: 'wikipedia', supportSnippet: 'snip' },
+        ],
+      },
     });
     const { container } = renderAt('/stories/three-branches');
 

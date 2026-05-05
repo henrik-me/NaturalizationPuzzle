@@ -1,13 +1,21 @@
-import type { StoryDetailDto, StoryListItemDto } from '../types/api';
+import type { ApiResult, StoryDetailDto, StoryListItemDto } from '../types/api';
 import { apiGet } from './apiClient';
 
-export async function listStories(): Promise<readonly StoryListItemDto[]> {
-  const result = await apiGet<StoryListItemDto[]>('/stories');
-  return result.success ? result.data : [];
+/**
+ * Fetches the Story Mode index and returns the typed `ApiResult` so callers
+ * can distinguish a successful empty response (catalog has no stories) from
+ * a transient HTTP/network failure. The pages need that distinction to show
+ * the right empty-vs-error UI state.
+ */
+export async function listStories(): Promise<ApiResult<readonly StoryListItemDto[]>> {
+  return apiGet<StoryListItemDto[]>('/stories');
 }
 
-export async function getStory(slug: string, stateId?: number): Promise<StoryDetailDto | null> {
+/**
+ * Fetches a single story by slug. Returns `ApiResult` so callers can tell
+ * a 404 (slug not found) from a transient error (500, timeout, offline).
+ */
+export async function getStory(slug: string, stateId?: number): Promise<ApiResult<StoryDetailDto>> {
   const query = stateId ? `?stateId=${stateId}` : '';
-  const result = await apiGet<StoryDetailDto>(`/stories/${encodeURIComponent(slug)}${query}`);
-  return result.success ? result.data : null;
+  return apiGet<StoryDetailDto>(`/stories/${encodeURIComponent(slug)}${query}`);
 }

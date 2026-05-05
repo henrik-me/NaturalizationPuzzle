@@ -109,19 +109,22 @@ export function StoryPage(): React.ReactNode {
   const stateId = state.selectedStateId ?? undefined;
 
   const fetchFn = useCallback(async (): Promise<ApiResult<StoryDetailDto>> => {
-    const detail = slug ? await getStory(slug, stateId) : null;
-    return detail
-      ? ({ success: true, data: detail } as const)
-      : ({ success: false, error: 'not-found' } as const);
+    if (!slug) {
+      return { success: false, error: 'no-slug' } as const;
+    }
+    return getStory(slug, stateId);
   }, [slug, stateId]);
 
   const { data: storyData, isLoading, error } = useFetch<StoryDetailDto>(fetchFn, [slug, stateId]);
 
-  // Final-diff Copilot review fix: useFetch keeps the previous successful
-  // `data` when a subsequent fetch fails. That would leave stale story
-  // content visible after navigating from a known slug to an unknown one.
-  // Treat any error as not-found (the only error path here is the
-  // 'not-found' sentinel returned by fetchFn above).
+  // Distinguish "story not found" (404) from a transient error (500, timeout,
+  // offline). useFetch keeps the previous successful `data` across a failed
+  // re-fetch, so we read both and decide:
+  //   - error contains '404' or 'Not Found' => not-found UI
+  //   - any other error                     => transient-error UI
+  //   - otherwise                           => render the story
+  const isNotFound = error !== null && /404|Not Found|no-slug|not-found/i.test(error);
+  const isTransientError = error !== null && !isNotFound;
   const story = error ? null : storyData;
 
   const showStatePreamble = useMemo(
@@ -139,6 +142,24 @@ export function StoryPage(): React.ReactNode {
     return (
       <main className="max-w-3xl mx-auto p-4">
         <p className="text-gray-500 dark:text-gray-400" aria-live="polite">Loading story…</p>
+      </main>
+    );
+  }
+
+  if (isTransientError) {
+    return (
+      <main className="max-w-3xl mx-auto p-4">
+        <div
+          role="alert"
+          className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4 text-sm text-red-900 dark:text-red-100"
+          data-testid="story-error"
+        >
+          <p><strong>Could not load this story.</strong> Please check your connection and try again.</p>
+          <p className="text-xs text-red-700 dark:text-red-300 mt-1">Error: {error}</p>
+        </div>
+        <Link to="/stories" className="text-blue-700 dark:text-blue-300 underline mt-3 inline-block">
+          ← Back to all stories
+        </Link>
       </main>
     );
   }

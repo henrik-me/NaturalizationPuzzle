@@ -35,28 +35,53 @@ function groupByCategory(stories: readonly StoryListItemDto[]): Map<string, read
   return ordered;
 }
 
+type StoriesLoadState =
+  | { readonly status: 'loading' }
+  | { readonly status: 'loaded'; readonly stories: readonly StoryListItemDto[] }
+  | { readonly status: 'error'; readonly message: string };
+
 export function StoriesPage(): React.ReactNode {
   const { isStoryRead } = useProgress();
-  const [stories, setStories] = useState<readonly StoryListItemDto[] | null>(null);
+  const [load, setLoad] = useState<StoriesLoadState>({ status: 'loading' });
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      // listStories swallows network/HTTP errors and returns []; an empty
-      // result is rendered as the "no stories yet" empty state below.
       const result = await listStories();
-      if (!cancelled) setStories(result);
+      if (cancelled) return;
+      if (result.success) {
+        setLoad({ status: 'loaded', stories: result.data });
+      } else {
+        setLoad({ status: 'error', message: result.error });
+      }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  if (stories === null) {
+  if (load.status === 'loading') {
     return (
       <main className="max-w-4xl mx-auto p-4">
         <p className="text-gray-500 dark:text-gray-400" aria-live="polite">Loading stories…</p>
       </main>
     );
   }
+
+  if (load.status === 'error') {
+    return (
+      <main className="max-w-4xl mx-auto p-4">
+        <div
+          role="alert"
+          className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4 text-sm text-red-900 dark:text-red-100"
+          data-testid="stories-error"
+        >
+          <p><strong>Could not load stories.</strong> Please check your connection and try again.</p>
+          <p className="text-xs text-red-700 dark:text-red-300 mt-1">Error: {load.message}</p>
+        </div>
+      </main>
+    );
+  }
+
+  const stories = load.stories;
 
   if (stories.length === 0) {
     return (

@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 describe('storyService', () => {
-  it('listStories returns the array on a 200 response', async () => {
+  it('listStories returns ApiResult success on a 200 response', async () => {
     const dto = [
       { slug: 's1', title: 'S1', category: 'AG', subCategory: 'X',
         estReadMinutes: 3, fleschReadingEase: 80,
@@ -31,11 +31,11 @@ describe('storyService', () => {
 
     const result = await listStories();
 
-    expect(result).toEqual(dto);
+    expect(result).toEqual({ success: true, data: dto });
     expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/stories');
   });
 
-  it('listStories returns [] on a non-OK response', async () => {
+  it('listStories returns ApiResult error on a non-OK response (so the UI can distinguish error vs empty)', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -44,16 +44,19 @@ describe('storyService', () => {
     });
 
     const result = await listStories();
-    expect(result).toEqual([]);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('500');
+    }
   });
 
-  it('listStories returns [] on network failure', async () => {
+  it('listStories returns ApiResult error on network failure', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
     const result = await listStories();
-    expect(result).toEqual([]);
+    expect(result.success).toBe(false);
   });
 
-  it('getStory returns the detail DTO on success', async () => {
+  it('getStory returns ApiResult success on success', async () => {
     const dto = {
       slug: 'three-branches',
       title: 'The Three Branches',
@@ -75,7 +78,7 @@ describe('storyService', () => {
     });
 
     const result = await getStory('three-branches');
-    expect(result).toEqual(dto);
+    expect(result).toEqual({ success: true, data: dto });
     expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/stories/three-branches');
   });
 
@@ -91,7 +94,7 @@ describe('storyService', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/stories/three-branches?stateId=5');
   });
 
-  it('getStory returns null on 404', async () => {
+  it('getStory returns ApiResult error with 404 message on a 404 (so the UI can show not-found)', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 404,
@@ -100,13 +103,16 @@ describe('storyService', () => {
     });
 
     const result = await getStory('does-not-exist');
-    expect(result).toBeNull();
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('404');
+    }
   });
 
-  it('getStory returns null on network failure', async () => {
+  it('getStory returns ApiResult error on network failure', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
     const result = await getStory('three-branches');
-    expect(result).toBeNull();
+    expect(result.success).toBe(false);
   });
 
   it('getStory percent-encodes the slug', async () => {

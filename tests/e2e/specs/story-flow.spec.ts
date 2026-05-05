@@ -51,20 +51,29 @@ test.describe('Story Mode', () => {
 
     await page.getByTestId('start-comprehension-quiz').click();
 
-    // Walk through every comprehension question. The story has 8 in this pilot,
-    // but advance via "Next Question" without depending on an exact count by
-    // looping until the done banner appears.
+    // Walk through every comprehension question until the done banner appears.
+    // Defensively wait for the Show Answer button on each iteration so React
+    // has time to render after the previous Next click — without this the
+    // loop can race the render of either the next question OR the done
+    // banner after the final click. waitFor times out (and we break) once
+    // we've passed the last question and the done banner is up.
+    const done = page.getByTestId('story-quiz-done');
     for (let i = 0; i < 50; i++) {
-      const done = page.getByTestId('story-quiz-done');
       if (await done.isVisible().catch(() => false)) break;
       const showAnswer = page.getByRole('button', { name: /show the answer/i });
-      if (await showAnswer.isVisible().catch(() => false)) {
-        await showAnswer.click();
+      try {
+        await showAnswer.waitFor({ state: 'visible', timeout: 5000 });
+      } catch {
+        // Show Answer didn't appear — likely the done banner just rendered.
+        break;
       }
-      const next = page.getByRole('button', { name: /go to next question/i });
-      await next.click();
+      await showAnswer.click();
+      await page.getByRole('button', { name: /go to next question/i }).click();
     }
-    await expect(page.getByTestId('story-quiz-done')).toBeVisible();
+    // Toleranceful final assertion: even if the loop bailed out via the
+    // waitFor catch, the done banner should be visible within a reasonable
+    // window after the last Next click.
+    await expect(done).toBeVisible({ timeout: 10000 });
 
     // localStorage progress shape includes the new storiesRead entry.
     const stored = await page.evaluate(() => localStorage.getItem('naturalizationProgress'));
