@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { QuestionDto, StoryDetailDto } from '../types/api';
+import type { QuestionDto, StoryDetailDto, ApiResult } from '../types/api';
 import { getStory } from '../services/storyService';
 import { useAppContext } from '../context/AppContext';
 import { useProgress } from '../hooks/useProgress';
@@ -108,7 +108,7 @@ export function StoryPage(): React.ReactNode {
 
   const stateId = state.selectedStateId ?? undefined;
 
-  const fetchFn = useCallback(async () => {
+  const fetchFn = useCallback(async (): Promise<ApiResult<StoryDetailDto>> => {
     const detail = slug ? await getStory(slug, stateId) : null;
     return detail
       ? ({ success: true, data: detail } as const)
@@ -129,7 +129,7 @@ export function StoryPage(): React.ReactNode {
     [story, state.selectedState]
   );
 
-  const handleQuizComplete = useCallback(() => {
+  const handleQuizComplete = useCallback((): void => {
     if (story?.slug && !isStoryRead(story.slug)) {
       markStoryRead(story.slug);
     }
