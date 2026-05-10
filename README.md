@@ -16,12 +16,12 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 │                                                                     │
 │  ┌──────────────┐   ┌──────────────┐   ┌─────────────────────────┐ │
 │  │  React 19    │   │  React Router│   │  Service Worker         │ │
-│  │  + TypeScript│──▶│  (4 routes)  │   │  (Workbox / PWA)        │ │
-│  │  + Tailwind  │   │  / /quiz     │   │  • precaches app shell  │ │
-│  │    CSS v4    │   │    /history  │   │  • stale-while-revalidate│ │
-│  │              │   │    /settings │   │    for /api/v1/*        │ │
-│  └──────┬───────┘   └──────────────┘   │    for /api/v1/*        │ │
-│         │                              └────────────┬────────────┘ │
+│  │  + TypeScript│──▶│  (SPA routes;│   │  (Workbox / PWA)        │ │
+│  │  + Tailwind  │   │   see Routes │   │  • precaches app shell  │ │
+│  │    CSS v4    │   │   table)     │   │  • stale-while-revalidate│ │
+│  │              │   │              │   │    for /api/v1/*        │ │
+│  └──────┬───────┘   └──────────────┘   └────────────┬────────────┘ │
+│         │                                           │              │
 │         ▼                                           │              │
 │  ┌──────────────┐                                   │              │
 │  │  API Client  │───────────────────────────────────┘              │
@@ -342,7 +342,7 @@ npx playwright test offline                    # run offline E2E tests
 4. Reload the browser — the app should still load and function fully
 5. Verify: study questions display, quiz can start, navigation works, OfflineBanner shows
 6. Check DevTools → Application → Service Workers → status is "activated"
-7. Check DevTools → Application → Cache Storage → `questions-cache` and `states-cache` have entries
+7. Check DevTools → Application → Cache Storage → `questions-cache-v3`, `states-cache`, `stories-cache-v2`, and `app-assets` have entries
 
 ### Running Frontend Tests
 

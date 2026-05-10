@@ -58,7 +58,7 @@ There are also many ways for Americans to **serve their country**. They can **vo
 
 ## Paying Taxes
 
-It is **important to pay federal taxes** because the law requires it. Tax money pays for things people share — roads, schools, the military, and many other public services [5]. Federal income taxes are due by **April 15** each year [5].
+It is **important to pay federal taxes** because the law requires it. Tax money pays for things people share — roads, schools, the military, and many other public services [5]. Federal income taxes are generally due by **April 15** each year (or the next business day if April 15 falls on a weekend or holiday) [5].
 
 ## Selective Service
 
