@@ -217,6 +217,7 @@ function ComprehensionQuiz({ questions, onComplete, onScored }: ComprehensionQui
                 >
                   {a.isCorrect ? '✓' : '✗'}
                 </span>
+                <span className="sr-only">{a.isCorrect ? 'Correct' : 'Incorrect'}</span>
                 <div className="flex-1">
                   <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
                     {i + 1}. {a.questionText}
