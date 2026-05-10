@@ -373,18 +373,23 @@ Session-only artifacts (e.g. `~/.copilot/session-state/<id>/plan.md`, the SQL to
 
 ### Last completed work
 
-The most recent feature is the **Story Mode full-catalog expansion** (PR #77) — every USCIS subcategory now has at least one dedicated story, with multi-membership where a question fits multiple topics, so every one of the 128 civics questions is claimed by at least one story. The previous Story Mode milestone was **v1 (pilot)** (merged via PR #74). See Phase 14 (pilot) and Phase 15 (catalog) in [Next Steps](#next-steps) for the full surface area, and the [Story Mode — Authoring Guide](#story-mode--authoring-guide) section for how to add a story.
+Three things shipped most recently and all are live in production at `https://np.metzger.dk`:
+
+1. **Story Mode full-catalog expansion** (PR #77) — every USCIS subcategory now has at least one dedicated story, with multi-membership where a question fits multiple topics, so every one of the 128 civics questions is claimed by at least one story. The previous Story Mode milestone was **v1 (pilot)** (merged via PR #74). See Phase 14 (pilot) and Phase 15 (catalog) in [Next Steps](#next-steps) for the full surface area, and the [Story Mode — Authoring Guide](#story-mode--authoring-guide) section for how to add a story.
+2. **Deploy-pipeline fix for Story Mode** (PR #81) — the catalog had been silently shipping with `/api/v1/stories` returning `[]` since PR #74 because the Dockerfile didn't COPY `content/` into the build context AND the `.dockerignore` excluded `*.md` globally. PR #81 fixed the Dockerfile + `.dockerignore`, added an `/api/v1/stories | jq -e 'length >= 3'` Image Smoke Test assertion to catch this regression class, and tightened `paths-ignore` / `e2e` filters / `detect-changes` so story content edits actually trigger CI and deploy. **Story Mode is actually live in prod now** (verified on the deploy run gated through `production`). See the **Dockerfile build context vs `EmbeddedResource` Include paths** entry in [Known Issues / Tech Debt](#known-issues--tech-debt) for the ongoing rule that protects against the same class.
+3. **Three high-severity npm security advisories closed** via Dependabot PRs #75 (`fast-uri` 3.1.0 → 3.1.2 — host confusion + path traversal) and #76 (`@babel/plugin-transform-modules-systemjs` 7.29.0 → 7.29.4 — arbitrary code generation). PR #76's pre-rebase tip would have silently downgraded `fast-uri` back to 3.1.0 (re-introducing both vulnerabilities just closed); GPT-5.5's audit-whole-file review caught it. The lesson is now codified in `.github/copilot-instructions.md` → "Sequential Dependabot PRs and silent sibling-dep downgrades".
 
 Active state at the time of writing this guide:
 
-- Story Mode v1 was merged via PR #74; the docs commits in this section follow it. CI is green on `main` at the time of writing.
-- Production deploy follows the normal `production` GitHub-environment approval gate; check Actions for the latest run state if uncertain.
+- `main` is at the post-Dependabot-merge tip; the production container has been redeployed with all three patches plus the full Story Mode catalog.
+- `production` GitHub-environment approval gate is the sole human-in-the-loop step; check Actions for the latest run state if uncertain.
+- 0 high-severity Dependabot alerts open at the time of writing.
 
 ### Where the work that's still on the table lives
 
 | What | Where |
 |---|---|
-| All deferred / postponed work | [Next Steps](#next-steps) — items 9 and 15–20 are open |
+| All deferred / postponed work | [Next Steps](#next-steps) — items 9 and 16–20 are open (items 14 and 15 are ✅ complete) |
 | Existing tech debt | [Known Issues / Tech Debt](#known-issues--tech-debt), plus tracked GitHub issues (#70, #72, #73) |
 | How to add another Story Mode story | [Story Mode — Authoring Guide](#story-mode--authoring-guide) — file layout, frontmatter spec, the 8 enforced body-markup rules, license posture, and a per-story checklist |
 | Project conventions, agent orchestration rules, review workflow | `.github/copilot-instructions.md` (single source of truth — keep that file authoritative) |
