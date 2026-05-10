@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { StrictMode } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
@@ -38,6 +39,21 @@ const STORY: StoryDetailDto = {
   ],
 };
 
+// Larger fixture used to exercise the "no early stop" rule: even a streak
+// of correct answers must not trigger completion before the final question.
+const LONG_STORY: StoryDetailDto = {
+  ...STORY,
+  slug: 'long-story',
+  title: 'A Longer Story',
+  questions: [
+    { id: 100, text: 'Q1?', category: 'AG', subCategory: 'X', is6520Designated: false, tags: [], answers: ['alpha'] },
+    { id: 101, text: 'Q2?', category: 'AG', subCategory: 'X', is6520Designated: false, tags: [], answers: ['beta'] },
+    { id: 102, text: 'Q3?', category: 'AG', subCategory: 'X', is6520Designated: false, tags: [], answers: ['gamma'] },
+    { id: 103, text: 'Q4?', category: 'AG', subCategory: 'X', is6520Designated: false, tags: [], answers: ['delta'] },
+    { id: 104, text: 'Q5?', category: 'AG', subCategory: 'X', is6520Designated: false, tags: [], answers: ['epsilon'] },
+  ],
+};
+
 beforeEach(() => {
   localStorage.clear();
   vi.mocked(getStory).mockReset();
@@ -53,6 +69,28 @@ function renderAt(path: string): ReturnType<typeof render> {
       </MemoryRouter>
     </AppProvider>
   );
+}
+
+function renderAtStrict(path: string): ReturnType<typeof render> {
+  return render(
+    <StrictMode>
+      <AppProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/stories/:slug" element={<StoryPage />} />
+          </Routes>
+        </MemoryRouter>
+      </AppProvider>
+    </StrictMode>
+  );
+}
+
+function readProgress(): {
+  storiesRead?: string[];
+  storyQuizHistory?: { id: string; date: string; storySlug: string; storyTitle: string; correct: number; total: number }[];
+} {
+  const raw = localStorage.getItem('naturalizationProgress');
+  return raw ? JSON.parse(raw) : {};
 }
 
 describe('StoryPage', () => {
@@ -101,17 +139,40 @@ describe('StoryPage', () => {
     expect(screen.queryByTestId('state-preamble')).toBeNull();
   });
 
-  it('starts the comprehension quiz, hands off to QuizCard, and marks read on completion', async () => {
+  it('shows two CTAs (Continue with Study / Continue with Quiz) and no Start button before the user picks', async () => {
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    renderAt('/stories/three-branches');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('continue-with-study')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('continue-with-quiz')).toBeInTheDocument();
+
+    // Neither CTA is pre-selected (no aria-pressed=true, no auto-progress).
+    const studyBtn = screen.getByTestId('continue-with-study');
+    const quizBtn = screen.getByTestId('continue-with-quiz');
+    expect(studyBtn).not.toHaveAttribute('aria-pressed', 'true');
+    expect(quizBtn).not.toHaveAttribute('aria-pressed', 'true');
+
+    // No legacy Start button.
+    expect(screen.queryByTestId('start-comprehension-quiz')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^start the comprehension quiz/i })).toBeNull();
+
+    // No QuizCard rendered yet (neither study reveal nor typed input).
+    expect(screen.queryByTestId('quiz-answer-input')).toBeNull();
+    expect(screen.queryByRole('button', { name: /show.*answer/i })).toBeNull();
+  });
+
+  it('Continue with Study runs the existing reveal-on-click flow and marks the story read on completion', async () => {
     vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
     const user = userEvent.setup();
 
     renderAt('/stories/three-branches');
 
     await waitFor(() => {
-      expect(screen.getByTestId('start-comprehension-quiz')).toBeInTheDocument();
+      expect(screen.getByTestId('continue-with-study')).toBeInTheDocument();
     });
-
-    await user.click(screen.getByTestId('start-comprehension-quiz'));
+    await user.click(screen.getByTestId('continue-with-study'));
 
     // Question 1 of 2 visible.
     expect(screen.getByText(/Question 1 of 2/)).toBeInTheDocument();
@@ -125,8 +186,315 @@ describe('StoryPage', () => {
 
     // Done state, story marked read.
     expect(screen.getByTestId('story-quiz-done')).toBeInTheDocument();
-    const stored = JSON.parse(localStorage.getItem('naturalizationProgress')!);
+    const stored = readProgress();
     expect(stored.storiesRead).toContain('three-branches');
+    // Study mode never writes to storyQuizHistory.
+    expect(stored.storyQuizHistory ?? []).toHaveLength(0);
+  });
+
+  it('Continue with Quiz renders QuizCard in typed mode (quiz-answer-input present)', async () => {
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    renderAt('/stories/three-branches');
+    await waitFor(() => {
+      expect(screen.getByTestId('continue-with-quiz')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    expect(screen.getByTestId('quiz-answer-input')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /show.*answer/i })).toBeNull();
+  });
+
+  it('correct typed answer renders green per-question feedback with accepted answers; Next advances', async () => {
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    renderAt('/stories/three-branches');
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    await user.type(screen.getByTestId('quiz-answer-input'), 'so no branch is too powerful');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+
+    const feedback = await screen.findByTestId('story-quiz-feedback');
+    expect(feedback).toHaveTextContent(/correct/i);
+    expect(feedback.className).toMatch(/green/);
+    expect(feedback).toHaveTextContent(/so no branch is too powerful/i);
+
+    await user.click(screen.getByTestId('story-quiz-next-question'));
+    expect(screen.getByText(/Question 2 of 2/)).toBeInTheDocument();
+    expect(screen.queryByTestId('story-quiz-feedback')).toBeNull();
+  });
+
+  it('wrong typed answer renders red feedback with accepted answers; Next still advances', async () => {
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    renderAt('/stories/three-branches');
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    await user.type(screen.getByTestId('quiz-answer-input'), 'something completely unrelated');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+
+    const feedback = await screen.findByTestId('story-quiz-feedback');
+    expect(feedback).toHaveTextContent(/not quite/i);
+    expect(feedback.className).toMatch(/red/);
+    expect(feedback).toHaveTextContent(/so no branch is too powerful/i);
+
+    await user.click(screen.getByTestId('story-quiz-next-question'));
+    expect(screen.getByText(/Question 2 of 2/)).toBeInTheDocument();
+  });
+
+  it('reaching the end of typed quiz shows results panel with X out of N, per-question review, and Try again', async () => {
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    renderAt('/stories/three-branches');
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    // Q1: correct
+    await user.type(screen.getByTestId('quiz-answer-input'), 'so no branch is too powerful');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await user.click(screen.getByTestId('story-quiz-next-question'));
+
+    // Q2 (last): wrong → button reads "See results"
+    await user.type(screen.getByTestId('quiz-answer-input'), 'wrong-answer');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    expect(screen.getByTestId('story-quiz-see-results')).toBeInTheDocument();
+    await user.click(screen.getByTestId('story-quiz-see-results'));
+
+    const results = await screen.findByTestId('story-quiz-results');
+    expect(results).toHaveTextContent(/1 out of 2 correct/i);
+    expect(screen.getByTestId('story-quiz-try-again')).toBeInTheDocument();
+    expect(screen.getAllByTestId('story-review-correct')).toHaveLength(1);
+    expect(screen.getAllByTestId('story-review-incorrect')).toHaveLength(1);
+
+    // Story is marked read AND a single quiz history entry persisted.
+    const stored = readProgress();
+    expect(stored.storiesRead).toContain('three-branches');
+    expect(stored.storyQuizHistory).toHaveLength(1);
+    expect(stored.storyQuizHistory![0]).toMatchObject({
+      storySlug: 'three-branches',
+      storyTitle: STORY.title,
+      correct: 1,
+      total: 2,
+    });
+    expect(typeof stored.storyQuizHistory![0].id).toBe('string');
+    expect(stored.storyQuizHistory![0].id.length).toBeGreaterThan(0);
+    expect(typeof stored.storyQuizHistory![0].date).toBe('string');
+  });
+
+  it('typed-mode results contain NO PASS/FAIL banner or threshold language', async () => {
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    renderAt('/stories/three-branches');
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    // Mixed results: correct + wrong.
+    await user.type(screen.getByTestId('quiz-answer-input'), 'so no branch is too powerful');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await user.click(screen.getByTestId('story-quiz-next-question'));
+
+    await user.type(screen.getByTestId('quiz-answer-input'), 'no idea');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await user.click(screen.getByTestId('story-quiz-see-results'));
+
+    const results = await screen.findByTestId('story-quiz-results');
+    const text = results.textContent ?? '';
+    expect(text).not.toMatch(/\bPASS(?:ED)?\b/i);
+    expect(text).not.toMatch(/\bFAIL(?:ED)?\b/i);
+    expect(text).not.toMatch(/to pass/i);
+    expect(text).not.toMatch(/needed to pass/i);
+    expect(text).not.toMatch(/threshold/i);
+  });
+
+  it('does not stop early in typed mode, even on a streak of correct answers (only the final question completes the quiz)', async () => {
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: LONG_STORY });
+    const user = userEvent.setup();
+
+    renderAt('/stories/long-story');
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    const answers = ['alpha', 'beta', 'gamma', 'delta']; // first 4 correct, 5th still pending
+    for (let i = 0; i < answers.length; i++) {
+      await user.type(screen.getByTestId('quiz-answer-input'), answers[i]);
+      await user.click(screen.getByTestId('submit-answer-btn'));
+      // Per-question feedback shows; results panel must NOT appear yet.
+      await screen.findByTestId('story-quiz-feedback');
+      expect(screen.queryByTestId('story-quiz-results')).toBeNull();
+      // Button label is still "Next question" (not "See results") for non-final.
+      expect(screen.getByTestId('story-quiz-next-question')).toBeInTheDocument();
+      await user.click(screen.getByTestId('story-quiz-next-question'));
+    }
+
+    // Now on Q5, the final question.
+    expect(screen.getByText(/Question 5 of 5/)).toBeInTheDocument();
+    expect(screen.queryByTestId('story-quiz-results')).toBeNull();
+
+    // Persistence side effects must NOT fire until after the final question's submission.
+    expect(readProgress().storyQuizHistory ?? []).toHaveLength(0);
+    expect(readProgress().storiesRead ?? []).not.toContain('long-story');
+
+    await user.type(screen.getByTestId('quiz-answer-input'), 'epsilon');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await user.click(screen.getByTestId('story-quiz-see-results'));
+
+    const results = await screen.findByTestId('story-quiz-results');
+    expect(results).toHaveTextContent(/5 out of 5 correct/i);
+    const stored = readProgress();
+    expect(stored.storyQuizHistory).toHaveLength(1);
+    expect(stored.storyQuizHistory![0]).toMatchObject({ storySlug: 'long-story', correct: 5, total: 5 });
+  });
+
+  it('Try again returns to the two-CTA choice screen with state cleared', async () => {
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    renderAt('/stories/three-branches');
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    await user.type(screen.getByTestId('quiz-answer-input'), 'wrong');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await user.click(screen.getByTestId('story-quiz-next-question'));
+    await user.type(screen.getByTestId('quiz-answer-input'), 'wrong');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await user.click(screen.getByTestId('story-quiz-see-results'));
+
+    await user.click(screen.getByTestId('story-quiz-try-again'));
+
+    // Back to choice screen.
+    expect(screen.getByTestId('continue-with-study')).toBeInTheDocument();
+    expect(screen.getByTestId('continue-with-quiz')).toBeInTheDocument();
+    expect(screen.queryByTestId('story-quiz-results')).toBeNull();
+    expect(screen.queryByTestId('story-quiz-feedback')).toBeNull();
+    expect(screen.queryByTestId('quiz-answer-input')).toBeNull();
+
+    // Picking quiz again starts over from Question 1 with a clean review list.
+    await user.click(screen.getByTestId('continue-with-quiz'));
+    expect(screen.getByText(/Question 1 of 2/)).toBeInTheDocument();
+    expect(screen.queryByTestId('story-review-correct')).toBeNull();
+    expect(screen.queryByTestId('story-review-incorrect')).toBeNull();
+  });
+
+  it('typed-mode completion under <StrictMode> writes exactly one storyQuizHistory entry and one storiesRead entry', async () => {
+    // StrictMode mounts/unmounts/re-mounts in development, so useFetch's
+    // effect can fire more than once. mockResolvedValue (not Once) keeps
+    // returning the same payload for any extra calls.
+    vi.mocked(getStory).mockResolvedValue({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    renderAtStrict('/stories/three-branches');
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    await user.type(screen.getByTestId('quiz-answer-input'), 'so no branch is too powerful');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await user.click(screen.getByTestId('story-quiz-next-question'));
+
+    await user.type(screen.getByTestId('quiz-answer-input'), 'Executive Legislative Judicial');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await user.click(screen.getByTestId('story-quiz-see-results'));
+
+    await screen.findByTestId('story-quiz-results');
+
+    const stored = readProgress();
+    expect(stored.storiesRead).toEqual(['three-branches']);
+    expect(stored.storyQuizHistory).toHaveLength(1);
+    expect(stored.storyQuizHistory![0]).toMatchObject({
+      storySlug: 'three-branches',
+      storyTitle: STORY.title,
+      correct: 2,
+      total: 2,
+    });
+    expect(stored.storyQuizHistory![0].id).toBeTruthy();
+  });
+
+  it('mid-quiz abandonment in TYPED mode (unmount before See results) writes nothing and does NOT mark the story read', async () => {
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: LONG_STORY });
+    const user = userEvent.setup();
+
+    const { unmount } = renderAt('/stories/long-story');
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    await user.type(screen.getByTestId('quiz-answer-input'), 'alpha');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await user.click(screen.getByTestId('story-quiz-next-question'));
+
+    await user.type(screen.getByTestId('quiz-answer-input'), 'beta');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    // We are now on feedback for Q2 of 5; user walks away.
+
+    unmount();
+
+    const stored = readProgress();
+    expect(stored.storyQuizHistory ?? []).toHaveLength(0);
+    expect(stored.storiesRead ?? []).not.toContain('long-story');
+  });
+
+  it('mid-quiz abandonment in TYPED mode via route navigation writes nothing and does NOT mark the story read', async () => {
+    vi.mocked(getStory)
+      .mockResolvedValueOnce({ success: true, data: LONG_STORY })
+      .mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    function NavTo({ to }: { readonly to: string }): React.ReactNode {
+      const navigate = useNavigate();
+      return (
+        <button type="button" data-testid="nav-elsewhere" onClick={() => navigate(to)}>
+          go
+        </button>
+      );
+    }
+
+    render(
+      <AppProvider>
+        <MemoryRouter initialEntries={['/stories/long-story']}>
+          <Routes>
+            <Route path="/stories/:slug" element={<StoryPage />} />
+          </Routes>
+          <NavTo to="/stories/three-branches" />
+        </MemoryRouter>
+      </AppProvider>
+    );
+
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+    await user.type(screen.getByTestId('quiz-answer-input'), 'alpha');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+
+    await user.click(screen.getByTestId('nav-elsewhere'));
+
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    const stored = readProgress();
+    expect(stored.storyQuizHistory ?? []).toHaveLength(0);
+    expect(stored.storiesRead ?? []).not.toContain('long-story');
+  });
+
+  it('mid-quiz abandonment in STUDY mode (started but not completed) does NOT mark the story read', async () => {
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    const { unmount } = renderAt('/stories/three-branches');
+    await waitFor(() => screen.getByTestId('continue-with-study'));
+    await user.click(screen.getByTestId('continue-with-study'));
+
+    expect(screen.getByText(/Question 1 of 2/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /show.*answer/i }));
+    // User walks away after Q1's reveal but before clicking through Q2.
+
+    unmount();
+
+    const stored = readProgress();
+    expect(stored.storiesRead ?? []).not.toContain('three-branches');
+    expect(stored.storyQuizHistory ?? []).toHaveLength(0);
   });
 
   it('shows a not-found message when the slug is unknown', async () => {
