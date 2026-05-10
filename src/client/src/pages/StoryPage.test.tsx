@@ -192,6 +192,33 @@ describe('StoryPage', () => {
     expect(stored.storyQuizHistory ?? []).toHaveLength(0);
   });
 
+  it('rapid double-click on study-mode Next does not skip a question', async () => {
+    // Audit-whole-file regression: handleStudyNext must be idempotent for the
+    // same reason handleSubmit and handleNextOrResults are. Two rapid clicks
+    // on study-mode "Next Question" used to advance index by 2, skipping a
+    // question and triggering done(study) without the user completing every
+    // question.
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    renderAt('/stories/three-branches');
+    await waitFor(() => screen.getByTestId('continue-with-study'));
+    await user.click(screen.getByTestId('continue-with-study'));
+
+    // Q1: reveal then double-click Next.
+    expect(screen.getByText(/Question 1 of 2/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /show.*answer/i }));
+    const nextBtn = screen.getByRole('button', { name: /next.*question/i });
+    fireEvent.click(nextBtn);
+    fireEvent.click(nextBtn);
+
+    // Must land on Q2 (not the done banner).
+    await waitFor(() => {
+      expect(screen.getByText(/Question 2 of 2/)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('story-quiz-done')).toBeNull();
+  });
+
   it('Continue with Quiz renders QuizCard in typed mode (quiz-answer-input present)', async () => {
     vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
     const user = userEvent.setup();

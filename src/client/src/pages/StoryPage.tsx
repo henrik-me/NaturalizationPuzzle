@@ -65,8 +65,12 @@ function ComprehensionQuiz({ questions, onComplete, onScored }: ComprehensionQui
   const done = studyDone || quizDone;
 
   const handleStudyNext = useCallback((): void => {
-    setIndex(prev => prev + 1);
-  }, []);
+    // Idempotency guard (matches handleNextOrResults / handleSubmit): rapid
+    // double-click on study-mode "Next Question" used to advance index by 2,
+    // skipping a question and allowing `done(study)` to mark the story read
+    // without the user completing every question.
+    setIndex(prev => (prev > index ? prev : prev + 1));
+  }, [index]);
 
   const handleSubmit = useCallback((userAnswer: string): void => {
     setAnswers(prev => {
