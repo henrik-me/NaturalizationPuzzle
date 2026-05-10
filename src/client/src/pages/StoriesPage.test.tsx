@@ -10,7 +10,7 @@ vi.mock('../services/storyService', () => ({
 
 import { listStories } from '../services/storyService';
 
-const PILOT: readonly StoryListItemDto[] = [
+const STORIES: readonly StoryListItemDto[] = [
   { slug: 'three-branches', title: 'The Three Branches of Government',
     category: 'American Government', subCategory: 'System of Government',
     estReadMinutes: 5, fleschReadingEase: 75, questionCount: 16,
@@ -32,7 +32,7 @@ beforeEach(() => {
 
 describe('StoriesPage', () => {
   it('shows a loading state, then groups cards by category', async () => {
-    vi.mocked(listStories).mockResolvedValueOnce({ success: true, data: PILOT });
+    vi.mocked(listStories).mockResolvedValueOnce({ success: true, data: STORIES });
 
     render(<MemoryRouter><StoriesPage /></MemoryRouter>);
 
@@ -55,7 +55,7 @@ describe('StoriesPage', () => {
       quizHistory: [],
       storiesRead: ['three-branches'],
     }));
-    vi.mocked(listStories).mockResolvedValueOnce({ success: true, data: PILOT });
+    vi.mocked(listStories).mockResolvedValueOnce({ success: true, data: STORIES });
 
     render(<MemoryRouter><StoriesPage /></MemoryRouter>);
 
@@ -75,7 +75,7 @@ describe('StoriesPage', () => {
       quizHistory: [],
       storiesRead: ['three-branches'],
     }));
-    vi.mocked(listStories).mockResolvedValueOnce({ success: true, data: PILOT });
+    vi.mocked(listStories).mockResolvedValueOnce({ success: true, data: STORIES });
 
     render(<MemoryRouter><StoriesPage /></MemoryRouter>);
 
@@ -89,7 +89,7 @@ describe('StoriesPage', () => {
   });
 
   it('renders read-time and reading-level chips on each card', async () => {
-    vi.mocked(listStories).mockResolvedValueOnce({ success: true, data: PILOT });
+    vi.mocked(listStories).mockResolvedValueOnce({ success: true, data: STORIES });
     render(<MemoryRouter><StoriesPage /></MemoryRouter>);
 
     await waitFor(() => {
@@ -106,7 +106,7 @@ describe('StoriesPage', () => {
     // aria-labelledby splits on whitespace to support multiple ids — so a raw
     // category like "American Government" would silently break the label
     // association. Verify the id is slugified.
-    vi.mocked(listStories).mockResolvedValueOnce({ success: true, data: PILOT });
+    vi.mocked(listStories).mockResolvedValueOnce({ success: true, data: STORIES });
     const { container } = render(<MemoryRouter><StoriesPage /></MemoryRouter>);
 
     await waitFor(() => {

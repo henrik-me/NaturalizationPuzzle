@@ -46,13 +46,13 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - Progress tracking: localStorage-based tracking of studied questions, quiz history, **and `storiesRead` slugs** via useProgress hook (with backward-compatible migration for users whose stored shape predates Story Mode)
 - Quiz history page: summary stats (total quizzes, pass rate, best score, current streak), reverse-chronological attempt list, clear history with confirmation
 - Answer checking: case-insensitive normalized matching with substring and word-overlap strategies
-- Cache warm-up: useWarmUpCache hook eagerly fetches all API endpoints on mount for offline readiness, **including the stories index and every pilot story detail** (with `stateId` where set) so all pilots are fully readable offline after the first online visit
+- Cache warm-up: useWarmUpCache hook eagerly fetches all API endpoints on mount for offline readiness, **including the stories index and every story detail** (always with the user's selected `stateId`, so the cached key matches what `StoryPage` will request) so every story is fully readable offline after the first online visit
 
 ### Tests (`tests/api/`)
 - xUnit project with API tests covering questions, quiz, representatives, story content, and story service
 - QuestionServiceTests, QuizServiceTests, RepresentativeSeedDataTests, RepresentativeServiceTests, QuestionTagsPersistenceTests
-- **StoryContentTests**: drives `StoryParser` over every embedded pilot story; asserts every `QuestionId` exists in seed data, `(Category, SubCategory)` matches, every source has a non-empty `SupportSnippet`, every `[N]` marker resolves to a source, `FleschReadingEase >= ReadingLevelMin`, the **coverage contract** (every Question whose `(Category, SubCategory)` matches a pilot story's scope is in `QuestionIds` OR `OrphanedQuestionIds` with a reason), and that `three-branches` includes the state-aware Q23+Q29.
-- **StoryServiceTests**: list returns all pilots; `GetAsync` returns null for unknown slug; `GetAsync("three-branches", stateId: <CA>)` resolves Q23 to non-`[Answers vary by state]` strings; `Sources`/Markdown pass through unchanged; `GetAllStories()` is memoized via `Lazy<T>`.
+- **StoryContentTests**: drives `StoryParser` over every embedded story; asserts every `QuestionId` exists in seed data, `(Category, SubCategory)` matches, every source has a non-empty `SupportSnippet`, every `[N]` marker resolves to a source, `FleschReadingEase >= ReadingLevelMin`, the **coverage contract** (every Question whose `(Category, SubCategory)` matches a story's scope is in `QuestionIds` OR `OrphanedQuestionIds` with a reason, OR is claimed by another story's `QuestionIds`), the **global coverage** invariant (every Q1..Q128 is in at least one story's `QuestionIds`), the roster baseline + uniqueness invariants, and that `three-branches` includes the state-aware Q23+Q29.
+- **StoryServiceTests**: list returns the shipped catalog; `GetAsync` returns null for unknown slug; `GetAsync("three-branches", stateId: <CA>)` resolves Q23 to non-`[Answers vary by state]` strings; `Sources`/Markdown pass through unchanged; `GetAllStories()` is memoized via `Lazy<T>`.
 
 ### Tests (`src/client/` — co-located)
 - Vitest with jsdom, @testing-library/react, @testing-library/user-event
@@ -66,7 +66,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - HistoryPage.test.tsx: 8 tests (empty state, renders entries, newest first, summary stats, confirm dialog, cancel clear, clear history, accessible labels)
 - ErrorBoundary.test.tsx: 3 tests (renders children, default fallback on error, custom fallback)
 - useProgress.test.ts: 7 tests (empty initial, mark studied + persist, no duplicates, quiz results + persist, load existing, corrupt data, clear quiz history preserving studied)
-- useWarmUpCache.test.ts: 3 tests (fetches without stateId, fetches with stateId, runs only once)
+- useWarmUpCache.test.ts: covers warm-up triggers (fetches without/with stateId, re-warms on stateId change, single-run guard for repeat renders), state-aware story fan-out (always passes the selected stateId to every story so the cached key matches what StoryPage will request), and service-worker readiness wait
 
 ### E2E Tests (`tests/e2e/`)
 - Playwright with Chromium, Page Object Model pattern
@@ -77,7 +77,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - offline.spec.ts (study, answers, navigation, quiz, banner — all offline)
 - accessibility.spec.ts (settings, study, quiz, **stories index, story detail**)
 - dark-mode.spec.ts (theme selector + system preference + FOUC prevention + keyboard nav)
-- **story-flow.spec.ts** (Stories index renders all 3 pilot cards; state-aware preamble on three-branches with a state selected; complete comprehension quiz marks story read and persists across reload; story remains readable offline after warm-up)
+- **story-flow.spec.ts** (Stories index renders the shipped story cards grouped by category; state-aware preamble on three-branches with a state selected; complete comprehension quiz marks story read and persists across reload; story remains readable offline after warm-up)
 
 ### Error Handling
 - React ErrorBoundary wrapping Routes with user-friendly fallback
@@ -156,7 +156,7 @@ stateAwarePreamble: false                   # set true when the story includes Q
 - [ ] List every in-scope question in `QuestionIds` OR `OrphanedQuestionIds` (with reason).
 - [ ] Run `dotnet test tests/api/NaturalizationPuzzle.Api.Tests.csproj` from repo root — `StoryContentTests` will catch any rule violation before commit.
 - [ ] If the new story includes Q23/Q29/Q61/Q62 (state-specific), set `stateAwarePreamble: true` so `StoryPage` renders the user's state preamble.
-- [ ] Update `useWarmUpCache.ts` `PILOT_STORY_SLUGS` const (or migrate to `listStories()`-based warm-up if the catalog grows beyond a handful).
+- [ ] No manual update needed in `useWarmUpCache.ts` — it reads `listStories()` so a new story is warmed automatically once `StoryService` discovers its embedded resource.
 - [ ] **Bump `stories-cache-vN`** in `vite.config.ts` for *any* change that affects what `/api/v1/stories*` returns: a new story added to the catalog (changes the index payload), a body/sources/`QuestionIds` change on an existing story, OR a change to the embedded question text/answers that a story returns. This is wider than "embedded question payload only" — adding a story is enough on its own.
 
 ## Known Issues / Tech Debt
@@ -339,7 +339,7 @@ Deferred / handled outside Phase 4:
 
 ### Story Mode — postponed work (deferred from v1, not yet ticketed)
 
-15. ~~**Additional pilot stories**~~ ✅ complete — full Story Mode catalog now covers every USCIS seed question with at least one story claiming each. New stories added in this round: `principles-of-american-democracy` (AG/Principles); `executive-branch` / `legislative-branch` / `judicial-branch` / `federalism-and-states` (AG/SoG, splitting the System-of-Government subcategory across per-topic stories alongside the existing `three-branches` overview); `rights-and-responsibilities` (AG/Rights); `colonial-era-and-revolution` (AH/Colonial Period and Independence); `early-20th-century-and-world-wars`, `cold-war-era`, `civil-rights-movement`, and `modern-america` (AH/Recent American History, splitting that subcategory across multiple stories). The existing `civil-war-and-reconstruction` and `national-symbols-and-holidays` were extended to claim their previously-orphaned questions (Q90/Q91 and Q119/Q120 respectively). **Multi-membership policy**: a question that fits multiple topics is included in every relevant story (e.g. SoG questions appear in `three-branches` AND in their per-branch stories; Q98/Q99 appear in both `civil-war-and-reconstruction` and `civil-rights-movement`). New `GlobalCoverage_EveryQuestionIsClaimedByAtLeastOneStory` test is the hard guarantee that no Q is dropped; new `CoverageSummary_PrintsUsageCountPerQuestion` prints the histogram and the most-shared questions via `ITestOutputHelper`. `useWarmUpCache` switched from a hardcoded pilot-slug list to `listStories()`-driven fan-out (with bounded concurrency and stateId-only-for-state-aware-stories) so the catalog can grow without touching the hook. PWA `stories-cache-v1 → v2`.
+15. ~~**Additional pilot stories**~~ ✅ complete — full Story Mode catalog now covers every USCIS seed question with at least one story claiming each. New stories added in this round: `principles-of-american-democracy` (AG/Principles); `executive-branch` / `legislative-branch` / `judicial-branch` / `federalism-and-states` (AG/SoG, splitting the System-of-Government subcategory across per-topic stories alongside the existing `three-branches` overview); `rights-and-responsibilities` (AG/Rights); `colonial-era-and-revolution` (AH/Colonial Period and Independence); `early-20th-century-and-world-wars`, `cold-war-era`, `civil-rights-movement`, and `modern-america` (AH/Recent American History, splitting that subcategory across multiple stories). The existing `civil-war-and-reconstruction` and `national-symbols-and-holidays` were extended to claim their previously-orphaned questions (Q90/Q91 and Q119/Q120 respectively). **Multi-membership policy**: a question that fits multiple topics is included in every relevant story (e.g. SoG questions appear in `three-branches` AND in their per-branch stories; Q98/Q99 appear in both `civil-war-and-reconstruction` and `civil-rights-movement`). New `GlobalCoverage_EveryQuestionIsClaimedByAtLeastOneStory` test is the hard guarantee that no Q is dropped; new `CoverageSummary_PrintsUsageCountPerQuestion` prints the histogram and the most-shared questions via `ITestOutputHelper`. `useWarmUpCache` switched from a hardcoded slug list to `listStories()`-driven fan-out (with bounded concurrency=4) so the catalog can grow without touching the hook. The fan-out always passes the user's selected `stateId` so the warmed cache key matches what `StoryPage` will request, preserving the offline-readability contract for non-state-aware stories when a state is selected. PWA `stories-cache-v1 → v2`.
 
 16. **Story Mode v2 — engagement mechanics** (deferred from v1 to keep the pilot scope bounded):
     - **Inline "Quick check" mini-quizzes** inside the story body — 1–2 in-story checks with instant feedback, between paragraphs, before the end-of-story comprehension quiz. Likely needs a Markdown extension (e.g. `{{quickcheck:Q23}}`) and a renderer hook that swaps the marker for a `QuizCard` instance.
@@ -367,7 +367,7 @@ Session-only artifacts (e.g. `~/.copilot/session-state/<id>/plan.md`, the SQL to
 
 ### Last completed work
 
-The most recent feature is **Story Mode v1 (pilot)** — see Phase 14 in [Next Steps](#next-steps) for the full surface area, and the [Story Mode — Authoring Guide](#story-mode--authoring-guide) section for how to add a story.
+The most recent feature is the **Story Mode full-catalog expansion** (PR #77, in progress) — every USCIS subcategory now has at least one dedicated story, with multi-membership where a question fits multiple topics, so every one of the 128 civics questions is claimed by at least one story. The previous Story Mode milestone was **v1 (pilot)** (merged via PR #74). See Phase 14 (pilot) and Phase 15 (catalog) in [Next Steps](#next-steps) for the full surface area, and the [Story Mode — Authoring Guide](#story-mode--authoring-guide) section for how to add a story.
 
 Active state at the time of writing this guide:
 

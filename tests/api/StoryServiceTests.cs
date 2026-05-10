@@ -21,10 +21,10 @@ public sealed class StoryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ListAsync_IncludesThePilotStories()
+    public async Task ListAsync_IncludesBaselineStories()
     {
         var stories = await _sut.ListAsync(CancellationToken.None);
-        Assert.True(stories.Count >= 3, "Story Mode should ship at least the v1 pilot trio.");
+        Assert.True(stories.Count >= 3, "Story Mode should ship at least the v1 baseline trio.");
         Assert.Contains(stories, s => s.Slug == "three-branches");
         Assert.Contains(stories, s => s.Slug == "civil-war-and-reconstruction");
         Assert.Contains(stories, s => s.Slug == "national-symbols-and-holidays");

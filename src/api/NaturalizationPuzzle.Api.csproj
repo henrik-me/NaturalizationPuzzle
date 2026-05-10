@@ -20,7 +20,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.7" />
   </ItemGroup>
 
-  <!-- Story Mode pilot content. Files in content/stories ship as embedded
+  <!-- Story Mode catalog content. Files in content/stories ship as embedded
        resources; StoryService loads them lazily on first use. The LogicalName
        gives stable, dot-separated names like 'stories.three-branches.md' that
        the loader filters by prefix/suffix. -->

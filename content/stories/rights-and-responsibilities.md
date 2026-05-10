@@ -41,7 +41,7 @@ Voting, holding office, and jury service all require **U.S. citizenship** [3]. T
 
 People become U.S. citizens in a few ways [4]:
 
-- **Born in the United States.** Anyone born on U.S. soil is a citizen at birth.
+- **Born in the United States.** Almost everyone born on U.S. soil is a citizen at birth (a few narrow exceptions apply, such as children of foreign diplomats).
 - **Born to a U.S. parent.** A child born abroad to a U.S. citizen parent can be a citizen at birth.
 - **Naturalize.** A non-citizen lawful permanent resident can become a citizen by going through naturalization. The civics test you are studying for is part of this path.
 - **Derive citizenship.** A child can sometimes become a citizen automatically when a parent naturalizes.
@@ -62,4 +62,4 @@ It is **important to pay federal taxes** because the law requires it. Tax money 
 
 ## Selective Service
 
-All **men ages 18 through 25** living in the United States must **register with the Selective Service** [6]. The reason matters. Registration is **required by law**. It is also a **civic duty**. And it makes the **draft fair** in case the country ever needs to call people to serve again [6].
+**Almost all** male U.S. citizens and male immigrants ages **18 through 25** living in the United States must **register with the Selective Service** [6]. The reason matters. Registration is **required by law**. It is also a **civic duty**. And it makes the **draft fair** in case the country ever needs to call people to serve again [6].

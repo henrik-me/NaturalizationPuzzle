@@ -71,22 +71,25 @@ export function useWarmUpCache(stateId: number | null): void {
       );
 
       // Use the just-warmed stories index to fan out to every story
-      // detail. Two cost controls:
-      //   1. Bounded concurrency (CONCURRENCY=4 at a time) so a large
-      //      catalog can't burst-fire dozens of parallel requests on
-      //      a single page load.
-      //   2. Only pass `stateId` for stories whose `stateAwarePreamble`
-      //      is true. The other stories don't vary by state, so caching
-      //      a per-state copy of each is wasted SW cache space.
+      // detail. Bounded concurrency (CONCURRENCY=4 at a time) so a large
+      // catalog can't burst-fire dozens of parallel requests on a single
+      // page load.
+      //
+      // Round-5 review fix #1: ALWAYS pass `stateId` here so the warmed
+      // cache key matches what `StoryPage` will request. An earlier round
+      // tried to skip `stateId` for stories whose `stateAwarePreamble` is
+      // false (saving cache space), but `StoryPage` does not branch on that
+      // flag — it always requests with the user's selected `stateId`. The
+      // mismatch made non-state-aware stories miss the warm-up cache for
+      // any user who had a state selected, which broke the offline read
+      // contract on first reload.
       if (indexResult && 'success' in indexResult && indexResult.success) {
         const items = indexResult.data;
         const concurrency = 4;
         for (let i = 0; i < items.length; i += concurrency) {
           const chunk = items.slice(i, i + concurrency);
           await Promise.allSettled(
-            chunk.map(item =>
-              getStory(item.slug, item.stateAwarePreamble ? stateId ?? undefined : undefined)
-            )
+            chunk.map(item => getStory(item.slug, stateId ?? undefined))
           );
         }
       }

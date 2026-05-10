@@ -58,17 +58,17 @@ describe('useWarmUpCache', () => {
     });
   });
 
-  it('warms the stories index AND every story detail, passing stateId only to state-aware stories', async () => {
+  it('warms the stories index AND every story detail, passing the selected stateId to all stories so the cache key matches what StoryPage will request', async () => {
     renderHook(() => useWarmUpCache(7));
 
     await vi.waitFor(() => {
       expect(listStories).toHaveBeenCalled();
-      // alpha-story has stateAwarePreamble: true -> warm with stateId=7
+      // Both stories warmed with stateId=7 — StoryPage always requests
+      // with the user's selected state regardless of the story's
+      // stateAwarePreamble flag, so the warm-up must match (round-5
+      // review fix #1).
       expect(getStory).toHaveBeenCalledWith('alpha-story', 7);
-      // beta-story has stateAwarePreamble: false -> warm with undefined
-      // (no need to cache a per-state copy of a story whose body
-      // doesn't change with state)
-      expect(getStory).toHaveBeenCalledWith('beta-story', undefined);
+      expect(getStory).toHaveBeenCalledWith('beta-story', 7);
     });
   });
 

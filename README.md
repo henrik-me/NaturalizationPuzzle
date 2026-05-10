@@ -249,7 +249,7 @@ src/client/
 |------|------|-------------|
 | `/` | StudyPage | Browse and study all 128 civics questions; filter by category, subcategory, 65/20 set, studied/unstudied status, and namespaced tag chips (people, wars, documents, time period); keyword search; progress tracking |
 | `/quiz` | QuizPage | Take a practice quiz with typed answers and real-time scoring |
-| `/stories` | StoriesPage | Browse the Story Mode pilot — short, cited narratives that connect related civics questions into a coherent explanation, grouped by USCIS category, with an *X of N* read-progress count |
+| `/stories` | StoriesPage | Browse the Story Mode catalog — short, cited narratives that connect related civics questions into a coherent explanation, grouped by USCIS category, with an *X of N* read-progress count |
 | `/stories/:slug` | StoryPage | Read a single story (Markdown body, sources list with quoted support snippets), then take the embedded comprehension quiz. State-aware stories show a personalized preamble with the user's senators/representatives. |
 | `/history` | HistoryPage | View all past quiz attempts with summary stats (pass rate, best score, streak) and clear history |
 | `/settings` | SettingsPage | Select U.S. state, manage preferences |
@@ -285,13 +285,15 @@ The Study page exposes five composable filters on top of the keyword search:
 
 All filters compose. Filter state is session-only (not persisted). The progress bar's denominator reflects the *current filtered set* so it always tells you "how much of what you're looking at have you studied"; the global *N total studied* counter sits next to it.
 
-### Story Mode (Pilot)
+### Story Mode
 
-Story Mode adds short, cited narratives that connect related civics questions into a single explanation, then ends in an end-of-story comprehension quiz built from the actual USCIS questions for that area. The pilot ships one story per USCIS category:
+Story Mode adds short, cited narratives that connect related civics questions into a single explanation, then ends in an end-of-story comprehension quiz built from the actual USCIS questions for that area. The catalog covers every USCIS subcategory, with multi-membership where a question fits more than one topic — so every one of the 128 civics questions is claimed by at least one story. Examples include:
 
-- **The Three Branches of Government** (American Government → System of Government) — covers a curated set of 16 questions about the three-branch system, including the state-aware questions Q23 (your state's senator) and Q29 (your U.S. representative). The remaining detail questions in *System of Government* (officeholder names, cabinet specifics, Electoral College, etc.) are listed in `OrphanedQuestionIds` with reasons and will be picked up by future per-branch stories.
-- **The Civil War and Reconstruction** (American History → The 1800s) — Q92–Q99.
-- **National Symbols and Holidays** (Integrated Civics → Symbols and Holidays) — Q121–Q128.
+- **The Three Branches of Government** (American Government → System of Government) — covers the three-branch system including the state-aware Q23 (your state's senator) and Q29 (your U.S. representative). Sibling stories `executive-branch`, `legislative-branch`, `judicial-branch`, and `federalism-and-states` cover the per-branch detail questions.
+- **The Civil War and Reconstruction** (American History → The 1800s) — Q90–Q99.
+- **National Symbols and Holidays** (Integrated Civics → Symbols and Holidays) — Q119–Q128.
+
+See `/stories` in the running app for the full catalog.
 
 Each story is authored as Markdown in `content/stories/<slug>.md` with a companion `<slug>.sources.json` carrying one entry per `[N]` citation marker, including a non-empty `supportSnippet` (the layer that catches AI-fabricated citations during human review). Stories ship as `<EmbeddedResource>` in the API assembly and are parsed lazily by `StoryService` on first use; no SQL schema changes were required.
 
@@ -308,7 +310,7 @@ All user data is stored **client-side only** in the browser's `localStorage`. Th
 | Data | Storage | Key | Details |
 |------|---------|-----|---------|
 | Selected state ID | `localStorage` | `selectedStateId` | Numeric ID of the user's chosen U.S. state. On page load, the app hydrates full state details (capital, governor, senators, representatives) from the API. |
-| Study progress | `localStorage` | `naturalizationProgress` | Studied question IDs, quiz history (date, mode, score, pass/fail), and `storiesRead` (slugs of completed Story Mode pilots). |
+| Study progress | `localStorage` | `naturalizationProgress` | Studied question IDs, quiz history (date, mode, score, pass/fail), and `storiesRead` (slugs of completed Story Mode stories). |
 | Theme preference | `localStorage` | `themePreference` | `'light'`, `'dark'`, or `'system'` (default). Drives the app-wide color theme. |
 | State details (capital, governor, senators, reps) | Backend API | — | Read-only, fetched from `/api/v1/states/{id}`. Cached by the service worker for offline use. |
 | Question data (128 questions) | Backend API | — | Read-only, fetched from `/api/v1/questions`. Cached by the service worker for offline use. |
