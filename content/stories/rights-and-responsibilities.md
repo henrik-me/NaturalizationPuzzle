@@ -31,7 +31,11 @@ Voting is one of the great rights of citizens. **Four amendments** to the Consti
 - The **24th Amendment** ends the poll tax (a fee for voting).
 - The **26th Amendment** sets the voting age at **18**.
 
-To **vote in a federal election, run for federal office, or serve on a jury**, a person must be a **U.S. citizen who is at least 18 years old** [3].
+Voting, holding office, and jury service all require **U.S. citizenship** [3]. The age rules differ by activity:
+
+- **Vote in a federal election:** any U.S. citizen who is **at least 18 years old** [3].
+- **Run for federal office:** the Constitution sets minimum ages [7]. House: **25**. Senate: **30**. President: **35**.
+- **Serve on a jury:** U.S. citizens who are at least 18. Specific rules vary by court.
 
 ## How People Become U.S. Citizens
 

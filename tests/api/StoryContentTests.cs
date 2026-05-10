@@ -298,13 +298,21 @@ public sealed class StoryContentTests : IDisposable
     }
 
     [Fact]
-    public void StoryRoster_HasExpectedSlugs()
+    public void StoryRoster_IncludesBaselineSlugsAndIsUnique()
     {
-        // Sanity check the roster as it grows. As of the catalog expansion
-        // following the v1 pilot, every USCIS subcategory has at least one
-        // dedicated story. Update this list when a new story ships.
-        var slugs = _sut.GetAllStories().Select(s => s.Slug).OrderBy(s => s, StringComparer.Ordinal).ToList();
-        var expected = new[]
+        // Two invariants that must hold as the roster grows (round-4 review
+        // fix #1: previously this asserted the full slug list exactly, which
+        // would fail any time a new story shipped even when all coverage
+        // contracts still pass):
+        //   1. Every baseline slug below is still present (catalog regression
+        //      guard — accidentally deleting a baseline story should fail).
+        //   2. Every slug in the roster is unique (no two stories share a
+        //      slug — would break URL routing and progress tracking).
+        // New stories beyond the baseline are explicitly allowed; add their
+        // slugs to the baseline only when they should also become a
+        // regression guard.
+        var slugs = _sut.GetAllStories().Select(s => s.Slug).ToList();
+        var baseline = new[]
         {
             "civil-rights-movement",
             "civil-war-and-reconstruction",
@@ -321,7 +329,11 @@ public sealed class StoryContentTests : IDisposable
             "rights-and-responsibilities",
             "three-branches",
         };
-        Assert.Equal(expected, slugs);
+        var slugSet = slugs.ToHashSet(StringComparer.Ordinal);
+        var missing = baseline.Where(s => !slugSet.Contains(s)).ToList();
+        Assert.True(missing.Count == 0,
+            $"Baseline story slugs missing from roster: [{string.Join(", ", missing)}]");
+        Assert.Equal(slugs.Count, slugSet.Count);
     }
 
     [Fact]
