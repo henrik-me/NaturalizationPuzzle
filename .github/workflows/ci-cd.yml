@@ -7,8 +7,21 @@ on:
     # cancel-in-progress concurrency would otherwise abort an in-flight or
     # approval-pending deploy. Listing paths-ignore here is safer than
     # queueing, which could deploy stale bits later.
+    #
+    # Enumerate doc files explicitly rather than using a `**/*.md` blanket:
+    # the Story Mode catalog at `content/stories/*.md` IS product code (the
+    # files ship as <EmbeddedResource> in the API DLL — see
+    # NaturalizationPuzzle.Api.csproj — so editing one must trigger build,
+    # smoke test, and deploy). A blanket `**/*.md` would silently treat
+    # story content edits as docs and skip the whole pipeline.
     paths-ignore:
-      - '**/*.md'
+      - 'README.md'
+      - 'CONTEXT.md'
+      - 'CONTRIBUTING.md'
+      - 'CODE_OF_CONDUCT.md'
+      - 'SECURITY.md'
+      - 'LastSession.md'
+      - 'src/client/README.md'
       - 'LICENSE'
       - '.github/copilot-instructions.md'
       - '.github/instructions/**'
@@ -93,10 +106,10 @@ jobs:
         uses: actions/checkout@v6
 
       # Detect whether this change touches code paths that warrant a real
-      # Playwright run. Docs-only PRs (markdown anywhere, LICENSE, copilot
-      # instructions, .gitignore, .editorconfig, issue/PR templates) skip
-      # the ~35s Playwright run but the job still reports success so the
-      # required status check on main is satisfied.
+      # Playwright run. Docs-only PRs (the explicit doc files listed in
+      # on.push.paths-ignore above) skip the ~35s Playwright run but the
+      # job still reports success so the required status check on main is
+      # satisfied.
       #
       # The pattern list mirrors on.push.paths-ignore above. We use
       # predicate-quantifier: every with negated patterns so a file is
@@ -104,6 +117,8 @@ jobs:
       # is none of the doc paths). The filter outputs code=true if at
       # least one changed file is non-docs — so mixed docs+code PRs run
       # the full Playwright suite, and only purely docs PRs skip.
+      # `content/stories/*.md` is product code (embedded into the API
+      # DLL), not docs, so it is intentionally NOT in the exclusion list.
       - name: Filter paths
         id: filter
         uses: dorny/paths-filter@v4
@@ -111,7 +126,13 @@ jobs:
           predicate-quantifier: 'every'
           filters: |
             code:
-              - '!**/*.md'
+              - '!README.md'
+              - '!CONTEXT.md'
+              - '!CONTRIBUTING.md'
+              - '!CODE_OF_CONDUCT.md'
+              - '!SECURITY.md'
+              - '!LastSession.md'
+              - '!src/client/README.md'
               - '!LICENSE'
               - '!.github/copilot-instructions.md'
               - '!.github/instructions/**'
@@ -268,6 +289,16 @@ jobs:
           echo "Asserting /api/v1/questions returns non-empty array..."
           curl -fsS http://localhost:8080/api/v1/questions | jq -e 'length >= 100'
 
+          # Story Mode catalog smoke check. /api/v1/stories returning [] is a
+          # silent regression — /api/health and the question/state assertions
+          # all pass because those data paths don't depend on embedded
+          # resources. The lower bound 3 matches the Story Mode v1 baseline
+          # trio; any catalog shrinkage below that is also a regression worth
+          # catching (the test below should be tightened if the baseline
+          # ever changes).
+          echo "Asserting /api/v1/stories returns at least 3 story entries..."
+          curl -fsS http://localhost:8080/api/v1/stories | jq -e 'length >= 3'
+
           echo "Smoke test passed."
 
       - name: Tear down
@@ -292,6 +323,7 @@ jobs:
             deploy:
               - 'src/**'
               - 'infra/**'
+              - 'content/**'
               - 'Dockerfile'
               - '.github/workflows/ci-cd.yml'
               - 'NaturalizationPuzzle.sln'
