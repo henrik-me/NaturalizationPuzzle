@@ -32,14 +32,14 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
           │  Proxied in dev: /api → https://localhost:7075
           ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    .NET 10 Minimal API                               │
+│                    .NET 10 Minimal API                              │
 │                                                                     │
-│  ┌──────────────┐   ┌──────────────┐   ┌─────────────────────────┐ │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────────────────┐ │
 │  │  Endpoints   │   │  Services    │   │  Middleware              │ │
 │  │  /questions  │──▶│  Question    │   │  • GlobalExceptionHandler│ │
-│  │  /states     │   │  State       │   │  • CORS                 │ │
-│  │  /quiz       │   │  Quiz        │   │  • OpenAPI              │ │
-│  └──────────────┘   └──────┬───────┘   └─────────────────────────┘ │
+│  │  /states     │   │  State       │   │  • CORS                  │ │
+│  │  /quiz       │   │  Quiz        │   │  • OpenAPI               │ │
+│  └──────────────┘   └──────┬───────┘   └──────────────────────────┘ │
 │                            │                                        │
 │                            ▼                                        │
 │                     ┌──────────────┐                                │
@@ -493,7 +493,7 @@ docker compose down
 The pipeline is implemented in `.github/workflows/ci-cd.yml`:
 
 ```
-  Push to master                Pull Request
+  Push to main                  Pull Request
        │                             │
        ▼                             ▼
   ┌─────────────────┐          ┌─────────────────┐
@@ -640,8 +640,8 @@ This is documented for future reference. None of these need to be re-run for nor
 |---|---|
 | Resource group + all infra | `az deployment sub create --location westus2 --template-file infra/main.bicep --parameters infra/main.parameters.json --parameters ghcrPullToken=<pat>` |
 | GHCR PAT (private image pull) | Classic PAT with only `read:packages` scope, stored as the `GHCR_PULL_TOKEN` secret on the `production` GitHub environment. **Rotate before its 1-year expiry.** |
-| GitHub Environment `production` | Created via `gh api PUT /repos/.../environments/production` with `henrik-me` as required reviewer and `master` branch policy. |
-| Azure OIDC for GitHub Actions | AAD app `github-actions-NaturalizationPuzzle` with two federated credentials: `repo:henrik-me/NaturalizationPuzzle:environment:production` (for `deploy-apply` / `rollback`) and `repo:henrik-me/NaturalizationPuzzle:ref:refs/heads/master` (for `deploy-plan`). Contributor role on `rg-naturalizationpuzzle-prod`. |
+| GitHub Environment `production` | Created via `gh api PUT /repos/.../environments/production` with `henrik-me` as required reviewer and `main` branch policy. |
+| Azure OIDC for GitHub Actions | AAD app `github-actions-NaturalizationPuzzle` with two federated credentials: `repo:henrik-me/NaturalizationPuzzle:environment:production` (for `deploy-apply` / `rollback`) and `repo:henrik-me/NaturalizationPuzzle:ref:refs/heads/main` (for `deploy-plan`). Contributor role on `rg-naturalizationpuzzle-prod`. |
 | Repo / env variables | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (set at both repo and `production` env scope so plan job and apply job can both read them). |
 
 ### Application Insights — Observability
