@@ -286,6 +286,37 @@ describe('StoryPage', () => {
     expect(results).toHaveTextContent(/1 out of 2 correct/i);
   });
 
+  it('rapid double-click on Next question (typed mode) does not skip a question', async () => {
+    // Audit-whole-file regression: handleNextOrResults must be idempotent
+    // for the same reason handleSubmit is. Two rapid clicks on Next used to
+    // bump index by 2 (skipping Q2) and trigger the done-effect with an
+    // incomplete answers array.
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    renderAt('/stories/three-branches');
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    // Q1: answer once normally, then enter feedback.
+    await user.type(screen.getByTestId('quiz-answer-input'), 'so no branch is too powerful');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await screen.findByTestId('story-quiz-feedback');
+
+    // Rapid double-click on "Next question" — both events queue setIndex
+    // updates against the same closure. With the guard, only the first
+    // increments; without it, index would jump 0 → 2 and trigger done.
+    const nextBtn = screen.getByTestId('story-quiz-next-question');
+    fireEvent.click(nextBtn);
+    fireEvent.click(nextBtn);
+
+    // We must land on Q2 (not the results panel).
+    await waitFor(() => {
+      expect(screen.getByText(/Question 2 of 2/)).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('story-quiz-results')).toBeNull();
+  });
+
   it('reaching the end of typed quiz shows results panel with X out of N, per-question review, and Try again', async () => {
     vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
     const user = userEvent.setup();

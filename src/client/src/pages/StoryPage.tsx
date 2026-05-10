@@ -93,9 +93,13 @@ function ComprehensionQuiz({ questions, onComplete, onScored }: ComprehensionQui
   }, [questions, index]);
 
   const handleNextOrResults = useCallback((): void => {
-    setIndex(prev => prev + 1);
+    // Idempotency guard: rapid double-click on the feedback "Next question" /
+    // "See results" button could queue two `setIndex(prev => prev + 1)` updates,
+    // skipping a question and allowing an incomplete answer set to be scored.
+    // If `prev > index`, the first click already advanced — the second is a no-op.
+    setIndex(prev => (prev > index ? prev : prev + 1));
     setPhase('answering');
-  }, []);
+  }, [index]);
 
   const handleTryAgain = useCallback((): void => {
     setMode('choice');
