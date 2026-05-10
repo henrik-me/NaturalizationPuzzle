@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useProgress } from './useProgress';
-import type { QuizHistoryEntry } from './useProgress';
+import type { QuizHistoryEntry, StoryQuizHistoryEntry } from './useProgress';
 
 describe('useProgress', () => {
   beforeEach(() => {
@@ -168,5 +168,334 @@ describe('useProgress', () => {
     const stored = JSON.parse(localStorage.getItem('naturalizationProgress')!);
     expect(stored.quizHistory).toEqual([]);
     expect(stored.studiedQuestionIds).toEqual([1, 2, 3]);
+  });
+
+  describe('storyQuizHistory', () => {
+    it('addStoryQuizResult accepts only the content fields and stamps id + date', () => {
+      const { result } = renderHook(() => useProgress());
+
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'three-branches',
+          storyTitle: 'The Three Branches of Government',
+          correct: 4,
+          total: 5,
+        });
+      });
+
+      expect(result.current.storyQuizHistory).toHaveLength(1);
+      const entry = result.current.storyQuizHistory[0];
+      expect(entry.storySlug).toBe('three-branches');
+      expect(entry.storyTitle).toBe('The Three Branches of Government');
+      expect(entry.correct).toBe(4);
+      expect(entry.total).toBe(5);
+      expect(typeof entry.id).toBe('string');
+      expect(entry.id.length).toBeGreaterThan(0);
+      expect(typeof entry.date).toBe('string');
+      expect(entry.date.length).toBeGreaterThan(0);
+
+      const stored = JSON.parse(localStorage.getItem('naturalizationProgress')!);
+      expect(stored.storyQuizHistory).toHaveLength(1);
+      expect(stored.storyQuizHistory[0].id).toBe(entry.id);
+      expect(stored.storyQuizHistory[0].date).toBe(entry.date);
+    });
+
+    it('addStoryQuizResult produces unique ids across consecutive calls', () => {
+      const { result } = renderHook(() => useProgress());
+
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'three-branches',
+          storyTitle: 'The Three Branches of Government',
+          correct: 4,
+          total: 5,
+        });
+      });
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'three-branches',
+          storyTitle: 'The Three Branches of Government',
+          correct: 5,
+          total: 5,
+        });
+      });
+
+      expect(result.current.storyQuizHistory).toHaveLength(2);
+      const [a, b] = result.current.storyQuizHistory;
+      expect(a.id).not.toBe(b.id);
+    });
+
+    it('removeStoryQuizResult removes the entry with the given id', () => {
+      const { result } = renderHook(() => useProgress());
+
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'three-branches',
+          storyTitle: 'Three Branches',
+          correct: 4,
+          total: 5,
+        });
+      });
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'civil-war',
+          storyTitle: 'Civil War',
+          correct: 3,
+          total: 5,
+        });
+      });
+
+      const targetId = result.current.storyQuizHistory[0].id;
+
+      act(() => {
+        result.current.removeStoryQuizResult(targetId);
+      });
+
+      expect(result.current.storyQuizHistory).toHaveLength(1);
+      expect(result.current.storyQuizHistory[0].storySlug).toBe('civil-war');
+
+      const stored = JSON.parse(localStorage.getItem('naturalizationProgress')!);
+      expect(stored.storyQuizHistory).toHaveLength(1);
+      expect(stored.storyQuizHistory[0].storySlug).toBe('civil-war');
+    });
+
+    it('removeStoryQuizResult is a no-op when the id is unknown', () => {
+      const { result } = renderHook(() => useProgress());
+
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'three-branches',
+          storyTitle: 'Three Branches',
+          correct: 4,
+          total: 5,
+        });
+      });
+
+      const before = result.current.storyQuizHistory;
+
+      expect(() => {
+        act(() => {
+          result.current.removeStoryQuizResult('does-not-exist');
+        });
+      }).not.toThrow();
+
+      expect(result.current.storyQuizHistory).toBe(before);
+      expect(result.current.storyQuizHistory).toHaveLength(1);
+    });
+
+    it('restoreStoryQuizResult re-inserts the entry and a subsequent remove round-trips', () => {
+      const { result } = renderHook(() => useProgress());
+
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'three-branches',
+          storyTitle: 'Three Branches',
+          correct: 4,
+          total: 5,
+        });
+      });
+
+      const original = result.current.storyQuizHistory[0];
+
+      act(() => {
+        result.current.removeStoryQuizResult(original.id);
+      });
+      expect(result.current.storyQuizHistory).toHaveLength(0);
+
+      act(() => {
+        result.current.restoreStoryQuizResult(original);
+      });
+
+      expect(result.current.storyQuizHistory).toHaveLength(1);
+      const restored = result.current.storyQuizHistory[0];
+      expect(restored).toEqual(original);
+      expect(restored.id).toBe(original.id);
+      expect(restored.date).toBe(original.date);
+
+      act(() => {
+        result.current.removeStoryQuizResult(original.id);
+      });
+      expect(result.current.storyQuizHistory).toHaveLength(0);
+    });
+
+    it('restoreStoryQuizResult is idempotent — calling it twice with the same entry does not create duplicates', () => {
+      const { result } = renderHook(() => useProgress());
+
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'three-branches',
+          storyTitle: 'Three Branches',
+          correct: 4,
+          total: 5,
+        });
+      });
+
+      const original = result.current.storyQuizHistory[0];
+
+      act(() => {
+        result.current.removeStoryQuizResult(original.id);
+      });
+      expect(result.current.storyQuizHistory).toHaveLength(0);
+
+      // First restore inserts the entry.
+      act(() => {
+        result.current.restoreStoryQuizResult(original);
+      });
+      expect(result.current.storyQuizHistory).toHaveLength(1);
+
+      // A second restore for the same entry (e.g. double-click on Undo) must be a no-op.
+      const beforeSecondRestore = result.current.storyQuizHistory;
+      act(() => {
+        result.current.restoreStoryQuizResult(original);
+      });
+      expect(result.current.storyQuizHistory).toHaveLength(1);
+      expect(result.current.storyQuizHistory).toBe(beforeSecondRestore);
+      expect(result.current.storyQuizHistory[0].id).toBe(original.id);
+    });
+
+    it('restoreStoryQuizResult after clearStoryQuizHistory re-adds the entry to the empty list', () => {
+      const { result } = renderHook(() => useProgress());
+
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'three-branches',
+          storyTitle: 'Three Branches',
+          correct: 4,
+          total: 5,
+        });
+      });
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'civil-war',
+          storyTitle: 'Civil War',
+          correct: 3,
+          total: 5,
+        });
+      });
+
+      const snapshot = result.current.storyQuizHistory[0];
+
+      act(() => {
+        result.current.clearStoryQuizHistory();
+      });
+      expect(result.current.storyQuizHistory).toEqual([]);
+
+      act(() => {
+        result.current.restoreStoryQuizResult(snapshot);
+      });
+
+      expect(result.current.storyQuizHistory).toHaveLength(1);
+      expect(result.current.storyQuizHistory[0]).toEqual(snapshot);
+    });
+
+    it('clearStoryQuizHistory clears storyQuizHistory only and preserves other progress', () => {
+      const existingProgress = {
+        studiedQuestionIds: [1, 2, 3],
+        quizHistory: [
+          { date: '2026-01-01', mode: 'standard', correct: 12, total: 20, passed: true },
+        ],
+        storiesRead: ['three-branches'],
+        storyQuizHistory: [
+          {
+            id: 'abc',
+            date: '2026-02-01T00:00:00.000Z',
+            storySlug: 'three-branches',
+            storyTitle: 'Three Branches',
+            correct: 4,
+            total: 5,
+          },
+        ],
+      };
+      localStorage.setItem('naturalizationProgress', JSON.stringify(existingProgress));
+
+      const { result } = renderHook(() => useProgress());
+      expect(result.current.storyQuizHistory).toHaveLength(1);
+
+      act(() => {
+        result.current.clearStoryQuizHistory();
+      });
+
+      expect(result.current.storyQuizHistory).toEqual([]);
+      expect(result.current.quizHistory).toHaveLength(1);
+      expect(result.current.studiedQuestionIds).toEqual([1, 2, 3]);
+      expect(result.current.storiesRead).toEqual(['three-branches']);
+
+      const stored = JSON.parse(localStorage.getItem('naturalizationProgress')!);
+      expect(stored.storyQuizHistory).toEqual([]);
+      expect(stored.quizHistory).toHaveLength(1);
+      expect(stored.studiedQuestionIds).toEqual([1, 2, 3]);
+      expect(stored.storiesRead).toEqual(['three-branches']);
+    });
+
+    it('migrates a legacy persisted shape (no storyQuizHistory) to an empty list without losing other fields', () => {
+      const legacyShape = {
+        studiedQuestionIds: [10, 20, 30],
+        quizHistory: [
+          { date: '2026-01-01', mode: 'standard', correct: 18, total: 20, passed: true },
+        ],
+        storiesRead: ['three-branches'],
+        // no storyQuizHistory field
+      };
+      localStorage.setItem('naturalizationProgress', JSON.stringify(legacyShape));
+
+      const { result } = renderHook(() => useProgress());
+
+      expect(result.current.studiedQuestionIds).toEqual([10, 20, 30]);
+      expect(result.current.quizHistory).toHaveLength(1);
+      expect(result.current.storiesRead).toEqual(['three-branches']);
+      expect(result.current.storyQuizHistory).toEqual([]);
+
+      // Persisted shape on disk is still legacy until the next write.
+      const stored = JSON.parse(localStorage.getItem('naturalizationProgress')!);
+      expect(stored).not.toHaveProperty('storyQuizHistory');
+
+      // After the next write the persisted shape includes the new field.
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'three-branches',
+          storyTitle: 'Three Branches',
+          correct: 4,
+          total: 5,
+        });
+      });
+
+      const after = JSON.parse(localStorage.getItem('naturalizationProgress')!);
+      expect(after.storyQuizHistory).toHaveLength(1);
+      expect(after.studiedQuestionIds).toEqual([10, 20, 30]);
+      expect(after.quizHistory).toHaveLength(1);
+      expect(after.storiesRead).toEqual(['three-branches']);
+    });
+
+    it('falls back to a non-crypto id generator when crypto.randomUUID is unavailable', () => {
+      const original = (globalThis as { crypto?: unknown }).crypto;
+      try {
+        Object.defineProperty(globalThis, 'crypto', {
+          value: undefined,
+          configurable: true,
+          writable: true,
+        });
+
+        const { result } = renderHook(() => useProgress());
+
+        act(() => {
+          result.current.addStoryQuizResult({
+            storySlug: 'three-branches',
+            storyTitle: 'Three Branches',
+            correct: 4,
+            total: 5,
+          });
+        });
+
+        const entry: StoryQuizHistoryEntry = result.current.storyQuizHistory[0];
+        expect(typeof entry.id).toBe('string');
+        expect(entry.id.length).toBeGreaterThan(0);
+      } finally {
+        Object.defineProperty(globalThis, 'crypto', {
+          value: original,
+          configurable: true,
+          writable: true,
+        });
+      }
+    });
   });
 });

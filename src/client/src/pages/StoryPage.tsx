@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { QuestionDto, StoryDetailDto, ApiResult } from '../types/api';
+import type { QuestionDto, QuizAnswer, StoryDetailDto, ApiResult } from '../types/api';
 import { getStory } from '../services/storyService';
 import { useAppContext } from '../context/AppContext';
 import { useProgress } from '../hooks/useProgress';
 import { useFetch } from '../hooks/useFetch';
 import { StoryRenderer } from '../components/StoryRenderer';
 import { QuizCard } from '../components/QuizCard';
+import { checkAnswer } from '../utils/answerChecker';
 
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 
@@ -30,71 +31,286 @@ function isSafeSourceUrl(url: string): boolean {
  * The comprehension quiz lives in its own child component so the parent
  * can reset its state by changing `key={slug}`. React Router reuses the
  * same `StoryPage` instance across route changes; without the key reset,
- * `quizStarted`/`quizIndex` would carry over from one story to the next.
+ * `mode`/`index`/`answers` would carry over from one story to the next.
+ *
+ * The quiz exposes two opt-in modes (decision A in #85): a reveal-on-click
+ * "Study" path (existing behavior, unchanged) and a typed-input "Quiz" path
+ * with per-question feedback and a final results panel. The user must
+ * explicitly pick one — there is no default and no Start button.
  */
 interface ComprehensionQuizProps {
   readonly questions: readonly QuestionDto[];
   readonly onComplete: () => void;
+  readonly onScored: (correct: number, total: number) => void;
 }
 
-function ComprehensionQuiz({ questions, onComplete }: ComprehensionQuizProps): React.ReactNode {
-  const [started, setStarted] = useState(false);
-  const [index, setIndex] = useState(0);
+type QuizMode = 'choice' | 'study' | 'quiz';
+type QuizPhase = 'answering' | 'feedback';
 
-  const onNext = useCallback((): void => {
-    setIndex(prev => prev + 1);
+function ComprehensionQuiz({ questions, onComplete, onScored }: ComprehensionQuizProps): React.ReactNode {
+  const [mode, setMode] = useState<QuizMode>('choice');
+  const [index, setIndex] = useState(0);
+  const [phase, setPhase] = useState<QuizPhase>('answering');
+  const [answers, setAnswers] = useState<readonly QuizAnswer[]>([]);
+
+  // StrictMode + concurrent-rendering safety: the completion effect can
+  // fire twice on initial mount and could refire if upstream callbacks
+  // are recreated. Persistence side effects must run exactly once per
+  // transition into the done state, so a ref guards the body and is
+  // reset whenever the user clicks "Try again".
+  const completedRef = useRef(false);
+
+  const studyDone = mode === 'study' && index >= questions.length;
+  const quizDone = mode === 'quiz' && index >= questions.length;
+  const done = studyDone || quizDone;
+
+  const handleStudyNext = useCallback((): void => {
+    // Idempotency guard (matches handleNextOrResults / handleSubmit): rapid
+    // double-click on study-mode "Next Question" used to advance index by 2,
+    // skipping a question and allowing `done(study)` to mark the story read
+    // without the user completing every question.
+    setIndex(prev => (prev > index ? prev : prev + 1));
+  }, [index]);
+
+  const handleSubmit = useCallback((userAnswer: string): void => {
+    setAnswers(prev => {
+      // Idempotency guard: if we already recorded an answer for the current
+      // question (e.g. a rapid double-click on Submit before the UI rerenders
+      // out of `answering` phase), skip the second append rather than
+      // inflating answers.length / skewing scoring.
+      if (prev.length > index) return prev;
+      const q = questions[index];
+      if (!q) return prev;
+      const isCorrect = checkAnswer(userAnswer, q.answers);
+      return [
+        ...prev,
+        {
+          questionId: q.id,
+          questionText: q.text,
+          userAnswer,
+          acceptedAnswers: q.answers,
+          isCorrect,
+        },
+      ];
+    });
+    setPhase('feedback');
+  }, [questions, index]);
+
+  const handleNextOrResults = useCallback((): void => {
+    // Idempotency guard: rapid double-click on the feedback "Next question" /
+    // "See results" button could queue two `setIndex(prev => prev + 1)` updates,
+    // skipping a question and allowing an incomplete answer set to be scored.
+    // If `prev > index`, the first click already advanced — the second is a no-op.
+    setIndex(prev => (prev > index ? prev : prev + 1));
+    setPhase('answering');
+  }, [index]);
+
+  const handleTryAgain = useCallback((): void => {
+    setMode('choice');
+    setIndex(0);
+    setPhase('answering');
+    setAnswers([]);
+    completedRef.current = false;
   }, []);
 
-  const done = started && index >= questions.length;
-
-  // Final-diff Copilot review fix: don't call onComplete from inside the
-  // setIndex updater callback — under React StrictMode (and concurrent
-  // rendering) the updater can run twice, double-invoking onComplete.
-  // The effect runs once per state transition into the done state.
   useEffect(() => {
-    if (done) {
-      onComplete();
+    if (!done) return;
+    if (completedRef.current) return;
+    completedRef.current = true;
+    onComplete();
+    if (quizDone) {
+      const correct = answers.filter(a => a.isCorrect).length;
+      onScored(correct, answers.length);
     }
-  }, [done, onComplete]);
+  }, [done, quizDone, answers, onComplete, onScored]);
 
-  const current = started && index < questions.length ? questions[index] : null;
+  if (mode === 'choice') {
+    return (
+      <div className="flex flex-col sm:flex-row gap-3" role="group" aria-label="Choose how to work through the comprehension questions">
+        <button
+          type="button"
+          onClick={() => setMode('study')}
+          className="flex-1 bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-slate-600 font-medium px-4 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          data-testid="continue-with-study"
+        >
+          Continue with Study
+          <span className="block text-xs font-normal text-gray-600 dark:text-gray-400 mt-1">
+            Reveal each answer on click ({questions.length} question{questions.length === 1 ? '' : 's'})
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('quiz')}
+          className="flex-1 bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-100 border border-blue-300 dark:border-blue-700 font-medium px-4 py-3 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          data-testid="continue-with-quiz"
+        >
+          Continue with Quiz
+          <span className="block text-xs font-normal text-blue-800 dark:text-blue-300 mt-1">
+            Type each answer; see your score at the end
+          </span>
+        </button>
+      </div>
+    );
+  }
+
+  if (mode === 'study') {
+    const current = index < questions.length ? questions[index] : null;
+    return (
+      <>
+        {current && (
+          <div className="flex justify-center">
+            <QuizCard
+              question={current}
+              onNext={handleStudyNext}
+              questionNumber={index + 1}
+              totalQuestions={questions.length}
+              mode="study"
+            />
+          </div>
+        )}
+        {studyDone && (
+          <div
+            className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 text-sm"
+            role="status"
+            aria-live="polite"
+            data-testid="story-quiz-done"
+          >
+            <p className="text-green-900 dark:text-green-100">
+              <strong>Done!</strong> You worked through all {questions.length} comprehension question{questions.length === 1 ? '' : 's'} for this story.
+            </p>
+            <Link to="/stories" className="text-blue-700 dark:text-blue-300 underline mt-2 inline-block">
+              ← Back to all stories
+            </Link>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // mode === 'quiz'
+  const current = index < questions.length ? questions[index] : null;
+  const lastAnswer = answers.length > 0 ? answers[answers.length - 1] : null;
+  const isLastQuestion = index === questions.length - 1;
+  const correctCount = answers.filter(a => a.isCorrect).length;
+
+  if (quizDone) {
+    return (
+      <div
+        className="bg-white dark:bg-slate-900 rounded-xl shadow-md p-6"
+        role="status"
+        aria-live="polite"
+        data-testid="story-quiz-results"
+      >
+        <div className="text-center mb-6">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+            Quiz complete
+          </h3>
+          <p className="text-lg text-gray-800 dark:text-gray-100">
+            <span className="font-bold" data-testid="story-quiz-score">{correctCount}</span> out of{' '}
+            <span className="font-bold">{answers.length}</span> correct
+          </p>
+        </div>
+
+        <h4 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-3">Review your answers</h4>
+        <ol className="space-y-3">
+          {answers.map((a, i) => (
+            <li
+              key={`${i}-${a.questionId}`}
+              className={`p-4 rounded-lg border-l-4 ${
+                a.isCorrect
+                  ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
+                  : 'border-red-500 bg-red-50 dark:bg-red-950/40'
+              }`}
+              data-testid={a.isCorrect ? 'story-review-correct' : 'story-review-incorrect'}
+            >
+              <div className="flex items-start gap-2">
+                <span
+                  className={`text-lg font-bold ${a.isCorrect ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}
+                  aria-hidden="true"
+                >
+                  {a.isCorrect ? '✓' : '✗'}
+                </span>
+                <span className="sr-only">{a.isCorrect ? 'Correct' : 'Incorrect'}</span>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                    {i + 1}. {a.questionText}
+                  </p>
+                  <p className={`text-sm mt-1 ${a.isCorrect ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}`}>
+                    <span className="font-medium">Your answer:</span> {a.userAnswer}
+                  </p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                    <span className="font-medium">Accepted:</span> {a.acceptedAnswers.join(' · ')}
+                  </p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <button
+          type="button"
+          onClick={handleTryAgain}
+          className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          data-testid="story-quiz-try-again"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
-      {!started && (
-        <button
-          type="button"
-          onClick={() => setStarted(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          data-testid="start-comprehension-quiz"
-        >
-          Start the comprehension quiz ({questions.length} question{questions.length === 1 ? '' : 's'})
-        </button>
-      )}
-      {current && (
+      {phase === 'answering' && current && (
         <div className="flex justify-center">
           <QuizCard
             question={current}
-            onNext={onNext}
+            onNext={() => {}}
             questionNumber={index + 1}
             totalQuestions={questions.length}
-            mode="study"
+            mode="quiz"
+            onSubmitAnswer={handleSubmit}
           />
         </div>
       )}
-      {done && (
+      {phase === 'feedback' && lastAnswer && (
         <div
-          className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 text-sm"
+          className={`rounded-lg border-l-4 p-4 ${
+            lastAnswer.isCorrect
+              ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
+              : 'border-red-500 bg-red-50 dark:bg-red-950/40'
+          }`}
           role="status"
           aria-live="polite"
-          data-testid="story-quiz-done"
+          data-testid="story-quiz-feedback"
         >
-          <p className="text-green-900 dark:text-green-100">
-            <strong>Done!</strong> You worked through all {questions.length} comprehension question{questions.length === 1 ? '' : 's'} for this story.
-          </p>
-          <Link to="/stories" className="text-blue-700 dark:text-blue-300 underline mt-2 inline-block">
-            ← Back to all stories
-          </Link>
+          <div className="flex items-start gap-2">
+            <span
+              className={`text-xl font-bold ${lastAnswer.isCorrect ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}
+              aria-hidden="true"
+            >
+              {lastAnswer.isCorrect ? '✓' : '✗'}
+            </span>
+            <div className="flex-1">
+              <p className={`font-semibold ${lastAnswer.isCorrect ? 'text-green-900 dark:text-green-100' : 'text-red-900 dark:text-red-100'}`}>
+                {lastAnswer.isCorrect ? 'Correct' : 'Not quite'}
+              </p>
+              <p className="text-sm text-gray-800 dark:text-gray-200 mt-1">
+                <span className="font-medium">Your answer:</span> {lastAnswer.userAnswer}
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                <span className="font-medium">Accepted:</span> {lastAnswer.acceptedAnswers.join(' · ')}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleNextOrResults}
+            className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            data-testid={isLastQuestion ? 'story-quiz-see-results' : 'story-quiz-next-question'}
+          >
+            {isLastQuestion ? 'See results' : 'Next question'}
+          </button>
         </div>
       )}
     </>
@@ -104,7 +320,7 @@ function ComprehensionQuiz({ questions, onComplete }: ComprehensionQuizProps): R
 export function StoryPage(): React.ReactNode {
   const { slug } = useParams<{ slug: string }>();
   const { state } = useAppContext();
-  const { markStoryRead, isStoryRead } = useProgress();
+  const { markStoryRead, isStoryRead, addStoryQuizResult } = useProgress();
 
   const stateId = state.selectedStateId ?? undefined;
 
@@ -137,6 +353,16 @@ export function StoryPage(): React.ReactNode {
       markStoryRead(story.slug);
     }
   }, [story, isStoryRead, markStoryRead]);
+
+  const handleQuizScored = useCallback((correct: number, total: number): void => {
+    if (!story?.slug) return;
+    addStoryQuizResult({
+      storySlug: story.slug,
+      storyTitle: story.title,
+      correct,
+      total,
+    });
+  }, [story, addStoryQuizResult]);
 
   if (isLoading) {
     return (
@@ -273,6 +499,7 @@ export function StoryPage(): React.ReactNode {
           key={story.slug}
           questions={story.questions}
           onComplete={handleQuizComplete}
+          onScored={handleQuizScored}
         />
       </section>
     </main>

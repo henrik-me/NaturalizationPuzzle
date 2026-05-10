@@ -250,8 +250,8 @@ src/client/
 | `/` | StudyPage | Browse and study all 128 civics questions; filter by category, subcategory, 65/20 set, studied/unstudied status, and namespaced tag chips (people, wars, documents, time period); keyword search; progress tracking |
 | `/quiz` | QuizPage | Take a practice quiz with typed answers and real-time scoring |
 | `/stories` | StoriesPage | Browse the Story Mode catalog — short, cited narratives that connect related civics questions into a coherent explanation, grouped by USCIS category, with an *X of N* read-progress count |
-| `/stories/:slug` | StoryPage | Read a single story (Markdown body, sources list with quoted support snippets), then take the embedded comprehension quiz. State-aware stories show a personalized preamble with the user's senators/representatives. |
-| `/history` | HistoryPage | View all past quiz attempts with summary stats (pass rate, best score, streak) and clear history |
+| `/stories/:slug` | StoryPage | Read a single story (Markdown body, sources list with quoted support snippets), then choose between two comprehension-quiz modes: **Continue with Study** (reveal-on-click flashcards) or **Continue with Quiz** (typed answers with per-question feedback and a final score). State-aware stories show a personalized preamble with the user's senators/representatives. |
+| `/history` | HistoryPage | View all past quiz attempts with summary stats (pass rate, best score, streak), plus a separate **Story Comprehension** section listing typed-mode story-quiz attempts (totals, per-story best score and attempt count, full chronological list with per-row delete + undo). |
 | `/settings` | SettingsPage | Select U.S. state, manage preferences |
 
 ### Quiz Mode
@@ -269,7 +269,10 @@ Answer checking uses case-insensitive, normalized fuzzy matching (substring + wo
 
 The app tracks which questions you've studied and your quiz history in `localStorage`. The study page shows a progress bar indicating how many questions in the current set you've reviewed.
 
-The **History page** (`/history`) shows all past quiz attempts in reverse chronological order with summary statistics: total quizzes taken, pass rate, best score, and current pass streak. Each entry shows the date, quiz mode (Standard/65/20), score, and pass/fail result. Users can clear their quiz history with a confirmation dialog (study progress is preserved).
+The **History page** (`/history`) shows two independent histories:
+
+- **All Attempts** — past `/quiz` attempts in reverse chronological order with summary statistics: total quizzes taken, pass rate, best score, and current pass streak. Each entry shows the date, quiz mode (Standard/65/20), score, and pass/fail result. Users can clear this history with a confirmation dialog (study progress is preserved).
+- **Story Comprehension** (below All Attempts) — typed-mode story-quiz attempts. Three sub-sections: a **Stats** panel (total attempts, average score across attempts), a **Per Story** aggregation (each attempted story listed with its best score and attempt count, sorted by most-recent attempt), and a **Chronological** list of every typed-mode completion with a trailing × delete button that supports a ~7-second inline **Undo**. A separate "Clear story comprehension history" link clears only this section, leaving the All Attempts history untouched. The block is hidden entirely until the user has at least one typed-mode attempt. Reveal-on-click study walkthroughs of stories are not recorded here — only typed-mode completions produce a scored entry.
 
 A **keyword search box** lets you filter questions by typing words that appear in the question text, answers, category, or subcategory (e.g., "amendment", "president", "1776"). The search works with all-word matching, combines with the other study filters, and operates entirely client-side. When no questions match, a *Clear filters* button is shown.
 
@@ -295,6 +298,11 @@ Story Mode adds short, cited narratives that connect related civics questions in
 
 See `/stories` in the running app for the full catalog.
 
+The end-of-story comprehension quiz offers two modes via a two-button chooser (no default — the user makes an explicit choice each time):
+
+- **Continue with Study** — the original reveal-on-click flow; click to show the answer, then advance.
+- **Continue with Quiz** — typed-answer drill scoped to the story's question set: the user types each answer, gets immediate per-question feedback (✓/✗ with the accepted answers), and walks through every question to a final "X out of N correct" results panel. There is no PASS/FAIL banner and no early stop — story comprehension is a study tool, not a USCIS-test simulation. Completing a typed-mode quiz appends a scored entry to the new **Story Comprehension** history on the History page (see *Study Progress* above) and marks the story as read.
+
 Each story is authored as Markdown in `content/stories/<slug>.md` with a companion `<slug>.sources.json` carrying one entry per `[N]` citation marker, including a non-empty `supportSnippet` (the layer that catches AI-fabricated citations during human review). Stories ship as `<EmbeddedResource>` in the API assembly and are parsed lazily by `StoryService` on first use; no SQL schema changes were required.
 
 The `StoryRenderer` component renders the body via a narrow custom Markdown renderer that does **not** use `dangerouslySetInnerHTML`, allowlists link protocols to `http`/`https`/`mailto`, and renders an explicit subset (paragraphs, h2/h3, lists, bold/italic, links, citation markers). XSS posture is covered by dedicated tests for `<script>` tags, event-handler attributes, and `javascript:` / `data:` / `vbscript:` URLs.
@@ -310,7 +318,7 @@ All user data is stored **client-side only** in the browser's `localStorage`. Th
 | Data | Storage | Key | Details |
 |------|---------|-----|---------|
 | Selected state ID | `localStorage` | `selectedStateId` | Numeric ID of the user's chosen U.S. state. On page load, the app hydrates full state details (capital, governor, senators, representatives) from the API. |
-| Study progress | `localStorage` | `naturalizationProgress` | Studied question IDs, quiz history (date, mode, score, pass/fail), and `storiesRead` (slugs of completed Story Mode stories). |
+| Study progress | `localStorage` | `naturalizationProgress` | Studied question IDs, `/quiz` history (date, mode, score, pass/fail), `storiesRead` (slugs of completed Story Mode stories — either mode counts), and `storyQuizHistory` (typed-mode story-quiz attempts: id, date, story slug + title, correct, total — surfaced on the History page in the *Story Comprehension* section, kept separate from `/quiz` history so the two summary-stats blocks stay independent). |
 | Theme preference | `localStorage` | `themePreference` | `'light'`, `'dark'`, or `'system'` (default). Drives the app-wide color theme. |
 | State details (capital, governor, senators, reps) | Backend API | — | Read-only, fetched from `/api/v1/states/{id}`. Cached by the service worker for offline use. |
 | Question data (128 questions) | Backend API | — | Read-only, fetched from `/api/v1/questions`. Cached by the service worker for offline use. |

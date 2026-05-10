@@ -4,6 +4,7 @@ interface StudyProgress {
   readonly studiedQuestionIds: readonly number[];
   readonly quizHistory: readonly QuizHistoryEntry[];
   readonly storiesRead: readonly string[];
+  readonly storyQuizHistory: readonly StoryQuizHistoryEntry[];
 }
 
 export interface QuizHistoryEntry {
@@ -12,6 +13,26 @@ export interface QuizHistoryEntry {
   readonly correct: number;
   readonly total: number;
   readonly passed: boolean;
+}
+
+export interface StoryQuizHistoryEntry {
+  readonly id: string;
+  readonly date: string;
+  readonly storySlug: string;
+  readonly storyTitle: string;
+  readonly correct: number;
+  readonly total: number;
+}
+
+function generateStoryQuizId(storySlug: string): string {
+  const cryptoRef: { randomUUID?: () => string } | undefined =
+    typeof globalThis !== 'undefined'
+      ? (globalThis as { crypto?: { randomUUID?: () => string } }).crypto
+      : undefined;
+  if (cryptoRef && typeof cryptoRef.randomUUID === 'function') {
+    return cryptoRef.randomUUID();
+  }
+  return `${storySlug}-${Date.now()}-${Math.random()}`;
 }
 
 const STORAGE_KEY = 'naturalizationProgress';
@@ -36,6 +57,9 @@ function migrateProgress(value: unknown): StudyProgress | null {
     studiedQuestionIds: obj.studiedQuestionIds as readonly number[],
     quizHistory: obj.quizHistory as readonly QuizHistoryEntry[],
     storiesRead: Array.isArray(obj.storiesRead) ? (obj.storiesRead as readonly string[]) : [],
+    storyQuizHistory: Array.isArray(obj.storyQuizHistory)
+      ? (obj.storyQuizHistory as readonly StoryQuizHistoryEntry[])
+      : [],
   };
 }
 
@@ -52,7 +76,7 @@ function loadProgress(): StudyProgress {
   } catch {
     // ignore corrupt data
   }
-  return { studiedQuestionIds: [], quizHistory: [], storiesRead: [] };
+  return { studiedQuestionIds: [], quizHistory: [], storiesRead: [], storyQuizHistory: [] };
 }
 
 function saveProgress(progress: StudyProgress): void {
@@ -63,11 +87,16 @@ export function useProgress(): {
   readonly studiedQuestionIds: readonly number[];
   readonly quizHistory: readonly QuizHistoryEntry[];
   readonly storiesRead: readonly string[];
+  readonly storyQuizHistory: readonly StoryQuizHistoryEntry[];
   readonly markStudied: (questionId: number) => void;
   readonly addQuizResult: (entry: QuizHistoryEntry) => void;
   readonly clearQuizHistory: () => void;
   readonly markStoryRead: (slug: string) => void;
   readonly isStoryRead: (slug: string) => boolean;
+  readonly addStoryQuizResult: (entry: Omit<StoryQuizHistoryEntry, 'id' | 'date'>) => void;
+  readonly removeStoryQuizResult: (id: string) => void;
+  readonly restoreStoryQuizResult: (entry: StoryQuizHistoryEntry) => void;
+  readonly clearStoryQuizHistory: () => void;
   readonly studiedCount: number;
 }{
   const [progress, setProgress] = useState<StudyProgress>(loadProgress);
@@ -117,15 +146,71 @@ export function useProgress(): {
     [progress.storiesRead]
   );
 
+  const addStoryQuizResult = useCallback(
+    (entry: Omit<StoryQuizHistoryEntry, 'id' | 'date'>): void => {
+      const newEntry: StoryQuizHistoryEntry = {
+        ...entry,
+        id: generateStoryQuizId(entry.storySlug),
+        date: new Date().toISOString(),
+      };
+      setProgress(prev => {
+        const updated = {
+          ...prev,
+          storyQuizHistory: [...prev.storyQuizHistory, newEntry],
+        };
+        saveProgress(updated);
+        return updated;
+      });
+    },
+    []
+  );
+
+  const removeStoryQuizResult = useCallback((id: string): void => {
+    setProgress(prev => {
+      if (!prev.storyQuizHistory.some(e => e.id === id)) return prev;
+      const updated = {
+        ...prev,
+        storyQuizHistory: prev.storyQuizHistory.filter(e => e.id !== id),
+      };
+      saveProgress(updated);
+      return updated;
+    });
+  }, []);
+
+  const restoreStoryQuizResult = useCallback((entry: StoryQuizHistoryEntry): void => {
+    setProgress(prev => {
+      if (prev.storyQuizHistory.some(e => e.id === entry.id)) return prev;
+      const updated = {
+        ...prev,
+        storyQuizHistory: [...prev.storyQuizHistory, entry],
+      };
+      saveProgress(updated);
+      return updated;
+    });
+  }, []);
+
+  const clearStoryQuizHistory = useCallback((): void => {
+    setProgress(prev => {
+      const updated = { ...prev, storyQuizHistory: [] };
+      saveProgress(updated);
+      return updated;
+    });
+  }, []);
+
   return {
     studiedQuestionIds: progress.studiedQuestionIds,
     quizHistory: progress.quizHistory,
     storiesRead: progress.storiesRead,
+    storyQuizHistory: progress.storyQuizHistory,
     markStudied,
     addQuizResult,
     clearQuizHistory,
     markStoryRead,
     isStoryRead,
+    addStoryQuizResult,
+    removeStoryQuizResult,
+    restoreStoryQuizResult,
+    clearStoryQuizHistory,
     studiedCount: progress.studiedQuestionIds.length,
   };
 }

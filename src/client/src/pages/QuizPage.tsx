@@ -188,6 +188,7 @@ export function QuizPage(): React.ReactNode {
                   <span className={`text-lg ${answer.isCorrect ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`} aria-hidden="true">
                     {answer.isCorrect ? '✓' : '✗'}
                   </span>
+                  <span className="sr-only">{answer.isCorrect ? 'Correct' : 'Incorrect'}</span>
                   <div className="flex-1">
                     <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
                       {index + 1}. {answer.questionText}
