@@ -20,6 +20,13 @@
       "url": "https://en.wikipedia.org/wiki/United_States_House_of_Representatives",
       "type": "wikipedia",
       "supportSnippet": "The House of Representatives is composed of 435 voting members, each of whom represents a congressional district for a two-year term. The number of representatives a state has is based on its population, as determined by the most recent decennial census. The Speaker of the House is the presiding officer, elected by the members."
+    },
+    {
+      "id": 4,
+      "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
+      "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
+      "type": "gov",
+      "supportSnippet": "Q26 — Why do U.S. representatives serve shorter terms than U.S. senators? Acceptable answers: to be more closely connected to the public; to be more responsive to the public; to be more responsible to public concerns. The framers wanted members of the House to be more accountable to public opinion than senators, who serve six-year staggered terms."
     }
   ]
 }

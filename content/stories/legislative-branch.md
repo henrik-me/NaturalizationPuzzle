@@ -28,7 +28,7 @@ A U.S. senator's term is **6 years** [2]. Senators are **elected by the people o
 
 The House has **435 voting members** [3]. The number of representatives a state has depends on its **population**. **Larger states have more representatives** because more people live there [3].
 
-A U.S. representative's term is **2 years** [3]. Representatives serve **shorter terms than senators** because the framers wanted the House to stay close to the people and to change quickly with public opinion [3]. Representatives are **elected by the people in their congressional district** [3]. Each representative speaks for the **people of their district** [3].
+A U.S. representative's term is **2 years** [3]. Representatives serve **shorter terms than senators** because the framers wanted the House to stay close to the people and to change quickly with public opinion [4]. Representatives are **elected by the people in their congressional district** [3]. Each representative speaks for the **people of their district** [3].
 
 The leader of the House is called the **Speaker of the House** [3]. The Speaker is elected by the members of the House.
 

@@ -2,10 +2,10 @@
   "sources": [
     {
       "id": 1,
-      "title": "Bill of Rights",
-      "url": "https://www.archives.gov/founding-docs/bill-of-rights",
-      "type": "gov",
-      "supportSnippet": "The first ten amendments to the Constitution make up the Bill of Rights. They guarantee freedoms of speech, religion, press, peaceful assembly, and the right to petition the government, among others. These rights apply to all persons within the territorial United States, not only citizens."
+      "title": "First Amendment to the United States Constitution",
+      "url": "https://en.wikipedia.org/wiki/First_Amendment_to_the_United_States_Constitution",
+      "type": "wikipedia",
+      "supportSnippet": "The First Amendment to the U.S. Constitution prevents the government from making laws regarding an establishment of religion; prohibiting the free exercise of religion; or abridging the freedom of speech, the freedom of the press, the freedom of assembly, or the right to petition the government for a redress of grievances. These rights apply to all persons within the territorial United States, not only to citizens."
     },
     {
       "id": 2,
@@ -19,14 +19,28 @@
       "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
       "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
       "type": "gov",
-      "supportSnippet": "Q67 — What is one right or freedom from the First Amendment? Q68 — What are two rights only for United States citizens? Acceptable: vote in a federal election; run for federal office. Q69 — What are two responsibilities only for citizens? Acceptable: serve on a jury; vote in a federal election. Q70 — What promise do you make when you become a U.S. citizen? Acceptable answers describe the Oath of Allegiance: give up loyalty to other countries, defend the Constitution and laws, obey the laws, serve in the military if needed, and serve the country."
+      "supportSnippet": "Q64 — Who can vote in federal elections, run for federal office, and serve on a jury in the United States? Answer: U.S. citizens. Q66 — What do we show loyalty to when we say the Pledge of Allegiance? Answer: the United States; the flag. Q67 — Name two promises that new citizens make in the Oath of Allegiance. Acceptable: give up loyalty to other countries; defend the Constitution and laws of the United States; obey the laws of the United States; serve in the military if needed; serve (do important work for) the nation if needed. Q69 — What are two examples of civic participation in the United States? Acceptable: vote; run for office; join a political party; help with a campaign; join a civic group; join a community group; tell an elected official your opinion; call senators and representatives; publicly support or oppose an issue or policy; write to a newspaper. Q70 — What is one way Americans can serve their country? Acceptable: vote; pay taxes; obey the law; serve in the military; run for office; work for the federal/state/local government; serve on a jury."
     },
     {
       "id": 4,
+      "title": "United States nationality law",
+      "url": "https://en.wikipedia.org/wiki/United_States_nationality_law",
+      "type": "wikipedia",
+      "supportSnippet": "There are several principal pathways to U.S. citizenship: birth in the United States (jus soli), birth abroad to one or both U.S. citizen parents (jus sanguinis), naturalization (the legal process by which a foreign citizen becomes a U.S. citizen), and derivative citizenship (a child automatically becoming a citizen when a parent naturalizes, subject to specific conditions)."
+    },
+    {
+      "id": 5,
       "title": "Income tax in the United States",
       "url": "https://en.wikipedia.org/wiki/Income_tax_in_the_United_States",
       "type": "wikipedia",
-      "supportSnippet": "Federal income tax returns for individuals in the United States are due on April 15 each year (or the next business day if April 15 falls on a weekend or holiday). Filing and paying federal income tax is a legal duty of every person living in the country who meets the income threshold."
+      "supportSnippet": "Federal income tax returns for individuals in the United States are due on April 15 each year (or the next business day if April 15 falls on a weekend or holiday). Filing and paying federal income tax is a legal duty. Tax revenue funds federal government operations, including infrastructure, education programs, the military, and public services."
+    },
+    {
+      "id": 6,
+      "title": "Selective Service System",
+      "url": "https://en.wikipedia.org/wiki/Selective_Service_System",
+      "type": "wikipedia",
+      "supportSnippet": "Almost all male U.S. citizens and male immigrants residing in the United States, who are 18 through 25, are required by law to register with the Selective Service System within 30 days of their 18th birthday. Registration is required by federal law; it is also considered a civic duty; and it ensures that, if a draft were ever needed, the burden of military service would be shared fairly across the eligible population."
     }
   ]
 }
