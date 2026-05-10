@@ -28,6 +28,10 @@ docker-compose.yml
 
 # Documentation & scripts
 *.md
+# Story Mode catalog Markdown ships as <EmbeddedResource> in the API DLL
+# (see NaturalizationPuzzle.Api.csproj) — exempt it from the *.md exclusion
+# so the Dockerfile's COPY content/ actually delivers the embedded resources.
+!content/stories/*.md
 *.bat
 *.sln
 servers.ps1
