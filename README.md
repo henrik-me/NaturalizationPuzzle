@@ -11,9 +11,9 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 ## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          Browser (PWA)                              │
-│                                                                     │
+┌────────────────────────────────────────────────────────────────────┐
+│                          Browser (PWA)                             │
+│                                                                    │
 │  ┌──────────────┐   ┌──────────────┐   ┌─────────────────────────┐ │
 │  │  React 19    │   │  React Router│   │  Service Worker         │ │
 │  │  + TypeScript│──▶│  (SPA routes;│   │  (Workbox / PWA)        │ │
