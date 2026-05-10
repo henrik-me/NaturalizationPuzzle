@@ -1,0 +1,60 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "Federal government of the United States",
+      "url": "https://en.wikipedia.org/wiki/Federal_government_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The United States is a federal republic. Its government has three branches and operates under a system of separation of powers and federalism. Federal authority is divided between the national government and the 50 state governments."
+    },
+    {
+      "id": 2,
+      "title": "Constitution of the United States",
+      "url": "https://www.archives.gov/founding-docs/constitution",
+      "type": "gov",
+      "supportSnippet": "The Constitution of the United States is the supreme law of the United States of America. It was the first constitution of its kind, designed to protect the natural rights of its citizens. The opening words 'We the People' affirm that the government of the United States exists to serve its citizens."
+    },
+    {
+      "id": 3,
+      "title": "Article V of the United States Constitution",
+      "url": "https://en.wikipedia.org/wiki/Article_Five_of_the_United_States_Constitution",
+      "type": "wikipedia",
+      "supportSnippet": "Article Five describes the process for altering the Constitution. An amendment can be proposed either by Congress with a two-thirds vote in both chambers, or by a convention of states called for by two-thirds of the state legislatures. Either method requires ratification by three-fourths of the states. To date, 27 amendments have been ratified."
+    },
+    {
+      "id": 4,
+      "title": "Bill of Rights",
+      "url": "https://www.archives.gov/founding-docs/bill-of-rights",
+      "type": "gov",
+      "supportSnippet": "The Bill of Rights is the first 10 amendments to the Constitution. It spells out Americans' rights in relation to their government. It guarantees civil rights and liberties to the individual—like freedom of speech, press, and religion."
+    },
+    {
+      "id": 5,
+      "title": "Declaration of Independence",
+      "url": "https://www.archives.gov/founding-docs/declaration",
+      "type": "gov",
+      "supportSnippet": "The Declaration of Independence, approved by the Continental Congress on July 4, 1776, announced the separation of the American colonies from Great Britain. It states that 'all men are created equal' and are endowed with certain unalienable Rights, including 'Life, Liberty and the pursuit of Happiness.'"
+    },
+    {
+      "id": 6,
+      "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
+      "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
+      "type": "gov",
+      "supportSnippet": "Q14 — Many documents influenced the U.S. Constitution. Name one. Acceptable answers include: Declaration of Independence, Articles of Confederation, Federalist Papers, Anti-Federalist Papers, Virginia Declaration of Rights, Magna Carta, English Bill of Rights, Mayflower Compact, Iroquois Great Law of Peace."
+    },
+    {
+      "id": 7,
+      "title": "Rule of law",
+      "url": "https://en.wikipedia.org/wiki/Rule_of_law",
+      "type": "wikipedia",
+      "supportSnippet": "The rule of law is the political philosophy that all citizens and institutions within a country, state, or community are accountable to the same laws, including the lawmakers and leaders. Government cannot be above the law, and no one is above the law."
+    },
+    {
+      "id": 8,
+      "title": "Economy of the United States",
+      "url": "https://en.wikipedia.org/wiki/Economy_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The United States has a mixed-market economy. It is largely a capitalist economy, where private individuals and businesses own most of the means of production, and prices, production, and the distribution of goods are determined by market forces."
+    }
+  ]
+}

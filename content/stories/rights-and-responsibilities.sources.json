@@ -1,0 +1,32 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "Bill of Rights",
+      "url": "https://www.archives.gov/founding-docs/bill-of-rights",
+      "type": "gov",
+      "supportSnippet": "The first ten amendments to the Constitution make up the Bill of Rights. They guarantee freedoms of speech, religion, press, peaceful assembly, and the right to petition the government, among others. These rights apply to all persons within the territorial United States, not only citizens."
+    },
+    {
+      "id": 2,
+      "title": "Voting rights in the United States",
+      "url": "https://en.wikipedia.org/wiki/Voting_rights_in_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "Four constitutional amendments expanded voting rights: the 15th (1870, race), the 19th (1920, sex), the 24th (1964, abolishing the poll tax in federal elections), and the 26th (1971, lowering the voting age to 18). All U.S. citizens 18 and older have the right to vote in federal elections."
+    },
+    {
+      "id": 3,
+      "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
+      "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
+      "type": "gov",
+      "supportSnippet": "Q67 — What is one right or freedom from the First Amendment? Q68 — What are two rights only for United States citizens? Acceptable: vote in a federal election; run for federal office. Q69 — What are two responsibilities only for citizens? Acceptable: serve on a jury; vote in a federal election. Q70 — What promise do you make when you become a U.S. citizen? Acceptable answers describe the Oath of Allegiance: give up loyalty to other countries, defend the Constitution and laws, obey the laws, serve in the military if needed, and serve the country."
+    },
+    {
+      "id": 4,
+      "title": "Income tax in the United States",
+      "url": "https://en.wikipedia.org/wiki/Income_tax_in_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "Federal income tax returns for individuals in the United States are due on April 15 each year (or the next business day if April 15 falls on a weekend or holiday). Filing and paying federal income tax is a legal duty of every person living in the country who meets the income threshold."
+    }
+  ]
+}

@@ -3,12 +3,7 @@ slug: national-symbols-and-holidays
 title: National Symbols and Holidays
 category: Integrated Civics
 subCategory: Symbols and Holidays
-questionIds: [121, 122, 123, 124, 125, 126, 127, 128]
-orphanedQuestionIds:
-  - id: 119
-    reason: "Geography (capital of US) — covered by future Geography story"
-  - id: 120
-    reason: "Geography (Statue of Liberty location) — covered by future Geography story"
+questionIds: [119, 120, 121, 122, 123, 124, 125, 126, 127, 128]
 estReadMinutes: 3
 readingLevelMin: 70
 stateAwarePreamble: false
@@ -16,6 +11,12 @@ stateAwarePreamble: false
 
 <!-- narrative -->
 Symbols and holidays are how a country tells its story without saying a word. The American flag, the national anthem, and the federal holidays each point back to a moment that shaped the country.
+
+## The Capital and a Famous Statue
+
+The **capital of the United States** is **Washington, D.C.** [9]. It is the city where Congress, the President, and the Supreme Court do their work.
+
+The **Statue of Liberty** stands in **New York Harbor** [9]. It was a gift from France in 1886. For millions of immigrants arriving by ship, the statue was the first sight of America.
 
 ## The Flag and the Anthem
 

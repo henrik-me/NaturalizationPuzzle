@@ -1,0 +1,25 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "United States Congress",
+      "url": "https://en.wikipedia.org/wiki/United_States_Congress",
+      "type": "wikipedia",
+      "supportSnippet": "The United States Congress is the legislature of the federal government of the United States. It is bicameral, composed of an upper body, the Senate, and a lower body, the House of Representatives. Among its powers are the writing of federal laws, the declaration of war, the levying of taxes, and the appropriation of federal funds."
+    },
+    {
+      "id": 2,
+      "title": "United States Senate",
+      "url": "https://en.wikipedia.org/wiki/United_States_Senate",
+      "type": "wikipedia",
+      "supportSnippet": "The Senate is composed of 100 senators, two for each of the 50 states. Senators serve staggered six-year terms and are elected by their state's voters. Each senator represents the entire state. Equal representation in the Senate gives each state the same voice regardless of population."
+    },
+    {
+      "id": 3,
+      "title": "United States House of Representatives",
+      "url": "https://en.wikipedia.org/wiki/United_States_House_of_Representatives",
+      "type": "wikipedia",
+      "supportSnippet": "The House of Representatives is composed of 435 voting members, each of whom represents a congressional district for a two-year term. The number of representatives a state has is based on its population, as determined by the most recent decennial census. The Speaker of the House is the presiding officer, elected by the members."
+    }
+  ]
+}

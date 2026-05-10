@@ -1,0 +1,46 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
+      "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
+      "type": "gov",
+      "supportSnippet": "Q100 — Name one war fought by the United States in the 1900s. Acceptable answers: World War I, World War II, Korean War, Vietnam War, Persian Gulf War."
+    },
+    {
+      "id": 2,
+      "title": "American entry into World War I",
+      "url": "https://en.wikipedia.org/wiki/American_entry_into_World_War_I",
+      "type": "wikipedia",
+      "supportSnippet": "The United States entered World War I in April 1917 after Germany's resumption of unrestricted submarine warfare attacked American shipping, and after the Zimmermann Telegram revealed Germany's attempt to incite Mexico to attack the United States. The U.S. fought alongside the Allies (Britain, France, and others)."
+    },
+    {
+      "id": 3,
+      "title": "Nineteenth Amendment to the United States Constitution",
+      "url": "https://en.wikipedia.org/wiki/Nineteenth_Amendment_to_the_United_States_Constitution",
+      "type": "wikipedia",
+      "supportSnippet": "The Nineteenth Amendment to the United States Constitution prohibits the United States and its states from denying the right to vote to citizens on the basis of sex, in effect recognizing the right of women to vote. The amendment was ratified on August 18, 1920, granting all U.S. women the right to vote."
+    },
+    {
+      "id": 4,
+      "title": "Great Depression in the United States",
+      "url": "https://en.wikipedia.org/wiki/Great_Depression_in_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The Great Depression was the worst economic downturn in U.S. history. It began with the stock market crash of October 1929 and lasted through the 1930s. At its height, unemployment reached about 25 percent, banks failed in large numbers, and millions of Americans lost their homes and farms."
+    },
+    {
+      "id": 5,
+      "title": "Franklin D. Roosevelt",
+      "url": "https://en.wikipedia.org/wiki/Franklin_D._Roosevelt",
+      "type": "wikipedia",
+      "supportSnippet": "Franklin Delano Roosevelt, often called FDR, was the 32nd president of the United States, serving from 1933 until his death in 1945. He led the country through the Great Depression and World War II, implementing the New Deal program."
+    },
+    {
+      "id": 6,
+      "title": "Military history of the United States during World War II",
+      "url": "https://en.wikipedia.org/wiki/Military_history_of_the_United_States_during_World_War_II",
+      "type": "wikipedia",
+      "supportSnippet": "The United States entered World War II on December 8, 1941, the day after the Empire of Japan's surprise attack on Pearl Harbor. The U.S. fought on the side of the Allies (the United Kingdom, Soviet Union, France, China, and others) against the Axis powers (Germany, Italy, Japan)."
+    }
+  ]
+}

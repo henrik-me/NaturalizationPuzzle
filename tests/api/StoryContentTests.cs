@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using NaturalizationPuzzle.Api.Data;
 using NaturalizationPuzzle.Api.Models;
 using NaturalizationPuzzle.Api.Services;
+using Xunit;
 
 namespace NaturalizationPuzzle.Api.Tests;
 
@@ -20,9 +21,11 @@ public sealed class StoryContentTests : IDisposable
     private readonly AppDbContext _db;
     private readonly StoryService _sut;
     private readonly QuestionService _questionService;
+    private readonly ITestOutputHelper _output;
 
-    public StoryContentTests()
+    public StoryContentTests(ITestOutputHelper output)
     {
+        _output = output;
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
@@ -38,7 +41,6 @@ public sealed class StoryContentTests : IDisposable
     {
         var stories = _sut.GetAllStories();
         Assert.NotEmpty(stories);
-        Assert.Equal(3, stories.Count); // pilot scope: 3 stories
     }
 
     [Fact]
@@ -60,18 +62,34 @@ public sealed class StoryContentTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Most QuestionIds in a story should match the story's primary
+    /// (Category, SubCategory). Cross-subcategory references are allowed
+    /// (multi-story membership lets a story like civil-rights-movement
+    /// pull in 19th-amendment / 15th-amendment questions from "The 1800s")
+    /// but should be the exception, not the norm.
+    /// </summary>
     [Fact]
-    public void EveryStoryQuestionId_MatchesStoryCategoryAndSubCategory()
+    public void EveryStoryQuestionId_HasMostlyMatchingCategoryAndSubCategory()
     {
         var byId = _db.Questions.ToDictionary(q => q.Id);
         foreach (var story in _sut.GetAllStories())
         {
+            if (story.QuestionIds.Count == 0) continue;
+            int matching = 0;
             foreach (var id in story.QuestionIds)
             {
                 var q = byId[id];
-                Assert.Equal(story.Category, q.Category);
-                Assert.Equal(story.SubCategory, q.SubCategory);
+                if (q.Category == story.Category && q.SubCategory == story.SubCategory)
+                {
+                    matching++;
+                }
             }
+            // At least half should match the story's primary subcategory.
+            // The rest are cross-subcategory weaves intentionally pulled in.
+            Assert.True(matching * 2 >= story.QuestionIds.Count,
+                $"Story '{story.Slug}' has {matching}/{story.QuestionIds.Count} QuestionIds matching " +
+                $"its primary ({story.Category} / {story.SubCategory}) — at least half should match.");
         }
     }
 
@@ -108,33 +126,134 @@ public sealed class StoryContentTests : IDisposable
     }
 
     /// <summary>
-    /// Coverage contract (per plan-review fix #3): every question whose
-    /// (Category, SubCategory) matches a pilot story's scope must either be
-    /// in that story's QuestionIds or in OrphanedQuestionIds with a reason.
-    /// This catches silent omissions when seed data changes — a new question
-    /// added to "System of Government" will fail this test until the
-    /// three-branches story decides whether to include it or orphan it.
+    /// Coverage contract (post-multi-story-update): every question whose
+    /// (Category, SubCategory) matches a story's scope must either be in
+    /// THIS story's QuestionIds, OR in this story's OrphanedQuestionIds
+    /// (with a reason), OR claimed by SOME OTHER story's QuestionIds (the
+    /// post-pilot rule that lets multiple stories share a question when it
+    /// fits multiple topics). The combination guarantees no in-scope
+    /// question is silently dropped while letting per-story orphan lists
+    /// stay short once a topic-specific story claims those questions.
     /// </summary>
     [Fact]
     public void CoverageContract_NoInScopeQuestionIsSilentlyOmitted()
     {
-        foreach (var story in _sut.GetAllStories())
+        var allStories = _sut.GetAllStories();
+        // Build a set of every QuestionId claimed by any story (in any QuestionIds list).
+        var claimedByAnyStory = allStories
+            .SelectMany(s => s.QuestionIds)
+            .ToHashSet();
+
+        foreach (var story in allStories)
         {
             var inSubcategory = _db.Questions
                 .Where(q => q.Category == story.Category && q.SubCategory == story.SubCategory)
                 .Select(q => q.Id)
                 .ToHashSet();
 
-            var covered = story.QuestionIds
+            var thisStoryCovers = story.QuestionIds
                 .Concat(story.OrphanedQuestionIds.Select(o => o.Id))
                 .ToHashSet();
 
-            var missing = inSubcategory.Except(covered).ToList();
+            // A Q in this story's subcategory is "covered" if THIS story
+            // includes it (claim or orphan), OR if some other story's
+            // QuestionIds includes it.
+            var missing = inSubcategory
+                .Where(qid => !thisStoryCovers.Contains(qid) && !claimedByAnyStory.Contains(qid))
+                .ToList();
+
             Assert.True(missing.Count == 0,
                 $"Story '{story.Slug}' is missing {missing.Count} in-scope question(s) from " +
                 $"({story.Category} / {story.SubCategory}): [{string.Join(", ", missing)}]. " +
-                "Either add them to QuestionIds or orphan them with a reason.");
+                "Either add them to this story's QuestionIds, orphan them with a reason, " +
+                "or have another story claim them.");
         }
+    }
+
+    /// <summary>
+    /// Global coverage (new contract): every question in seed data must be
+    /// claimed by AT LEAST ONE story's QuestionIds. Orphan lists do not
+    /// count — orphan-only means "explicitly NOT covered". This is the
+    /// hard guarantee that no civics question is left without any story.
+    /// </summary>
+    [Fact]
+    public void GlobalCoverage_EveryQuestionIsClaimedByAtLeastOneStory()
+    {
+        var allStories = _sut.GetAllStories();
+        var allClaimed = allStories.SelectMany(s => s.QuestionIds).ToHashSet();
+        var allSeedIds = _db.Questions.Select(q => q.Id).ToHashSet();
+        var unclaimed = allSeedIds.Except(allClaimed).OrderBy(i => i).ToList();
+        Assert.True(unclaimed.Count == 0,
+            $"{unclaimed.Count} question(s) are NOT claimed by any story's QuestionIds: " +
+            $"[{string.Join(", ", unclaimed)}]. Add each to one or more story's QuestionIds.");
+    }
+
+    /// <summary>
+    /// Informational summary — prints how many stories claim each question
+    /// (via QuestionIds). Multi-story claims are encouraged when a
+    /// question fits multiple topics; a question with usage count 1 has
+    /// exactly one home; 0 is a coverage gap caught by GlobalCoverage above.
+    /// Always passes — this is a visibility test, not an assertion.
+    /// </summary>
+    [Fact]
+    public void CoverageSummary_PrintsUsageCountPerQuestion()
+    {
+        var allStories = _sut.GetAllStories();
+        var usage = new Dictionary<int, List<string>>();
+        foreach (var story in allStories)
+        {
+            foreach (var qid in story.QuestionIds)
+            {
+                if (!usage.TryGetValue(qid, out var list))
+                {
+                    list = new List<string>();
+                    usage[qid] = list;
+                }
+                list.Add(story.Slug);
+            }
+        }
+
+        var allSeedIds = _db.Questions.Select(q => q.Id).OrderBy(i => i).ToList();
+
+        // Histogram: count -> how many questions have that usage count.
+        var histogram = new SortedDictionary<int, int>();
+        foreach (var id in allSeedIds)
+        {
+            var count = usage.TryGetValue(id, out var list) ? list.Count : 0;
+            histogram.TryGetValue(count, out var bucket);
+            histogram[count] = bucket + 1;
+        }
+
+        var summary = new System.Text.StringBuilder();
+        summary.AppendLine($"Story Mode coverage summary across {allSeedIds.Count} seeded questions");
+        summary.AppendLine("Usage count histogram (questions × stories):");
+        foreach (var (count, bucket) in histogram)
+        {
+            summary.AppendLine($"  used by {count,2} story(ies): {bucket,3} question(s)");
+        }
+        summary.AppendLine();
+        summary.AppendLine("Most-shared questions (used by 2+ stories):");
+        var multi = usage.Where(kv => kv.Value.Count >= 2)
+            .OrderByDescending(kv => kv.Value.Count)
+            .ThenBy(kv => kv.Key)
+            .ToList();
+        if (multi.Count == 0)
+        {
+            summary.AppendLine("  (none)");
+        }
+        else
+        {
+            foreach (var kv in multi)
+            {
+                summary.AppendLine($"  Q{kv.Key,3}: {string.Join(", ", kv.Value)}");
+            }
+        }
+
+        // Print to test output so `dotnet test` shows the histogram.
+        _output.WriteLine(summary.ToString());
+
+        // Always passes — informational only.
+        Assert.True(true);
     }
 
     [Fact]
@@ -163,12 +282,30 @@ public sealed class StoryContentTests : IDisposable
     }
 
     [Fact]
-    public void PilotStorySlugs_AreExactlyThePlannedThree()
+    public void StoryRoster_HasExpectedSlugs()
     {
-        var slugs = _sut.GetAllStories().Select(s => s.Slug).OrderBy(s => s).ToList();
-        Assert.Equal(
-            new[] { "civil-war-and-reconstruction", "national-symbols-and-holidays", "three-branches" },
-            slugs);
+        // Sanity check the roster as it grows. As of the catalog expansion
+        // following the v1 pilot, every USCIS subcategory has at least one
+        // dedicated story. Update this list when a new story ships.
+        var slugs = _sut.GetAllStories().Select(s => s.Slug).OrderBy(s => s, StringComparer.Ordinal).ToList();
+        var expected = new[]
+        {
+            "civil-rights-movement",
+            "civil-war-and-reconstruction",
+            "cold-war-era",
+            "colonial-era-and-revolution",
+            "early-20th-century-and-world-wars",
+            "executive-branch",
+            "federalism-and-states",
+            "judicial-branch",
+            "legislative-branch",
+            "modern-america",
+            "national-symbols-and-holidays",
+            "principles-of-american-democracy",
+            "rights-and-responsibilities",
+            "three-branches",
+        };
+        Assert.Equal(expected, slugs);
     }
 
     [Fact]

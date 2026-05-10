@@ -55,6 +55,13 @@
       "url": "https://en.wikipedia.org/wiki/Veterans_Day",
       "type": "wikipedia",
       "supportSnippet": "Veterans Day is a federal holiday observed annually on November 11 in the United States, for honoring military veterans of the United States Armed Forces."
+    },
+    {
+      "id": 9,
+      "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
+      "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
+      "type": "gov",
+      "supportSnippet": "Q119 — What is the capital of the United States? Answer: Washington, D.C. Q120 — Where is the Statue of Liberty? Answer: New York (Harbor); Liberty Island; New Jersey; near New York City; on the Hudson (River)."
     }
   ]
 }

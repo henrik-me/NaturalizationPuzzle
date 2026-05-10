@@ -1,0 +1,25 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
+      "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
+      "type": "gov",
+      "supportSnippet": "Q58 — Name one power that is only for the federal government. Acceptable answers: print money; declare war; create an army; make treaties; set foreign policy. Q59 — Name one power that is only for the states. Acceptable answers: provide schooling and education; provide protection (police); provide safety (fire departments); give a driver's license; approve zoning and land use."
+    },
+    {
+      "id": 2,
+      "title": "Tenth Amendment to the United States Constitution",
+      "url": "https://en.wikipedia.org/wiki/Tenth_Amendment_to_the_United_States_Constitution",
+      "type": "wikipedia",
+      "supportSnippet": "The Tenth Amendment expresses the principle of federalism, also known as states' rights. It states that the federal government has only those powers delegated to it by the Constitution, and that all other powers not forbidden to the states by the Constitution are reserved to each state, or to the people."
+    },
+    {
+      "id": 3,
+      "title": "State governments of the United States",
+      "url": "https://en.wikipedia.org/wiki/State_governments_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The state governments of the United States are institutional units in the United States exercising functions of government at a level below that of the federal government. Each state has its own constitution, an executive branch headed by a governor elected by the state's voters, a state legislature, a state judiciary, and a designated state capital."
+    }
+  ]
+}

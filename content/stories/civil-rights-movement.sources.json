@@ -1,0 +1,39 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "Fifteenth Amendment to the United States Constitution",
+      "url": "https://en.wikipedia.org/wiki/Fifteenth_Amendment_to_the_United_States_Constitution",
+      "type": "wikipedia",
+      "supportSnippet": "Ratified February 3, 1870, the Fifteenth Amendment prohibits the federal government and each state from denying or abridging a citizen's right to vote on the basis of race, color, or previous condition of servitude. For nearly a century after, many Black Americans were disenfranchised in the South, until the Voting Rights Act of 1965."
+    },
+    {
+      "id": 2,
+      "title": "Susan B. Anthony",
+      "url": "https://en.wikipedia.org/wiki/Susan_B._Anthony",
+      "type": "wikipedia",
+      "supportSnippet": "Susan B. Anthony was an American social reformer and women's rights activist who played a pivotal role in the 19th-century women's suffrage movement. With Elizabeth Cady Stanton she co-founded the National Woman Suffrage Association. Other major leaders of the women's rights movement in the 1800s included Lucretia Mott and Sojourner Truth."
+    },
+    {
+      "id": 3,
+      "title": "Nineteenth Amendment to the United States Constitution",
+      "url": "https://en.wikipedia.org/wiki/Nineteenth_Amendment_to_the_United_States_Constitution",
+      "type": "wikipedia",
+      "supportSnippet": "The Nineteenth Amendment was ratified on August 18, 1920, prohibiting denial of the right to vote on the basis of sex. With its passage, all U.S. women obtained the constitutional right to vote in federal elections."
+    },
+    {
+      "id": 4,
+      "title": "Civil rights movement",
+      "url": "https://en.wikipedia.org/wiki/Civil_rights_movement",
+      "type": "wikipedia",
+      "supportSnippet": "The civil rights movement was a nonviolent social movement and campaign from 1954 to 1968 in the United States to abolish legalized racial segregation, discrimination, and disenfranchisement throughout the country. The movement led to the Civil Rights Act of 1964 and the Voting Rights Act of 1965."
+    },
+    {
+      "id": 5,
+      "title": "Martin Luther King Jr.",
+      "url": "https://en.wikipedia.org/wiki/Martin_Luther_King_Jr.",
+      "type": "wikipedia",
+      "supportSnippet": "Martin Luther King Jr. was an American Baptist minister and activist who became the most visible spokesperson and leader in the civil rights movement. He fought for the civil rights of African Americans through nonviolent civil disobedience, worked for equality for all Americans, delivered the 'I Have a Dream' speech in August 1963, and was awarded the Nobel Peace Prize in 1964."
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "Gulf War",
+      "url": "https://en.wikipedia.org/wiki/Gulf_War",
+      "type": "wikipedia",
+      "supportSnippet": "The Gulf War was an armed conflict between Iraq and a 35-country coalition led by the United States in response to the Iraqi invasion and annexation of Kuwait in August 1990. The U.S.-led coalition expelled Iraqi forces from Kuwait in early 1991."
+    },
+    {
+      "id": 2,
+      "title": "September 11 attacks",
+      "url": "https://en.wikipedia.org/wiki/September_11_attacks",
+      "type": "wikipedia",
+      "supportSnippet": "The September 11 attacks, also known as 9/11, were a series of four coordinated suicide terrorist attacks carried out by al-Qaeda against the United States on September 11, 2001. Hijackers flew two airplanes into the World Trade Center towers in New York City and one into the Pentagon. A fourth plane, intended for Washington, crashed in a field in Pennsylvania. Nearly 3,000 people were killed."
+    },
+    {
+      "id": 3,
+      "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
+      "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
+      "type": "gov",
+      "supportSnippet": "Q116 — Name one U.S. military conflict after the September 11, 2001 attacks. Acceptable answers: (Global) War on Terror; War in Afghanistan; War in Iraq; Operation Enduring Freedom; Operation Iraqi Freedom; Operation New Dawn; Operation Inherent Resolve; Operation Freedom's Sentinel."
+    },
+    {
+      "id": 4,
+      "title": "Native Americans in the United States",
+      "url": "https://en.wikipedia.org/wiki/Native_Americans_in_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "There are 574 federally recognized Native American tribes in the United States. Examples include the Cherokee, Navajo, Sioux, Chippewa, Choctaw, Pueblo, Apache, Iroquois, Creek, Blackfeet, Seminole, Cheyenne, Arawak, Shawnee, Mohegan, Huron, Oneida, Lakota, Crow, Teton, Hopi, Inuit, Cayuga, and many others."
+    },
+    {
+      "id": 5,
+      "title": "Inventions in the United States",
+      "url": "https://en.wikipedia.org/wiki/List_of_American_inventions",
+      "type": "wikipedia",
+      "supportSnippet": "The United States has produced many notable inventions and innovations including the light bulb (Edison), the airplane (Wright brothers), the assembly line (Ford), the moon landing (NASA, 1969), the personal computer, integrated circuits, the Internet, and the modern smartphone."
+    }
+  ]
+}

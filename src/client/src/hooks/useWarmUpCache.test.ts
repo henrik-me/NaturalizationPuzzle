@@ -13,7 +13,17 @@ vi.mock('../services/stateService', () => ({
 }));
 
 vi.mock('../services/storyService', () => ({
-  listStories: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  listStories: vi.fn().mockResolvedValue({
+    success: true,
+    data: [
+      { slug: 'alpha-story', title: 'A', category: 'X', subCategory: 'Y',
+        estReadMinutes: 1, fleschReadingEase: 80, questionCount: 1,
+        modelMemoryUsed: false, stateAwarePreamble: false },
+      { slug: 'beta-story', title: 'B', category: 'X', subCategory: 'Y',
+        estReadMinutes: 1, fleschReadingEase: 80, questionCount: 1,
+        modelMemoryUsed: false, stateAwarePreamble: false },
+    ],
+  }),
   getStory: vi.fn().mockResolvedValue({ success: false, error: 'not-loaded' }),
 }));
 
@@ -48,24 +58,24 @@ describe('useWarmUpCache', () => {
     });
   });
 
-  it('warms the stories index AND every pilot story detail (offline contract)', async () => {
+  it('warms the stories index AND every story detail returned by the index (offline contract)', async () => {
     renderHook(() => useWarmUpCache(7));
 
     await vi.waitFor(() => {
       expect(listStories).toHaveBeenCalled();
-      expect(getStory).toHaveBeenCalledWith('three-branches', 7);
-      expect(getStory).toHaveBeenCalledWith('civil-war-and-reconstruction', 7);
-      expect(getStory).toHaveBeenCalledWith('national-symbols-and-holidays', 7);
+      // The mock returns alpha-story + beta-story; warm-up should fan out
+      // to every slug, not a hardcoded subset.
+      expect(getStory).toHaveBeenCalledWith('alpha-story', 7);
+      expect(getStory).toHaveBeenCalledWith('beta-story', 7);
     });
   });
 
-  it('warms pilot story details with undefined stateId when no state is selected', async () => {
+  it('warms each story detail with undefined stateId when no state is selected', async () => {
     renderHook(() => useWarmUpCache(null));
 
     await vi.waitFor(() => {
-      expect(getStory).toHaveBeenCalledWith('three-branches', undefined);
-      expect(getStory).toHaveBeenCalledWith('civil-war-and-reconstruction', undefined);
-      expect(getStory).toHaveBeenCalledWith('national-symbols-and-holidays', undefined);
+      expect(getStory).toHaveBeenCalledWith('alpha-story', undefined);
+      expect(getStory).toHaveBeenCalledWith('beta-story', undefined);
     });
   });
 
