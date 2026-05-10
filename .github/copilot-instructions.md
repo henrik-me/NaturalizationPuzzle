@@ -353,7 +353,7 @@ Prefer scoping a PR to a single concern. The motivation here is **review quality
 - Verification runs on the change's affected sides; at minimum:
   - **Frontend changes** (`src/client/**`): `npm run lint && npm test -- --run && npm run build` from `src/client/`.
   - **Backend changes** (`src/api/**`, `tests/api/**`, `NaturalizationPuzzle.sln`): `dotnet build` and `dotnet test` from the **repo root** (so the `.sln` resolves the xUnit project at `tests/api/`; never run `dotnet test` from `src/api/` — that's the web app project and the suite is silently skipped).
-  - **End-to-end tests** must run for any change that touches `src/client/**`, `src/api/**`, or `infra/**`, or whose effects could plausibly affect runtime behavior. From `tests/e2e/`: `npm ci` (first time) then `npx playwright test --reporter=list` (headless). The Playwright config auto-starts the API (`dotnet run`) and the Vite dev server via `webServer` blocks — do **not** start them manually. Ensure the Chromium browser is installed (`npx playwright install chromium`).
+  - **End-to-end tests** must run for any change that touches `src/client/**`, `src/api/**`, or `infra/**`, or whose effects could plausibly affect runtime behavior. From `tests/e2e/`: `npm ci` (first time) then `npx playwright test --reporter=list` (headless). The Playwright config auto-starts the API (`dotnet run`) and the Vite dev server via `webServer` blocks — do **not** start them manually. Ensure the Chromium browser is installed (`npx playwright install chromium`). **Critical ordering**: also run `npm ci` from `src/client/` BEFORE the e2e step — the Playwright `webServer` block does `cd src/client && npm run dev`, which needs `src/client/node_modules/.bin/vite` to exist. Verification agents that only `npm ci` in `tests/e2e/` will hit `'vite' is not recognized as an internal or external command` and fail e2e even though the change itself is fine. PR #76's round-1 verify hit exactly this.
   - **Never use the default `html` reporter for agent/CI runs.** Playwright's HTML reporter starts a local web server (default port 9323) on failure that blocks the test process from exiting and hangs sub-agents. Always pass `--reporter=list` (or `--reporter=line`/`dot`/`github`) on the CLI to override the config's `reporter: 'html'`. Pass/fail status and per-test details must be reported directly from the CLI output, not from a UI report.
   - Cross-cutting changes (infra, workflows, dependencies) must run all three sides.
 - If any step fails, fix it and rerun **the full set** before pushing — never push with known failures, even if "unrelated."
@@ -451,6 +451,16 @@ Dependabot PRs (dependency bumps) and other automated security PRs are **first-c
 **Grouping & cadence:**
 - Process Dependabot PRs promptly to avoid security drift, but **one at a time**. Don't batch-merge multiple bumps in the same session unless they are intentionally grouped by Dependabot config.
 - After merging, sync `main` locally and delete the merged branch.
+
+**Sequential Dependabot PRs and silent sibling-dep downgrades:**
+
+When you process multiple Dependabot PRs in sequence, the second (and later) PRs may carry stale lockfile context that **silently downgrades a sibling dependency you just bumped in the first PR** — re-introducing whatever vulnerability you just closed. This is a real failure mode, not a theoretical one. PR #76 (`@babel/plugin-transform-modules-systemjs`) was rebased before PR #75 (`fast-uri`) merged; PR #76's rebased lockfile still contained `fast-uri@3.1.0` (the vulnerable version) even though PR #75 had just bumped it to `3.1.2`. Merging PR #76 as-is would have re-introduced the two `fast-uri` vulnerabilities I'd just closed.
+
+Mitigations:
+
+1. **After merging the first Dependabot PR in a sequence, comment `@dependabot rebase` on every other open Dependabot PR before validating it.** Do not trust the head you fetched before the prior merge — its lockfile predates the bump.
+2. **The GPT-5.5 final-diff review prompt for Dependabot PRs MUST include an explicit "audit the entire lockfile diff for unrelated package shifts" instruction.** The Review Depth Checklist's category K (audit-whole-file) is the canonical hook; combine it with an explicit per-PR checklist item (added as the next available letter — L, M, …) titled "Dependency change correctness" with the rule "verify ONLY the targeted dep shifts; flag any sibling dep that moves in either direction". Without that item, the reviewer will look at the targeted package and miss the silent sibling downgrade.
+3. **The verification-agent prompt for Dependabot PRs SHOULD include a `npm ls <bumped-package>` AND a `npm ls <other-recently-bumped-package>` sanity check** so that if a sibling silently downgrades, the resolved-version line in the structured output makes it visible to the orchestrator before merge.
 
 ### Context File
 
