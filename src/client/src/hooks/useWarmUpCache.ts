@@ -41,17 +41,23 @@ export function useWarmUpCache(stateId: number | null): void {
           }
         }
       }
-      // Warm the questions, states, and the stories index. The stories
-      // index sits in the same parallel batch as the question/state
-      // warm-ups so its response lands as quickly as possible — its
-      // result then drives the per-story-detail fan-out below.
-      const [, , , , indexResult] = await Promise.all([
-        getAllQuestions(stateId ?? undefined).catch(() => undefined),
-        get6520Questions(stateId ?? undefined).catch(() => undefined),
-        getAllStates().catch(() => undefined),
-        stateId ? getStateById(stateId).catch(() => undefined) : Promise.resolve(undefined),
-        listStories().catch(() => ({ success: false as const, error: 'fetch-failed' })),
-      ] as const);
+      // Warm the questions, states, and the stories index. Promise.allSettled
+      // is the right primitive here — best-effort fire-all, never reject — so
+      // a single 4xx/5xx/network failure on one warm-up doesn't block the
+      // story-detail fan-out below. (A single fetch that hangs indefinitely
+      // would still pause the warm-up; in practice the browser's default
+      // fetch timeout and the SW-ready 5s bound above keep that risk low.)
+      const settled = await Promise.allSettled([
+        getAllQuestions(stateId ?? undefined),
+        get6520Questions(stateId ?? undefined),
+        getAllStates(),
+        stateId ? getStateById(stateId) : Promise.resolve(undefined),
+        listStories(),
+      ]);
+      const indexSettled = settled[settled.length - 1];
+      const indexResult = indexSettled.status === 'fulfilled'
+        ? indexSettled.value
+        : { success: false as const, error: 'fetch-failed' };
 
       // Use the just-warmed stories index to fan out to every story
       // detail. Two cost controls:
@@ -61,7 +67,7 @@ export function useWarmUpCache(stateId: number | null): void {
       //   2. Only pass `stateId` for stories whose `stateAwarePreamble`
       //      is true. The other stories don't vary by state, so caching
       //      a per-state copy of each is wasted SW cache space.
-      if (indexResult && indexResult.success) {
+      if (indexResult && 'success' in indexResult && indexResult.success) {
         const items = indexResult.data;
         const concurrency = 4;
         for (let i = 0; i < items.length; i += concurrency) {
