@@ -179,6 +179,7 @@ export function useProgress(): {
 
   const restoreStoryQuizResult = useCallback((entry: StoryQuizHistoryEntry): void => {
     setProgress(prev => {
+      if (prev.storyQuizHistory.some(e => e.id === entry.id)) return prev;
       const updated = {
         ...prev,
         storyQuizHistory: [...prev.storyQuizHistory, entry],

@@ -318,6 +318,41 @@ describe('useProgress', () => {
       expect(result.current.storyQuizHistory).toHaveLength(0);
     });
 
+    it('restoreStoryQuizResult is idempotent — calling it twice with the same entry does not create duplicates', () => {
+      const { result } = renderHook(() => useProgress());
+
+      act(() => {
+        result.current.addStoryQuizResult({
+          storySlug: 'three-branches',
+          storyTitle: 'Three Branches',
+          correct: 4,
+          total: 5,
+        });
+      });
+
+      const original = result.current.storyQuizHistory[0];
+
+      act(() => {
+        result.current.removeStoryQuizResult(original.id);
+      });
+      expect(result.current.storyQuizHistory).toHaveLength(0);
+
+      // First restore inserts the entry.
+      act(() => {
+        result.current.restoreStoryQuizResult(original);
+      });
+      expect(result.current.storyQuizHistory).toHaveLength(1);
+
+      // A second restore for the same entry (e.g. double-click on Undo) must be a no-op.
+      const beforeSecondRestore = result.current.storyQuizHistory;
+      act(() => {
+        result.current.restoreStoryQuizResult(original);
+      });
+      expect(result.current.storyQuizHistory).toHaveLength(1);
+      expect(result.current.storyQuizHistory).toBe(beforeSecondRestore);
+      expect(result.current.storyQuizHistory[0].id).toBe(original.id);
+    });
+
     it('restoreStoryQuizResult after clearStoryQuizHistory re-adds the entry to the empty list', () => {
       const { result } = renderHook(() => useProgress());
 
