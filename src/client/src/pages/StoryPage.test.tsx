@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StrictMode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { StoryPage } from './StoryPage';
@@ -242,9 +242,48 @@ describe('StoryPage', () => {
     expect(feedback).toHaveTextContent(/not quite/i);
     expect(feedback.className).toMatch(/red/);
     expect(feedback).toHaveTextContent(/so no branch is too powerful/i);
-
     await user.click(screen.getByTestId('story-quiz-next-question'));
     expect(screen.getByText(/Question 2 of 2/)).toBeInTheDocument();
+  });
+
+  it('rapid double-click on Submit (typed mode) records only one answer for the current question', async () => {
+    // Regression for Copilot review on PR #86: handleSubmit must be idempotent
+    // per question. A double-click on Submit before the UI rerenders out of
+    // 'answering' phase used to inflate answers.length / skew scoring.
+    vi.mocked(getStory).mockResolvedValueOnce({ success: true, data: STORY });
+    const user = userEvent.setup();
+
+    renderAt('/stories/three-branches');
+    await waitFor(() => screen.getByTestId('continue-with-quiz'));
+    await user.click(screen.getByTestId('continue-with-quiz'));
+
+    // Q1: rapid double-click on Submit (fireEvent.click does NOT await
+    // re-render between clicks, so both event handlers see the same
+    // 'answering' state — the same race the bug allowed).
+    await user.type(screen.getByTestId('quiz-answer-input'), 'so no branch is too powerful');
+    const submitBtn = screen.getByTestId('submit-answer-btn');
+    fireEvent.click(submitBtn);
+    fireEvent.click(submitBtn);
+
+    // Feedback panel renders for Q1 with the first submitted answer.
+    const feedback = await screen.findByTestId('story-quiz-feedback');
+    expect(feedback).toHaveTextContent(/correct/i);
+
+    // Advance to Q2 — if the bug were present, the second submit would have
+    // pushed answers.length to 2 while still on Q1, causing Next to skip
+    // past Q2 directly to the results panel. Asserting we land on Q2 proves
+    // the second submit was a no-op.
+    await user.click(screen.getByTestId('story-quiz-next-question'));
+    expect(screen.getByText(/Question 2 of 2/)).toBeInTheDocument();
+    expect(screen.queryByTestId('story-quiz-results')).toBeNull();
+
+    // Walk Q2 to results and assert the final tally matches a 2-question
+    // story (NOT 3 entries from the would-be duplicate).
+    await user.type(screen.getByTestId('quiz-answer-input'), 'wrong');
+    await user.click(screen.getByTestId('submit-answer-btn'));
+    await user.click(screen.getByTestId('story-quiz-see-results'));
+    const results = await screen.findByTestId('story-quiz-results');
+    expect(results).toHaveTextContent(/1 out of 2 correct/i);
   });
 
   it('reaching the end of typed quiz shows results panel with X out of N, per-question review, and Try again', async () => {

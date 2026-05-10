@@ -70,6 +70,11 @@ function ComprehensionQuiz({ questions, onComplete, onScored }: ComprehensionQui
 
   const handleSubmit = useCallback((userAnswer: string): void => {
     setAnswers(prev => {
+      // Idempotency guard: if we already recorded an answer for the current
+      // question (e.g. a rapid double-click on Submit before the UI rerenders
+      // out of `answering` phase), skip the second append rather than
+      // inflating answers.length / skewing scoring.
+      if (prev.length > index) return prev;
       const q = questions[index];
       if (!q) return prev;
       const isCorrect = checkAnswer(userAnswer, q.answers);
@@ -202,7 +207,7 @@ function ComprehensionQuiz({ questions, onComplete, onScored }: ComprehensionQui
         <ol className="space-y-3">
           {answers.map((a, i) => (
             <li
-              key={a.questionId}
+              key={`${i}-${a.questionId}`}
               className={`p-4 rounded-lg border-l-4 ${
                 a.isCorrect
                   ? 'border-green-500 bg-green-50 dark:bg-green-950/40'
@@ -252,7 +257,7 @@ function ComprehensionQuiz({ questions, onComplete, onScored }: ComprehensionQui
         <div className="flex justify-center">
           <QuizCard
             question={current}
-            onNext={handleStudyNext}
+            onNext={() => {}}
             questionNumber={index + 1}
             totalQuestions={questions.length}
             mode="quiz"
