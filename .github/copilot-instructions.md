@@ -114,6 +114,15 @@ Always pass an explicit `model` argument when launching a non-`explore` sub-agen
 - **Stay available.** Between sub-agent launches and notifications, remain ready to accept new user input. Do not block on long shell loops or polling when a sub-agent or background process can do the waiting. **Hard rule:** any polling/waiting expected to exceed ~60 seconds (CI status, PR review wait, etc.) MUST run in a background sub-agent. Never run a foreground PowerShell `while`/`Start-Sleep` loop that waits longer than that — it locks the user's terminal.
 - **Self-monitor and ping the user at least every ~30 minutes during long-running operations.** Long deploys, CI runs, dependency-update loops, "wait for user to click approve in the UI" gates — none of these grant license to go silent. Concretely: when launching a polling sub-agent for a long-running operation, **set its hard cap to ~25 minutes (not the usual 30 or 45)** so it returns with a status update inside the cadence even if its terminal condition hasn't fired. On the agent's return, send the user a short status ping ("still waiting on the deploy gate, currently <state>") and re-launch the poller if more waiting is needed. Do **not** treat "task delegated to a background agent" as equivalent to "task complete" — it isn't.
 
+#### Never Let a Poller Go Silent — and Never Trust an Early Return
+
+The user's stated cost model: **multiple Copilot review rounds in 30 minutes are healthy as long as findings are meaningful — the failure mode to avoid is missing reviews entirely** (silent pollers, false-positive "clean" returns, prose dumps the orchestrator can't parse). This subsection codifies the disciplines that prevent that failure mode. They were learned the hard way during PR #77, where four separate polling agents misbehaved before the loop finally completed correctly.
+
+- **Validate elapsed time on every poller return.** When a polling sub-agent returns, the orchestrator MUST inspect `elapsed_seconds` and `iterations` from the structured output. If `state` is non-terminal (e.g. ci=pending was reported and the loop simply gave up) OR `elapsed_seconds` is much smaller than the requested cap AND no terminal condition is genuinely met, the early return is invalid — re-launch a fresh poller rather than acting on it. Pollers have returned `state=clean` after 58 seconds, after 92 seconds, and after 275 seconds with `iterations=2` on PR #77; only the strictest prompt with explicit minimum floors produced a faithful loop.
+- **Never trust a poller's "clean" claim without independent verification.** Before merging or otherwise acting on `state=clean`: query `gh pr view <N> --json statusCheckRollup,reviews,reviewDecision` and the GraphQL `reviewThreads` and confirm directly. The polling agent has been wrong about "review complete" in ways the orchestrator can detect immediately by comparing the latest Copilot review's `submittedAt` against the known push timestamp.
+- **If the polling agent returns prose instead of the structured single line**, do NOT paste that prose anywhere. Extract the structured data (or re-launch the poller with the format clause restated). Verbose poller output was the single largest source of context bloat during PR #77; the structured format exists precisely to keep that out of the orchestrator window.
+- **If a poller exceeds its hard cap by more than ~5 minutes without returning**, the orchestrator stops it (`stop_powershell` for sync sessions, or accept the agent's eventual completion notification while doing the direct check in parallel) and inspects PR/CI state directly via `gh` rather than waiting indefinitely. The earlier `pr77-poll-r4` agent ran 37 minutes against a 25-minute cap before returning verbose prose; the orchestrator should have intervened at minute 30.
+
 #### Sub-Agent Output Format
 
 Sub-agent return values are loaded into the orchestrator's context window in full. Long, unstructured sub-agent output is one of the largest causes of premature context compaction. **Every sub-agent prompt MUST mandate one of the structured output formats below.** If a prompt does not include an explicit output-format clause, the launch is incomplete — fix the prompt before sending.
@@ -170,15 +179,25 @@ No prose, no full log dumps, no environment chatter.
 ```
 Output format (REQUIRED, single line, exactly these keys in this order):
 
-  state=<clean|findings|ci_running|ci_failed|review_pending|merged|timeout|error>
+  state=<clean|findings|ci_failed|merged|timeout|error>
   action=<none|apply_fixes|re_request_review|merge|investigate_ci|investigate_error>
   pr=<number>
   ci=<pending|success|failure|none>
   threads_unresolved=<N>
-  review_decision=<APPROVED|REVIEW_REQUIRED|COMMENTED|none>
+  new_review=<true|false>
+  latest_review_at=<ISO8601 or none>
+  iterations=<N>
+  elapsed_seconds=<N>
   detail="<≤140 chars, no commas>"
 
-No PR/run JSON dump, no log lines, no prose.
+Loop discipline (REQUIRED, written verbatim into the prompt):
+- The orchestrator gives an explicit `push_at` timestamp; "new review" means a Copilot review with `submittedAt > push_at`. Older reviews — even if "Copilot reviewed N files" — DO NOT count as new. Verify the timestamp comparison on every iteration.
+- "ci_running", "review_pending", "ci_success_no_review_yet" are NOT valid return states. They are non-terminal — the agent MUST sleep (default 90 s) and loop again.
+- Minimum total wall time before any non-failure return: 4 minutes (240 s). Even when terminal conditions look met, if `elapsed_seconds < 240`, sleep and re-check.
+- Maximum total wall time: 25 minutes (1500 s). At the cap, return `state=timeout action=re_request_review`.
+- ci=failure is the only condition allowed to return immediately (no minimum-elapsed gate).
+
+No PR/run JSON dump, no log lines, no prose preamble or postamble.
 ```
 
 ##### Explore sub-agents
@@ -284,18 +303,44 @@ The orchestrator's context window is finite and compaction is destructive (loses
 - **Every change must receive a local GPT-5.5 review of the final diff before it is pushed or opened as a PR. No exceptions** — this applies to features, fixes, refactors, dependency bumps, infrastructure, workflows, scripts, **and documentation-only changes**.
 - Perform the review by invoking the code-review sub-agent (e.g. `rubber-duck`) with `model: "gpt-5.5"`. **The review MUST run as a sub-agent — never review the diff inline in the orchestrator.** Inline review consumes orchestrator context for material the orchestrator only needs the *conclusions* of. The sub-agent counts as a local review.
 - The review sub-agent prompt MUST include the verbatim **Review sub-agents** output-format block from the **Sub-Agent Output Format** section above. If the sub-agent returns prose or otherwise violates the format, re-launch with the format clause restated rather than accepting the malformed output.
+- The review sub-agent prompt MUST also include the **Review Depth Checklist** below. Without an explicit checklist, GPT-5.5 reviews tend to spot-check obvious diffs and miss the categorical issues (brittle tests, stale comments, ordering dependencies, factual content claims) that Copilot then catches across multiple rounds. Prescribing the checklist up front lets the local review surface those findings before the push.
 - For **non-trivial** changes (multi-file, architectural, security-sensitive, or dependency/infra), also do a **plan review** with GPT-5.5 *before* implementing. Plan review may be skipped only for trivial changes (single small edit, typo fix, renaming).
 - The review must cover correctness, security, edge cases, and blast radius. Adopt findings that prevent bugs, regressions, or merging a broken change. A finding may be dismissed only when clearly non-blocking; record a one-line rationale for each dismissed finding.
 - When summarizing review outcomes to the user, be concise: state the key findings and how you addressed each. Do not copy the critique verbatim.
 
+#### Review Depth Checklist
+
+Every code-review sub-agent prompt MUST include a checklist that tells the reviewer **what categories of issue to look for**, not just "review the diff". Without an explicit checklist, GPT-5.5 returns sparse reviews; with the checklist, it matches or exceeds Copilot's thoroughness. PR #77 round 5 demonstrated the difference: the round-5 GPT-5.5 review using the checklist returned 10 findings (1 major, 2 minor, 7 nit), while earlier ad-hoc reviews on the same PR had returned 0–3 findings on similar diffs.
+
+Required prompt language (copy verbatim into the review sub-agent prompt; trim categories that are clearly N/A for the diff under review and label them as such, but do NOT silently drop them):
+
+```
+Apply this checklist explicitly — for each item, name the file/line you checked and the verdict:
+
+A. Brittle test patterns: exact-list assertions; hardcoded counts in tests; iteration-order assumptions; positional/index dependencies.
+B. Misleading or stale comments / docs: factual claims about platform/runtime behavior — verify each is true. Comments describing an old mechanism after a refactor.
+C. Positional / ordering dependencies: array index reads without semantic anchor; reliance on dict/map iteration order; Promise.allSettled element ordering; fragile destructuring.
+D. Factual content claims (in any user-facing prose, story content, README, etc.): dates, ages, jurisdictions, eligibility regimes, constitutional minimums, USCIS test answers — flag oversimplification or conflation of distinct categories.
+E. Stale XML/JSDoc/test-name comments: a renamed test whose XML doc still describes the old behavior; doc strings that no longer match the function they document.
+F. Cache invalidation correctness: cache-key shape, cache version bumps, asymmetric request-vs-warm-up keys, missed bumps after content changes.
+G. Race conditions / error swallowing in async code: silent .catch(() => undefined), void-discarded promises, useEffect cleanup omissions, double-await semantics.
+H. Scaling concerns: would this work at 10x the current N? Concurrency caps still right? O(N²) hidden in an "obvious" loop?
+I. Domain invariants: any per-PR invariant the reviewer should verify (e.g. coverage contracts, route registration, schema migration shape).
+J. "What would Copilot likely flag here?" Apply categorical thinking that has surfaced findings in prior Copilot rounds: brittle invariants, oversimplifications, false comments, ordering dependencies, missed citations, missing source for a factual claim.
+K. Audit-whole-file: when you find one instance of a class of issue, check the whole file (and sibling files of the same kind) for other instances of the same class. Flag every instance, not just the first.
+
+Out of scope: stylistic preferences, anything in [explicit list of exclusions for this PR].
+```
+
+Add per-PR specific checks below the standard checklist as letters L, M, N, ... (e.g. "L. Architecture diagram alignment after the box-art edit", "M. Specific to round-X: …"). Always retain the A–K standard items even if a few are clearly N/A — explicitly noting "N/A" forces the reviewer to consider and rule out the category rather than skip it silently.
+
 #### PR Size Discipline
 
-Each round of the Copilot PR Review Loop re-loads the full PR diff and the review thread context into the orchestrator. Review-round context cost scales roughly linearly with diff size **and** with number of rounds. Large multi-concern PRs are the worst case: many rounds × large diff = compaction risk.
+Prefer scoping a PR to a single concern. The motivation here is **review quality**, not context cost: smaller diffs let both Copilot and GPT-5.5 reason about each layer independently, which surfaces better findings and produces clearer commit history. Multiple Copilot review rounds with meaningful findings on a single PR are a healthy outcome — the failure mode to avoid is silent reviews or missed categorical issues, not "more than two rounds".
 
-- **Soft target: ≤600 lines of net diff per PR.** Larger is allowed, but the orchestrator should justify it (e.g. an atomic refactor that cannot be split without breaking the build).
-- **Split test-infrastructure changes from content/feature changes.** Land the test-infra refactor first as its own PR; then add content/feature commits against the new contract. Reviewers (and the orchestrator) reason about each layer independently with much less context.
-- **Split unrelated concerns.** A PR that bundles "expand catalog + rewrite warm-up cache + bump cache version + restructure tests" should be 3–4 PRs. Once the first lands and merges, its diff drops out of the orchestrator's working context for subsequent rounds.
-- When a single PR is the right shape but is large, prefer **fewer, more thorough review rounds** over many small ones — apply review-feedback fixes in batched commits rather than push-after-every-finding.
+- **Prefer splitting test-infrastructure changes from content/feature changes.** Land the test-infra refactor first as its own PR; then layer content/feature commits against the new contract. Reviewers reason about each layer in isolation and tend to find more.
+- **Prefer splitting unrelated concerns.** A PR that bundles "expand catalog + rewrite warm-up cache + bump cache version + restructure tests" is harder to review well as one diff than as 3–4 focused PRs even if the total LOC is the same.
+- **Don't optimize away review rounds.** A PR that ships in one round may have skipped findings that a multi-round loop would have caught. The user's explicit stated cost model: "it's ok to go around with copilot for longer, assuming it's 4 rounds in 30 minutes; the issue is if you don't see a review at all, as long as the issues reported by GPT-5.5 are meaningful."
 
 #### Pre-Push Verification (build + tests + e2e)
 
@@ -316,9 +361,9 @@ When refactoring or behavior-changing code, also update **any comments that desc
 
 #### Audit Whole-File for Class of Issue
 
-When a reviewer (Copilot or GPT-5.5) flags one occurrence of a class of issue — hardcoded count, missing citation, stale comment, magic number, etc. — **audit the entire affected file (and sibling files of the same kind) for every other instance of that class in one pass**. Fixing only the flagged occurrence guarantees the next review round will flag a sibling, costing another full review cycle (and another diff load into orchestrator context). Bias toward over-fixing within the class; under-fixing is the more expensive mistake.
+When a reviewer (Copilot or GPT-5.5) flags one occurrence of a class of issue — hardcoded count, missing citation, stale comment, magic number, etc. — **audit the entire affected file (and sibling files of the same kind) for every other instance of that class in one pass**. The motivation is **fix completeness**, not minimizing review rounds: a partial fix that addresses only the flagged occurrence leaves siblings in an obviously inconsistent state, which is itself a defect. Bias toward over-fixing within the class; under-fixing is the more expensive mistake because it ships a known-incomplete change.
 
-A concrete past example: PR #77 round 1 flagged one hardcoded story count in `CONTEXT.md`. The orchestrator fixed only that occurrence, then round 2 flagged hardcoded subcategory question counts in the same file (different sentences, same class), then round 3 flagged a hardcoded count in the PR title. One whole-file audit at round 1 would have collapsed three rounds into one.
+A concrete past example: PR #77 round 1 flagged one hardcoded story count in `CONTEXT.md`. The orchestrator fixed only that occurrence; rounds 2 and 3 then surfaced the obvious siblings (subcategory question counts in the same file, then the PR title's hardcoded count). Each was a real defect — the issue isn't that they cost rounds, it's that shipping the round-1 fix knowingly left the same class of problem elsewhere in the same file.
 
 #### Avoid Hardcoded Counts in Living Docs
 
