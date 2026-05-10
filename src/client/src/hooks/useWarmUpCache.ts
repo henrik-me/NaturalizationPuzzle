@@ -41,23 +41,36 @@ export function useWarmUpCache(stateId: number | null): void {
           }
         }
       }
-      // Warm the questions, states, and the stories index first.
-      await Promise.allSettled([
-        getAllQuestions(stateId ?? undefined),
-        get6520Questions(stateId ?? undefined),
-        getAllStates(),
-        ...(stateId ? [getStateById(stateId)] : []),
-      ]);
+      // Warm the questions, states, and the stories index. The stories
+      // index sits in the same parallel batch as the question/state
+      // warm-ups so its response lands as quickly as possible — its
+      // result then drives the per-story-detail fan-out below.
+      const [, , , , indexResult] = await Promise.all([
+        getAllQuestions(stateId ?? undefined).catch(() => undefined),
+        get6520Questions(stateId ?? undefined).catch(() => undefined),
+        getAllStates().catch(() => undefined),
+        stateId ? getStateById(stateId).catch(() => undefined) : Promise.resolve(undefined),
+        listStories().catch(() => ({ success: false as const, error: 'fetch-failed' })),
+      ] as const);
 
-      // Then warm the stories index, and use its slugs to fan out to
-      // every story detail. This is what lets the user open ANY story
-      // offline after a single online visit, without us hardcoding a
-      // pilot slug list that goes stale as the catalog grows.
-      const indexResult = await listStories();
-      if (indexResult.success) {
-        const slugs = indexResult.data.map(s => s.slug);
-        if (slugs.length > 0) {
-          await Promise.allSettled(slugs.map(slug => getStory(slug, stateId ?? undefined)));
+      // Use the just-warmed stories index to fan out to every story
+      // detail. Two cost controls:
+      //   1. Bounded concurrency (CONCURRENCY=4 at a time) so a large
+      //      catalog can't burst-fire dozens of parallel requests on
+      //      a single page load.
+      //   2. Only pass `stateId` for stories whose `stateAwarePreamble`
+      //      is true. The other stories don't vary by state, so caching
+      //      a per-state copy of each is wasted SW cache space.
+      if (indexResult && indexResult.success) {
+        const items = indexResult.data;
+        const concurrency = 4;
+        for (let i = 0; i < items.length; i += concurrency) {
+          const chunk = items.slice(i, i + concurrency);
+          await Promise.allSettled(
+            chunk.map(item =>
+              getStory(item.slug, item.stateAwarePreamble ? stateId ?? undefined : undefined)
+            )
+          );
         }
       }
     })();

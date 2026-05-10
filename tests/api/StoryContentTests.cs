@@ -7,14 +7,25 @@ using Xunit;
 namespace NaturalizationPuzzle.Api.Tests;
 
 /// <summary>
-/// Drives <see cref="StoryParser"/> over every embedded pilot story and
-/// asserts the authoring rules from the Story Mode plan: every QuestionId
-/// resolves to a real Question, the questions live in the story's declared
-/// (Category, SubCategory), Flesch Reading Ease meets the per-story floor,
-/// every source has a non-empty SupportSnippet, every [N] marker resolves
-/// to a source, and the COVERAGE CONTRACT — every question whose
-/// (Category, SubCategory) matches a story's scope is either in that
-/// story's QuestionIds or in OrphanedQuestionIds (with reason).
+/// Drives <see cref="StoryParser"/> over every embedded story and asserts
+/// the authoring rules from the Story Mode plan: every QuestionId resolves
+/// to a real Question, MOST QuestionIds match the story's primary
+/// (Category, SubCategory) — cross-subcategory weaves are allowed when
+/// a question fits multiple topics — Flesch Reading Ease meets the
+/// per-story floor, every source has a non-empty SupportSnippet, every
+/// [N] marker resolves to a source.
+///
+/// Coverage contracts (this PR moved from a per-story orphan-list rule
+/// to a global per-question rule):
+///   1. CoverageContract_NoInScopeQuestionIsSilentlyOmitted — every Q in
+///      a story's (Category, SubCategory) must be in this story's
+///      QuestionIds, OR in this story's OrphanedQuestionIds, OR claimed
+///      by some OTHER story's QuestionIds.
+///   2. GlobalCoverage_EveryQuestionIsClaimedByAtLeastOneStory — every
+///      Q1..Q128 in seed must be in QuestionIds of at least one story.
+///   3. CoverageSummary_PrintsUsageCountPerQuestion — informational
+///      histogram of usage counts (printed via ITestOutputHelper when the
+///      test runner is configured with detailed-verbosity logging).
 /// </summary>
 public sealed class StoryContentTests : IDisposable
 {
@@ -23,6 +34,11 @@ public sealed class StoryContentTests : IDisposable
     private readonly QuestionService _questionService;
     private readonly ITestOutputHelper _output;
 
+    // Note on Xunit imports: the test project uses xunit.v3 (see
+    // tests/api/NaturalizationPuzzle.Api.Tests.csproj). In xUnit v3,
+    // ITestOutputHelper lives in the Xunit namespace (it moved out of
+    // Xunit.Abstractions in v3). The single `using Xunit;` above is
+    // sufficient — no Xunit.Abstractions import needed.
     public StoryContentTests(ITestOutputHelper output)
     {
         _output = output;
@@ -249,11 +265,11 @@ public sealed class StoryContentTests : IDisposable
             }
         }
 
-        // Print to test output so `dotnet test` shows the histogram.
+        // Print to test output (visible via `dotnet test --logger
+        // "console;verbosity=detailed"` or in xUnit v3 result XML).
         _output.WriteLine(summary.ToString());
 
-        // Always passes — informational only.
-        Assert.True(true);
+        // Informational test — no assertion needed.
     }
 
     [Fact]

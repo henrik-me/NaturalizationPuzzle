@@ -18,10 +18,10 @@ vi.mock('../services/storyService', () => ({
     data: [
       { slug: 'alpha-story', title: 'A', category: 'X', subCategory: 'Y',
         estReadMinutes: 1, fleschReadingEase: 80, questionCount: 1,
-        modelMemoryUsed: false, stateAwarePreamble: false },
+        modelMemoryUsed: false, stateAwarePreamble: true /* state-aware */ },
       { slug: 'beta-story', title: 'B', category: 'X', subCategory: 'Y',
         estReadMinutes: 1, fleschReadingEase: 80, questionCount: 1,
-        modelMemoryUsed: false, stateAwarePreamble: false },
+        modelMemoryUsed: false, stateAwarePreamble: false /* not state-aware */ },
     ],
   }),
   getStory: vi.fn().mockResolvedValue({ success: false, error: 'not-loaded' }),
@@ -58,15 +58,17 @@ describe('useWarmUpCache', () => {
     });
   });
 
-  it('warms the stories index AND every story detail returned by the index (offline contract)', async () => {
+  it('warms the stories index AND every story detail, passing stateId only to state-aware stories', async () => {
     renderHook(() => useWarmUpCache(7));
 
     await vi.waitFor(() => {
       expect(listStories).toHaveBeenCalled();
-      // The mock returns alpha-story + beta-story; warm-up should fan out
-      // to every slug, not a hardcoded subset.
+      // alpha-story has stateAwarePreamble: true -> warm with stateId=7
       expect(getStory).toHaveBeenCalledWith('alpha-story', 7);
-      expect(getStory).toHaveBeenCalledWith('beta-story', 7);
+      // beta-story has stateAwarePreamble: false -> warm with undefined
+      // (no need to cache a per-state copy of a story whose body
+      // doesn't change with state)
+      expect(getStory).toHaveBeenCalledWith('beta-story', undefined);
     });
   });
 
