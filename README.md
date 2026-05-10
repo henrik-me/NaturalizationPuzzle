@@ -18,8 +18,8 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 │  │  React 19    │   │  React Router│   │  Service Worker         │ │
 │  │  + TypeScript│──▶│  (SPA routes;│   │  (Workbox / PWA)        │ │
 │  │  + Tailwind  │   │   see Routes │   │  • precaches app shell  │ │
-│  │    CSS v4    │   │   table)     │   │  • stale-while-revalidate│ │
-│  │              │   │              │   │    for /api/v1/*        │ │
+│  │    CSS v4    │   │   table)     │   │  • SWR for questions,   │ │
+│  │              │   │              │   │    states, stories      │ │
 │  └──────┬───────┘   └──────────────┘   └────────────┬────────────┘ │
 │         │                                           │              │
 │         ▼                                           │              │
@@ -320,9 +320,9 @@ All user data is stored **client-side only** in the browser's `localStorage`. Th
 ### PWA & Offline
 
 - **Service worker** (via `vite-plugin-pwa` + Workbox) precaches the app shell and static assets.
-- **API responses** for questions and states are cached with a **stale-while-revalidate** strategy.
-- A **cache warm-up hook** (`useWarmUpCache`) runs on app mount and eagerly fetches all API endpoints, ensuring offline readiness regardless of which page the user visits first.
-- After the first load, the app is **fully functional offline** — all 128 questions, state data, and quiz functionality are available from cache.
+- **API responses** for questions, **states**, and **stories** are cached with a **stale-while-revalidate** strategy; app-shell assets (scripts, styles, images, fonts) use a **network-first** strategy with a short timeout fallback.
+- A **cache warm-up hook** (`useWarmUpCache`) runs on app mount and eagerly fetches the cached endpoints — the full and 65/20 question lists, the states list, the user's selected state details, the stories index, and every story detail — so offline reload works regardless of which page the user visits first.
+- After the first load, the app is **fully functional offline** — all 128 questions, state data, quiz functionality, and the full Story Mode catalog are available from cache.
 - An **OfflineBanner** component shows when the network is unavailable.
 
 #### Validating Offline Capabilities
