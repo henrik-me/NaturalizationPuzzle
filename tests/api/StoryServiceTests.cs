@@ -21,7 +21,7 @@ public sealed class StoryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ListAsync_ReturnsAllPilotStories()
+    public async Task ListAsync_IncludesThePilotStories()
     {
         var stories = await _sut.ListAsync(CancellationToken.None);
         Assert.True(stories.Count >= 3, "Story Mode should ship at least the v1 pilot trio.");
