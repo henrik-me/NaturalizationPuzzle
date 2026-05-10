@@ -9,11 +9,11 @@ namespace NaturalizationPuzzle.Api.Tests;
 /// <summary>
 /// Drives <see cref="StoryParser"/> over every embedded story and asserts
 /// the authoring rules from the Story Mode plan: every QuestionId resolves
-/// to a real Question, MOST QuestionIds match the story's primary
-/// (Category, SubCategory) — cross-subcategory weaves are allowed when
-/// a question fits multiple topics — Flesch Reading Ease meets the
-/// per-story floor, every source has a non-empty SupportSnippet, every
-/// [N] marker resolves to a source.
+/// to a real Question, at least half of a story's QuestionIds match the
+/// story's primary (Category, SubCategory) — cross-subcategory weaves
+/// are allowed when a question fits multiple topics — Flesch Reading Ease
+/// meets the per-story floor, every source has a non-empty SupportSnippet,
+/// every [N] marker resolves to a source.
 ///
 /// Coverage contracts (this PR moved from a per-story orphan-list rule
 /// to a global per-question rule):
@@ -79,14 +79,14 @@ public sealed class StoryContentTests : IDisposable
     }
 
     /// <summary>
-    /// Most QuestionIds in a story should match the story's primary
-    /// (Category, SubCategory). Cross-subcategory references are allowed
-    /// (multi-story membership lets a story like civil-rights-movement
-    /// pull in 19th-amendment / 15th-amendment questions from "The 1800s")
-    /// but should be the exception, not the norm.
+    /// At least half of a story's QuestionIds should match the story's
+    /// primary (Category, SubCategory). Cross-subcategory references are
+    /// allowed (multi-story membership lets a story like
+    /// civil-rights-movement pull in 19th-amendment / 15th-amendment
+    /// questions from "The 1800s") but should not dominate the story.
     /// </summary>
     [Fact]
-    public void EveryStoryQuestionId_HasMostlyMatchingCategoryAndSubCategory()
+    public void EveryStoryQuestionId_HasAtLeastHalfMatchingCategoryAndSubCategory()
     {
         var byId = _db.Questions.ToDictionary(q => q.Id);
         foreach (var story in _sut.GetAllStories())

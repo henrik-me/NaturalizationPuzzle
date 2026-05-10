@@ -367,7 +367,7 @@ Session-only artifacts (e.g. `~/.copilot/session-state/<id>/plan.md`, the SQL to
 
 ### Last completed work
 
-The most recent feature is the **Story Mode full-catalog expansion** (PR #77, in progress) — every USCIS subcategory now has at least one dedicated story, with multi-membership where a question fits multiple topics, so every one of the 128 civics questions is claimed by at least one story. The previous Story Mode milestone was **v1 (pilot)** (merged via PR #74). See Phase 14 (pilot) and Phase 15 (catalog) in [Next Steps](#next-steps) for the full surface area, and the [Story Mode — Authoring Guide](#story-mode--authoring-guide) section for how to add a story.
+The most recent feature is the **Story Mode full-catalog expansion** (PR #77) — every USCIS subcategory now has at least one dedicated story, with multi-membership where a question fits multiple topics, so every one of the 128 civics questions is claimed by at least one story. The previous Story Mode milestone was **v1 (pilot)** (merged via PR #74). See Phase 14 (pilot) and Phase 15 (catalog) in [Next Steps](#next-steps) for the full surface area, and the [Story Mode — Authoring Guide](#story-mode--authoring-guide) section for how to add a story.
 
 Active state at the time of writing this guide:
 
