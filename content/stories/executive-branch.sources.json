@@ -1,0 +1,32 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "President of the United States",
+      "url": "https://en.wikipedia.org/wiki/President_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The president of the United States is the head of state and head of government of the United States. The president directs the executive branch, serves as commander-in-chief of the United States Armed Forces, signs or vetoes legislation passed by Congress, appoints federal judges, and serves a four-year term."
+    },
+    {
+      "id": 2,
+      "title": "Vice President of the United States",
+      "url": "https://en.wikipedia.org/wiki/Vice_President_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The vice president serves as the first person in the presidential line of succession. The Speaker of the House of Representatives is second in line. The vice president also serves as president of the Senate and may cast tie-breaking votes."
+    },
+    {
+      "id": 3,
+      "title": "Cabinet of the United States",
+      "url": "https://en.wikipedia.org/wiki/Cabinet_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The Cabinet of the United States is composed of the most senior appointed officers of the executive branch. The Cabinet members head the 15 executive departments, including the Secretary of State, Secretary of the Treasury, Secretary of Defense, Attorney General, and the Secretaries of the Interior, Agriculture, Commerce, Labor, Health and Human Services, Housing and Urban Development, Transportation, Energy, Education, Veterans Affairs, and Homeland Security."
+    },
+    {
+      "id": 4,
+      "title": "United States Electoral College",
+      "url": "https://en.wikipedia.org/wiki/United_States_Electoral_College",
+      "type": "wikipedia",
+      "supportSnippet": "The Electoral College is the body that elects the U.S. president and vice president. Voters in each state vote for electors, who in turn cast the official votes for president. The system gives every state at least three electoral votes, regardless of population, ensuring smaller states retain influence in the presidential election."
+    }
+  ]
+}

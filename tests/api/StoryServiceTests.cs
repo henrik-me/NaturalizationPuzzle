@@ -21,10 +21,9 @@ public sealed class StoryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ListAsync_ReturnsAllPilotStories()
+    public async Task ListAsync_IncludesBaselineStories()
     {
         var stories = await _sut.ListAsync(CancellationToken.None);
-        Assert.Equal(3, stories.Count);
         Assert.Contains(stories, s => s.Slug == "three-branches");
         Assert.Contains(stories, s => s.Slug == "civil-war-and-reconstruction");
         Assert.Contains(stories, s => s.Slug == "national-symbols-and-holidays");

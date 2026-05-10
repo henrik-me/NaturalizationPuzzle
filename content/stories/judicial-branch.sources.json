@@ -1,0 +1,32 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "Federal judiciary of the United States",
+      "url": "https://en.wikipedia.org/wiki/Federal_judiciary_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The federal judiciary of the United States is one of the three branches of the federal government. It interprets and applies federal laws, resolves legal disputes, and reviews executive actions and laws to determine their constitutionality."
+    },
+    {
+      "id": 2,
+      "title": "Judicial review in the United States",
+      "url": "https://en.wikipedia.org/wiki/Judicial_review_in_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "Judicial review in the United States is the legal power of a court to determine if a statute, treaty, or administrative regulation contradicts or violates the provisions of existing law, a state constitution, or ultimately the United States Constitution. Laws found to violate the Constitution can be struck down."
+    },
+    {
+      "id": 3,
+      "title": "Supreme Court of the United States",
+      "url": "https://en.wikipedia.org/wiki/Supreme_Court_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "The Supreme Court of the United States is the highest court in the federal judiciary. It consists of nine justices: the chief justice of the United States and eight associate justices. Justices have life tenure under the 'good behavior' clause of Article III, intended to insulate them from political pressure. A simple majority of five justices is required to decide a case."
+    },
+    {
+      "id": 4,
+      "title": "John Roberts",
+      "url": "https://en.wikipedia.org/wiki/John_Roberts",
+      "type": "wikipedia",
+      "supportSnippet": "John Glover Roberts Jr. is the 17th and current chief justice of the United States, serving since September 29, 2005. He was nominated by President George W. Bush after the death of Chief Justice William Rehnquist."
+    }
+  ]
+}

@@ -2,48 +2,62 @@
   "sources": [
     {
       "id": 1,
+      "title": "Louisiana Purchase",
+      "url": "https://en.wikipedia.org/wiki/Louisiana_Purchase",
+      "type": "wikipedia",
+      "supportSnippet": "The Louisiana Purchase was the acquisition of the territory of Louisiana by the United States from the First French Republic in 1803. The purchase nearly doubled the size of the United States and added land that became all or part of 15 states."
+    },
+    {
+      "id": 2,
+      "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
+      "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
+      "type": "gov",
+      "supportSnippet": "Q91 — Name one war fought by the United States in the 1800s. Acceptable answers: War of 1812, Mexican-American War, Civil War, Spanish-American War."
+    },
+    {
+      "id": 3,
       "title": "American Civil War",
       "url": "https://en.wikipedia.org/wiki/American_Civil_War",
       "type": "wikipedia",
       "supportSnippet": "The American Civil War (April 12, 1861 – May 26, 1865) was a civil war in the United States between the Union (states that remained loyal to the federal union) and the Confederacy (states that voted to secede). The central cause was the dispute over slavery. Key events include the attack on Fort Sumter, the Battle of Gettysburg, and the Confederate surrender at Appomattox Court House."
     },
     {
-      "id": 2,
+      "id": 4,
       "title": "Abraham Lincoln",
       "url": "https://en.wikipedia.org/wiki/Abraham_Lincoln",
       "type": "wikipedia",
       "supportSnippet": "Abraham Lincoln was the 16th president of the United States, serving from 1861 until his assassination in 1865. He led the Union through the American Civil War, defended the nation as a constitutional union, defeated the Confederacy, abolished slavery, and delivered the Gettysburg Address."
     },
     {
-      "id": 3,
+      "id": 5,
       "title": "The Emancipation Proclamation",
       "url": "https://www.archives.gov/exhibits/featured-documents/emancipation-proclamation",
       "type": "gov",
       "supportSnippet": "Issued by President Abraham Lincoln on January 1, 1863, the Emancipation Proclamation declared 'that all persons held as slaves' within the rebellious states 'are, and henceforward shall be free.'"
     },
     {
-      "id": 4,
+      "id": 6,
       "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
       "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
       "type": "gov",
       "supportSnippet": "Q96 — What U.S. war ended slavery? Answer: the Civil War."
     },
     {
-      "id": 5,
+      "id": 7,
       "title": "14th Amendment to the U.S. Constitution: Civil Rights (1868)",
       "url": "https://www.archives.gov/milestone-documents/14th-amendment",
       "type": "gov",
       "supportSnippet": "Passed by Congress June 13, 1866, and ratified July 9, 1868, the 14th Amendment extended liberties and rights granted by the Bill of Rights to former slaves and granted citizenship to all persons born or naturalized in the United States. The 13th Amendment (1865) had previously abolished slavery."
     },
     {
-      "id": 6,
+      "id": 8,
       "title": "Fifteenth Amendment to the United States Constitution",
       "url": "https://en.wikipedia.org/wiki/Fifteenth_Amendment_to_the_United_States_Constitution",
       "type": "wikipedia",
       "supportSnippet": "Ratified February 3, 1870, the Fifteenth Amendment prohibits the federal government and each state from denying or abridging a citizen's right to vote on the basis of 'race, color, or previous condition of servitude.' For nearly a century after, many Black Americans were disenfranchised in the South, until the Voting Rights Act of 1965 enforced the amendment."
     },
     {
-      "id": 7,
+      "id": 9,
       "title": "Susan B. Anthony",
       "url": "https://en.wikipedia.org/wiki/Susan_B._Anthony",
       "type": "wikipedia",

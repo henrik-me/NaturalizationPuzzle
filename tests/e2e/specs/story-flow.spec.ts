@@ -2,18 +2,18 @@ import { test, expect } from '@playwright/test';
 import { SettingsPage } from '../pages/SettingsPage';
 
 /**
- * Story Mode v1 e2e flow.
+ * Story Mode e2e flow.
  *
  * Covers the pieces the unit tests can't: real browser routing into the
  * /stories index, navigation into a detail page, the state-aware preamble
  * rendering with a real selected state, the comprehension-quiz hand-off
  * to QuizCard, persisted storiesRead in localStorage across reload, and
- * the offline-readability contract (warm-up caches each pilot detail
+ * the offline-readability contract (warm-up caches each story detail
  * during the first online load, then reload offline still renders).
  */
 
 test.describe('Story Mode', () => {
-  test('Stories index lists all three pilot stories grouped by category', async ({ page }) => {
+  test('Stories index lists the baseline story cards grouped by category', async ({ page }) => {
     await page.goto('/stories');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Stories' })).toBeVisible();

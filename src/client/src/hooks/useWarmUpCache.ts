@@ -3,15 +3,6 @@ import { getAllQuestions, get6520Questions } from '../services/questionService';
 import { getAllStates, getStateById } from '../services/stateService';
 import { listStories, getStory } from '../services/storyService';
 
-// Pilot-story slugs to warm so that every Story Mode v1 detail page is
-// available offline after the first online load. When the catalog grows
-// past the pilot, switch to listStories() -> warm each returned slug.
-const PILOT_STORY_SLUGS = [
-  'three-branches',
-  'civil-war-and-reconstruction',
-  'national-symbols-and-holidays',
-] as const;
-
 /**
  * Eagerly fetches all key API endpoints so the service worker caches
  * responses for offline use. Re-runs whenever the user picks a different
@@ -50,18 +41,58 @@ export function useWarmUpCache(stateId: number | null): void {
           }
         }
       }
+      // Warm the questions, states, and the stories index. Promise.allSettled
+      // is the right primitive here — best-effort fire-all, never reject — so
+      // a single 4xx/5xx/network failure on one warm-up doesn't block the
+      // story-detail fan-out below.
+      //
+      // Known limitation (round-4 review fix #2): fetch has no built-in
+      // timeout, so a single request that hangs indefinitely would still
+      // pause this warm-up at the await below. This is acceptable for now
+      // because warm-up runs in the background after the page is already
+      // interactive; user-facing reads use their own typed result paths.
+      // Adding an AbortController-based per-request timeout is tracked as a
+      // follow-up; it would let us bound this loop end-to-end.
+      //
+      // The index promise is captured in a named variable (round-4 review
+      // fix #3) instead of being read out of the Promise.allSettled result
+      // by array index — relying on `settled[settled.length - 1]` was
+      // brittle to future reorderings of the warm-up batch.
+      const indexPromise = listStories();
       await Promise.allSettled([
         getAllQuestions(stateId ?? undefined),
         get6520Questions(stateId ?? undefined),
         getAllStates(),
-        ...(stateId ? [getStateById(stateId)] : []),
-        listStories(),
-        // Warm each pilot story detail (with stateId where set) so the
-        // state-aware variant is the cached one. This satisfies the offline
-        // contract: every pilot story is fully readable offline after the
-        // first online visit.
-        ...PILOT_STORY_SLUGS.map(slug => getStory(slug, stateId ?? undefined)),
+        stateId ? getStateById(stateId) : Promise.resolve(undefined),
+        indexPromise,
       ]);
+      const indexResult = await indexPromise.catch(
+        () => ({ success: false as const, error: 'fetch-failed' as const })
+      );
+
+      // Use the just-warmed stories index to fan out to every story
+      // detail. Bounded concurrency (CONCURRENCY=4 at a time) so a large
+      // catalog can't burst-fire dozens of parallel requests on a single
+      // page load.
+      //
+      // Round-5 review fix #1: ALWAYS pass `stateId` here so the warmed
+      // cache key matches what `StoryPage` will request. An earlier round
+      // tried to skip `stateId` for stories whose `stateAwarePreamble` is
+      // false (saving cache space), but `StoryPage` does not branch on that
+      // flag — it always requests with the user's selected `stateId`. The
+      // mismatch made non-state-aware stories miss the warm-up cache for
+      // any user who had a state selected, which broke the offline read
+      // contract on first reload.
+      if (indexResult && 'success' in indexResult && indexResult.success) {
+        const items = indexResult.data;
+        const concurrency = 4;
+        for (let i = 0; i < items.length; i += concurrency) {
+          const chunk = items.slice(i, i + concurrency);
+          await Promise.allSettled(
+            chunk.map(item => getStory(item.slug, stateId ?? undefined))
+          );
+        }
+      }
     })();
   }, [stateId]);
 }

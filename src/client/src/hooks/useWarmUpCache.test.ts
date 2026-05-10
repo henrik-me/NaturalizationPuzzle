@@ -13,7 +13,17 @@ vi.mock('../services/stateService', () => ({
 }));
 
 vi.mock('../services/storyService', () => ({
-  listStories: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  listStories: vi.fn().mockResolvedValue({
+    success: true,
+    data: [
+      { slug: 'alpha-story', title: 'A', category: 'X', subCategory: 'Y',
+        estReadMinutes: 1, fleschReadingEase: 80, questionCount: 1,
+        modelMemoryUsed: false, stateAwarePreamble: true /* state-aware */ },
+      { slug: 'beta-story', title: 'B', category: 'X', subCategory: 'Y',
+        estReadMinutes: 1, fleschReadingEase: 80, questionCount: 1,
+        modelMemoryUsed: false, stateAwarePreamble: false /* not state-aware */ },
+    ],
+  }),
   getStory: vi.fn().mockResolvedValue({ success: false, error: 'not-loaded' }),
 }));
 
@@ -48,24 +58,26 @@ describe('useWarmUpCache', () => {
     });
   });
 
-  it('warms the stories index AND every pilot story detail (offline contract)', async () => {
+  it('warms the stories index AND every story detail, passing the selected stateId to all stories so the cache key matches what StoryPage will request', async () => {
     renderHook(() => useWarmUpCache(7));
 
     await vi.waitFor(() => {
       expect(listStories).toHaveBeenCalled();
-      expect(getStory).toHaveBeenCalledWith('three-branches', 7);
-      expect(getStory).toHaveBeenCalledWith('civil-war-and-reconstruction', 7);
-      expect(getStory).toHaveBeenCalledWith('national-symbols-and-holidays', 7);
+      // Both stories warmed with stateId=7 — StoryPage always requests
+      // with the user's selected state regardless of the story's
+      // stateAwarePreamble flag, so the warm-up must match (round-5
+      // review fix #1).
+      expect(getStory).toHaveBeenCalledWith('alpha-story', 7);
+      expect(getStory).toHaveBeenCalledWith('beta-story', 7);
     });
   });
 
-  it('warms pilot story details with undefined stateId when no state is selected', async () => {
+  it('warms each story detail with undefined stateId when no state is selected', async () => {
     renderHook(() => useWarmUpCache(null));
 
     await vi.waitFor(() => {
-      expect(getStory).toHaveBeenCalledWith('three-branches', undefined);
-      expect(getStory).toHaveBeenCalledWith('civil-war-and-reconstruction', undefined);
-      expect(getStory).toHaveBeenCalledWith('national-symbols-and-holidays', undefined);
+      expect(getStory).toHaveBeenCalledWith('alpha-story', undefined);
+      expect(getStory).toHaveBeenCalledWith('beta-story', undefined);
     });
   });
 

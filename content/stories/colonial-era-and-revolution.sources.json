@@ -1,0 +1,39 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "Colonial history of the United States",
+      "url": "https://en.wikipedia.org/wiki/Colonial_history_of_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "European colonists came to North America for many reasons, including freedom of religion, political freedom, economic opportunity, freedom from persecution, and the chance to own land."
+    },
+    {
+      "id": 2,
+      "title": "Native Americans in the United States",
+      "url": "https://en.wikipedia.org/wiki/Native_Americans_in_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "Many distinct tribes — including the Cherokee, Navajo, Sioux, Apache, Iroquois, Pueblo, Lakota, Hopi, Inuit, Mohegan, Crow, Chippewa, Choctaw, Seminole, Creek, and many others — lived in the Americas for thousands of years before European colonization. Slavery was also introduced into the colonies starting in the 17th century, with enslaved Africans transported across the Atlantic primarily to work on plantations."
+    },
+    {
+      "id": 3,
+      "title": "American Revolution",
+      "url": "https://en.wikipedia.org/wiki/American_Revolution",
+      "type": "wikipedia",
+      "supportSnippet": "Colonists fought the British for many reasons: high taxes (taxation without representation), the British army staying in their houses (boarding, quartering), and the colonists having no self-government. Armed conflict began in April 1775 with the battles of Lexington and Concord."
+    },
+    {
+      "id": 4,
+      "title": "Declaration of Independence",
+      "url": "https://www.archives.gov/founding-docs/declaration",
+      "type": "gov",
+      "supportSnippet": "The Declaration of Independence was adopted by the Second Continental Congress on July 4, 1776. Thomas Jefferson was its principal author. The Declaration formally announced the colonies' separation from the Kingdom of Great Britain ruled by King George III."
+    },
+    {
+      "id": 5,
+      "title": "Constitutional Convention (United States)",
+      "url": "https://en.wikipedia.org/wiki/Constitutional_Convention_(United_States)",
+      "type": "wikipedia",
+      "supportSnippet": "The Constitutional Convention took place in Philadelphia from May to September 1787. George Washington presided over the convention; Benjamin Franklin was a delegate from Pennsylvania. The resulting Constitution was supported in the ratification debate by The Federalist Papers, written by Alexander Hamilton, James Madison, and John Jay under the pen name 'Publius.' George Washington became the first President of the United States in 1789 and is known as the Father of Our Country."
+    }
+  ]
+}

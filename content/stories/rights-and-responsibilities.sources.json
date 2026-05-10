@@ -1,0 +1,53 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "First Amendment to the United States Constitution",
+      "url": "https://en.wikipedia.org/wiki/First_Amendment_to_the_United_States_Constitution",
+      "type": "wikipedia",
+      "supportSnippet": "The First Amendment to the U.S. Constitution prevents the government from making laws regarding an establishment of religion; prohibiting the free exercise of religion; or abridging the freedom of speech, the freedom of the press, the freedom of assembly, or the right to petition the government for a redress of grievances. These rights apply to all persons within the territorial United States, not only to citizens."
+    },
+    {
+      "id": 2,
+      "title": "Voting rights in the United States",
+      "url": "https://en.wikipedia.org/wiki/Voting_rights_in_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "Four constitutional amendments expanded voting rights: the 15th (1870, race), the 19th (1920, sex), the 24th (1964, abolishing the poll tax in federal elections), and the 26th (1971, lowering the voting age to 18). All U.S. citizens 18 and older have the right to vote in federal elections."
+    },
+    {
+      "id": 3,
+      "title": "U.S. Civics Test Questions and Answers (M-1778, 2025)",
+      "url": "https://www.uscis.gov/sites/default/files/document/questions-and-answers/2025-Civics-Test-128-Questions-and-Answers.pdf",
+      "type": "gov",
+      "supportSnippet": "Canonical USCIS answer set for Q64 (federal voting/office/jury rights are limited to U.S. citizens), Q66 (the Pledge shows loyalty to the flag and the United States), Q67 (the Oath promises: give up loyalty to other countries; defend the Constitution and laws; obey the laws; serve the military or country if needed), Q69 (civic-participation examples: vote, run for office, join a campaign or community group, contact officials), and Q70 (ways Americans serve: vote, pay taxes, obey the law, serve in the military, run for office, work for government, serve on a jury)."
+    },
+    {
+      "id": 4,
+      "title": "United States nationality law",
+      "url": "https://en.wikipedia.org/wiki/United_States_nationality_law",
+      "type": "wikipedia",
+      "supportSnippet": "There are several principal pathways to U.S. citizenship: birth in the United States (jus soli), birth abroad to one or both U.S. citizen parents (jus sanguinis), naturalization (the legal process by which a foreign citizen becomes a U.S. citizen), and derivative citizenship (a child automatically becoming a citizen when a parent naturalizes, subject to specific conditions)."
+    },
+    {
+      "id": 5,
+      "title": "Income tax in the United States",
+      "url": "https://en.wikipedia.org/wiki/Income_tax_in_the_United_States",
+      "type": "wikipedia",
+      "supportSnippet": "Federal income tax returns for individuals in the United States are due on April 15 each year (or the next business day if April 15 falls on a weekend or holiday). Filing and paying federal income tax is a legal duty. Tax revenue funds federal government operations, including infrastructure, education programs, the military, and public services."
+    },
+    {
+      "id": 6,
+      "title": "Selective Service System",
+      "url": "https://en.wikipedia.org/wiki/Selective_Service_System",
+      "type": "wikipedia",
+      "supportSnippet": "Almost all male U.S. citizens and male immigrants residing in the United States, who are 18 through 25, are required by law to register with the Selective Service System within 30 days of their 18th birthday. Registration is required by federal law; it is also considered a civic duty; and it ensures that, if a draft were ever needed, the burden of military service would be shared fairly across the eligible population."
+    },
+    {
+      "id": 7,
+      "title": "Article One of the United States Constitution",
+      "url": "https://en.wikipedia.org/wiki/Article_One_of_the_United_States_Constitution",
+      "type": "wikipedia",
+      "supportSnippet": "Article One sets minimum ages and citizenship/residency requirements for federal legislators: a member of the U.S. House of Representatives must be at least 25 years old, and a U.S. Senator must be at least 30 years old. Article Two sets the minimum age for the President of the United States at 35 years old. These age qualifications are constitutional minimums distinct from the 18-year voting-age floor set by the 26th Amendment."
+    }
+  ]
+}

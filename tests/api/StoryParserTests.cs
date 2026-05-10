@@ -7,7 +7,7 @@ namespace NaturalizationPuzzle.Api.Tests;
 /// Direct unit tests for <see cref="StoryParser"/> validation rules — uses
 /// inline string fixtures so the rules can be exercised without committing
 /// a malformed file to content/stories. Pairs with <see cref="StoryContentTests"/>
-/// which validates the real shipped pilot stories.
+/// which validates the real shipped story catalog.
 /// </summary>
 public sealed class StoryParserTests
 {

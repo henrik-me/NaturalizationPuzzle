@@ -1,0 +1,32 @@
+{
+  "sources": [
+    {
+      "id": 1,
+      "title": "Cold War",
+      "url": "https://en.wikipedia.org/wiki/Cold_War",
+      "type": "wikipedia",
+      "supportSnippet": "The Cold War was the geopolitical tension between the United States and the Soviet Union and their respective allies after World War II. The U.S. led the capitalist Western Bloc; the Soviet Union led the communist Eastern Bloc. A main U.S. concern throughout the period was the spread of communism to other countries."
+    },
+    {
+      "id": 2,
+      "title": "Dwight D. Eisenhower",
+      "url": "https://en.wikipedia.org/wiki/Dwight_D._Eisenhower",
+      "type": "wikipedia",
+      "supportSnippet": "Dwight David Eisenhower was a five-star general in the United States Army who served as the Supreme Commander of the Allied Expeditionary Force in Europe during World War II, and the 34th president of the United States from 1953 to 1961. As president, he signed the Federal Aid Highway Act of 1956, which created the Interstate Highway System."
+    },
+    {
+      "id": 3,
+      "title": "Korean War",
+      "url": "https://en.wikipedia.org/wiki/Korean_War",
+      "type": "wikipedia",
+      "supportSnippet": "The Korean War (1950–1953) was fought between North Korea (supported by China and the Soviet Union) and South Korea (supported by the United States and other United Nations members). The United States entered the war to halt the spread of communism into the south."
+    },
+    {
+      "id": 4,
+      "title": "Vietnam War",
+      "url": "https://en.wikipedia.org/wiki/Vietnam_War",
+      "type": "wikipedia",
+      "supportSnippet": "The Vietnam War was a conflict in Vietnam, Laos, and Cambodia from 1955 to 1975. It pitted North Vietnam (backed by the Soviet Union, China, and other communist allies) against South Vietnam (backed by the United States and other anti-communist allies). The United States entered the war to stop the spread of communism in Southeast Asia."
+    }
+  ]
+}
