@@ -114,6 +114,119 @@ Always pass an explicit `model` argument when launching a non-`explore` sub-agen
 - **Stay available.** Between sub-agent launches and notifications, remain ready to accept new user input. Do not block on long shell loops or polling when a sub-agent or background process can do the waiting. **Hard rule:** any polling/waiting expected to exceed ~60 seconds (CI status, PR review wait, etc.) MUST run in a background sub-agent. Never run a foreground PowerShell `while`/`Start-Sleep` loop that waits longer than that — it locks the user's terminal.
 - **Self-monitor and ping the user at least every ~30 minutes during long-running operations.** Long deploys, CI runs, dependency-update loops, "wait for user to click approve in the UI" gates — none of these grant license to go silent. Concretely: when launching a polling sub-agent for a long-running operation, **set its hard cap to ~25 minutes (not the usual 30 or 45)** so it returns with a status update inside the cadence even if its terminal condition hasn't fired. On the agent's return, send the user a short status ping ("still waiting on the deploy gate, currently <state>") and re-launch the poller if more waiting is needed. Do **not** treat "task delegated to a background agent" as equivalent to "task complete" — it isn't.
 
+#### Sub-Agent Output Format
+
+Sub-agent return values are loaded into the orchestrator's context window in full. Long, unstructured sub-agent output is one of the largest causes of premature context compaction. **Every sub-agent prompt MUST mandate one of the structured output formats below.** If a prompt does not include an explicit output-format clause, the launch is incomplete — fix the prompt before sending.
+
+The goal is **lossless compression**: every actionable item must be reported (no truncation, no "and N more"), but format overhead — prose preambles, restated diffs, quoted code blocks, JSON dumps, sign-off paragraphs — is forbidden. If a structured response is large, that itself is a signal (e.g. "diff too big, split the PR"; "too many test failures, fix the most upstream one first") — do not hide the signal by truncating.
+
+Required prompt language is given verbatim per role; copy it into the sub-agent prompt.
+
+##### Review sub-agents (`code-review`, `rubber-duck`, GPT-5.5 plan/diff reviews)
+
+```
+Output format (REQUIRED, no other content):
+
+If no findings, exactly one line:
+  CLEAN scope=<short scope description>
+
+If findings, a Markdown table — every finding, no truncation:
+  | file:line | severity | category | finding | suggested_fix |
+  |-----------|----------|----------|---------|---------------|
+  | path/to/file.ts:42 | blocker|major|minor|nit | bug|security|perf|style|docs | one sentence | one sentence |
+
+Then exactly one trailer line:
+  TOTAL findings=<N> blocker=<N> major=<N> minor=<N> nit=<N>
+
+No prose preamble, no per-finding paragraphs, no quoted code blocks, no closing remarks.
+```
+
+##### Verification sub-agents (`task` agent running build/test/lint/e2e)
+
+```
+Output format (REQUIRED, no other content):
+
+One line per side that ran, in this exact key=value form. Each value is one of: OK | FAIL | FAIL:<N> | SKIP | ERROR | <P>/<T>. Use SKIP when an earlier step on the same side failed and the later step was therefore not run; use ERROR when the step itself could not execute (missing tool, crashed runner). Never fabricate a numeric result — report SKIP or ERROR instead.
+
+  client: lint=<OK|FAIL:N|SKIP|ERROR> tests=<P>/<T>|SKIP|ERROR build=<OK|FAIL|SKIP|ERROR>
+  api:    build=<OK|FAIL|SKIP|ERROR> tests=<P>/<T>|SKIP|ERROR
+  e2e:    tests=<P>/<T>|SKIP|ERROR
+
+If any value is FAIL, FAIL:<N>, ERROR, or P<T, append a FAILURES block — one structured entry per failing item, no truncation:
+  --- FAILURES ---
+  side=<client|api|e2e> kind=<lint|test|build|e2e> id=<file:line or test name>
+  excerpt: <≤10 lines of the most diagnostic log lines for this failure>
+
+End with exactly one trailer line:
+  VERIFY: <PASS|FAIL|ERROR> sides_run=<comma-separated>
+
+PASS = every reported value is OK or P==T with no FAIL/ERROR. FAIL = at least one FAIL/FAIL:<N>/P<T present. ERROR = at least one ERROR present and no FAIL.
+
+No prose, no full log dumps, no environment chatter.
+```
+
+##### Polling sub-agents (`task` agent polling CI / PR review state)
+
+```
+Output format (REQUIRED, single line, exactly these keys in this order):
+
+  state=<clean|findings|ci_running|ci_failed|review_pending|merged|timeout|error>
+  action=<none|apply_fixes|re_request_review|merge|investigate_ci|investigate_error>
+  pr=<number>
+  ci=<pending|success|failure|none>
+  threads_unresolved=<N>
+  review_decision=<APPROVED|REVIEW_REQUIRED|COMMENTED|none>
+  detail="<≤140 chars, no commas>"
+
+No PR/run JSON dump, no log lines, no prose.
+```
+
+##### Explore sub-agents
+
+```
+Output format (REQUIRED, no other content):
+
+For each question asked, a numbered block:
+  Q<N>: <restatement of the question in ≤1 line>
+  ANSWER: <≤3 lines of direct answer>
+  EVIDENCE:
+    - file/path.ts:LL-LL — <≤1 line of why this is evidence>
+    - file/path.ts:LL    — <≤1 line>
+
+End with exactly one trailer line:
+  COVERAGE: questions=<N> files_examined=<N>
+
+No file dumps, no quoted code blocks longer than 3 lines, no exploratory narrative.
+```
+
+##### General-purpose / implementation sub-agents (writing code or running multi-step changes)
+
+```
+Output format (REQUIRED, no other content):
+
+A Markdown changeset table — every file touched, no truncation:
+  | file | action | rationale |
+  |------|--------|-----------|
+  | path/to/file.ts | created|modified|deleted|renamed | one sentence |
+
+Then a verification block in the verification-sub-agent format above (one line per side, plus FAILURES if any, plus the `VERIFY:` trailer).
+
+Then exactly one trailer line:
+  RESULT: <DONE|PARTIAL|BLOCKED> commits=<comma-separated short SHAs or "uncommitted"> open_issues=<N>
+
+If RESULT is PARTIAL or BLOCKED, append an OPEN_ISSUES block — one structured entry per item, no truncation:
+  --- OPEN_ISSUES ---
+  id=<short slug> blocker=<yes|no> detail="<≤140 chars>"
+
+No prose preamble, no full diffs, no closing remarks.
+```
+
+##### Orchestrator handling of sub-agent output
+
+- **Treat the structured output as the source of truth.** Do not re-quote it back to the user verbatim — the user can be told the trailer line plus the actionable subset (e.g. "3 blockers, addressing now" + the 3 relevant rows).
+- **If a sub-agent returns prose or violates the format**, do not paste that output anywhere. Instruct the sub-agent (or a re-launched one) to re-emit in the required format, or extract the structured subset yourself.
+- **Persist non-actionable-now findings to SQL `inbox_entries`** rather than carrying them in chat context across rounds.
+
 #### Worktree Isolation for Sub-Agents
 
 Sub-agents that build, test, modify files, or check out different branches **must** run in their own dedicated **git worktree** so they cannot interfere with the orchestrator's working directory or with each other. Without this, two agents working concurrently can swap branches/files under each other (a real failure mode previously observed: a validation agent checked out a PR branch while the orchestrator was creating a feature branch, causing the new branch to fork from the wrong commit).
@@ -143,6 +256,21 @@ Sub-agents that build, test, modify files, or check out different branches **mus
 
 **Constraints from git:** A given branch can be checked out in only one worktree at a time. If two agents need the same branch, give one a detached checkout (`git worktree add --detach <path> <ref>`) or have one work on a fresh branch.
 
+#### Context Hygiene
+
+The orchestrator's context window is finite and compaction is destructive (loses precise file contents, exact line numbers, and prior tool outputs). Treat context as a budget to manage, not an infinite resource.
+
+- **Re-read on the right triggers, not on every round and not never.** Re-reading wastes context if the file is unchanged; failing to re-read is dangerous if it has changed. Re-read a file when ANY of these is true:
+  1. **Compaction has occurred** since the last view (the prior view is now lossy or summarized).
+  2. **The file has been modified** since the last view, by anyone — you, a sub-agent, the user, `git pull` / `checkout` / `rebase` / `merge`, a formatter, an autofix, etc.
+  3. **You need to act on a section** (edit, reason about exact line numbers, quote behavior) for which you do not have a current `view` in this turn's context.
+  4. **You are uncertain** whether (1) or (2) applies. Cheap re-read beats acting on a stale view.
+  When (1)–(4) are all false, do not re-read. After the first full read, record the line ranges of relevant sections (SQL `inbox_entries` or `plan.md`) so subsequent targeted reads use `view_range` over the specific section, not a full-file fetch.
+- **Don't re-quote sub-agent output to the user.** Extract the actionable items and respond in your own words. Pasting a full review back into the chat doubles the context cost of that review.
+- **Don't re-run verification or review on identical inputs.** If the diff hasn't changed since the last sub-agent run, the result hasn't changed either; reuse the prior result.
+- **Prefer SQL `inbox_entries` over re-derivation.** When you discover a fact that will matter in a later round (e.g. "Q68 not yet covered", "round-2 review may flag this"), insert it as an inbox entry instead of relying on remembering it.
+- **Edit precisely.** Use `edit` with minimal `old_str` rather than re-creating large chunks of a file. Re-creating a section forces the orchestrator to hold both the old and new versions in context until the edit is applied.
+
 ### Git Workflow
 
 - **Every change gets its own commit.** No batching unrelated changes.
@@ -154,10 +282,20 @@ Sub-agents that build, test, modify files, or check out different branches **mus
 ### Code Review
 
 - **Every change must receive a local GPT-5.5 review of the final diff before it is pushed or opened as a PR. No exceptions** — this applies to features, fixes, refactors, dependency bumps, infrastructure, workflows, scripts, **and documentation-only changes**.
-- Perform the review by invoking the code-review sub-agent (e.g. `rubber-duck`) with `model: "gpt-5.5"`. The sub-agent counts as a local review.
+- Perform the review by invoking the code-review sub-agent (e.g. `rubber-duck`) with `model: "gpt-5.5"`. **The review MUST run as a sub-agent — never review the diff inline in the orchestrator.** Inline review consumes orchestrator context for material the orchestrator only needs the *conclusions* of. The sub-agent counts as a local review.
+- The review sub-agent prompt MUST include the verbatim **Review sub-agents** output-format block from the **Sub-Agent Output Format** section above. If the sub-agent returns prose or otherwise violates the format, re-launch with the format clause restated rather than accepting the malformed output.
 - For **non-trivial** changes (multi-file, architectural, security-sensitive, or dependency/infra), also do a **plan review** with GPT-5.5 *before* implementing. Plan review may be skipped only for trivial changes (single small edit, typo fix, renaming).
 - The review must cover correctness, security, edge cases, and blast radius. Adopt findings that prevent bugs, regressions, or merging a broken change. A finding may be dismissed only when clearly non-blocking; record a one-line rationale for each dismissed finding.
 - When summarizing review outcomes to the user, be concise: state the key findings and how you addressed each. Do not copy the critique verbatim.
+
+#### PR Size Discipline
+
+Each round of the Copilot PR Review Loop re-loads the full PR diff and the review thread context into the orchestrator. Review-round context cost scales roughly linearly with diff size **and** with number of rounds. Large multi-concern PRs are the worst case: many rounds × large diff = compaction risk.
+
+- **Soft target: ≤600 lines of net diff per PR.** Larger is allowed, but the orchestrator should justify it (e.g. an atomic refactor that cannot be split without breaking the build).
+- **Split test-infrastructure changes from content/feature changes.** Land the test-infra refactor first as its own PR; then add content/feature commits against the new contract. Reviewers (and the orchestrator) reason about each layer independently with much less context.
+- **Split unrelated concerns.** A PR that bundles "expand catalog + rewrite warm-up cache + bump cache version + restructure tests" should be 3–4 PRs. Once the first lands and merges, its diff drops out of the orchestrator's working context for subsequent rounds.
+- When a single PR is the right shape but is large, prefer **fewer, more thorough review rounds** over many small ones — apply review-feedback fixes in batched commits rather than push-after-every-finding.
 
 #### Pre-Push Verification (build + tests + e2e)
 
@@ -170,11 +308,17 @@ Sub-agents that build, test, modify files, or check out different branches **mus
   - **Never use the default `html` reporter for agent/CI runs.** Playwright's HTML reporter starts a local web server (default port 9323) on failure that blocks the test process from exiting and hangs sub-agents. Always pass `--reporter=list` (or `--reporter=line`/`dot`/`github`) on the CLI to override the config's `reporter: 'html'`. Pass/fail status and per-test details must be reported directly from the CLI output, not from a UI report.
   - Cross-cutting changes (infra, workflows, dependencies) must run all three sides.
 - If any step fails, fix it and rerun **the full set** before pushing — never push with known failures, even if "unrelated."
-- Verification work is well-suited for delegation to a sub-agent in its own worktree (see **Worktree Isolation for Sub-Agents**) so the orchestrator stays responsive. The sub-agent reports pass/fail and surfaces logs only for failures.
+- **Verification MUST be delegated to a sub-agent in its own worktree** (see **Worktree Isolation for Sub-Agents**). The orchestrator does not run `dotnet test` / `npm test` / `npx playwright test` directly — those commands produce thousands of lines of output that consume orchestrator context for material the orchestrator only needs the pass/fail outcome of. The verification sub-agent prompt MUST include the verbatim **Verification sub-agents** output-format block from the **Sub-Agent Output Format** section above.
 
 #### Stale-Comment Maintenance
 
 When refactoring or behavior-changing code, also update **any comments that describe the old mechanism** — in source code, in tests, and in docs. Stale comments are reviewable defects: PR #37's review #5 was entirely about three comments that became inaccurate after a refactor. This applies to inline `//` comments, JSDoc/XML doc comments, test descriptions, and prose in `CONTEXT.md` / `README.md` / progress summaries.
+
+#### Audit Whole-File for Class of Issue
+
+When a reviewer (Copilot or GPT-5.5) flags one occurrence of a class of issue — hardcoded count, missing citation, stale comment, magic number, etc. — **audit the entire affected file (and sibling files of the same kind) for every other instance of that class in one pass**. Fixing only the flagged occurrence guarantees the next review round will flag a sibling, costing another full review cycle (and another diff load into orchestrator context). Bias toward over-fixing within the class; under-fixing is the more expensive mistake.
+
+A concrete past example: PR #77 round 1 flagged one hardcoded story count in `CONTEXT.md`. The orchestrator fixed only that occurrence, then round 2 flagged hardcoded subcategory question counts in the same file (different sentences, same class), then round 3 flagged a hardcoded count in the PR title. One whole-file audit at round 1 would have collapsed three rounds into one.
 
 #### Avoid Hardcoded Counts in Living Docs
 
