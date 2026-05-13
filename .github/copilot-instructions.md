@@ -415,9 +415,37 @@ When the orchestrator needs to make incremental edits to an existing issue or PR
 Any change that is **not docs-only** must additionally pass an iterative GitHub Copilot review on the pull request itself. This is in addition to (not a replacement for) the local GPT-5.5 review above. "Docs-only" here means the change touches only paths covered by the CI/CD workflow's `paths-ignore` list (the enumerated top-level docs — `README.md`, `CONTEXT.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `LastSession.md`, `src/client/README.md`, `LICENSE`, `.gitignore`, `.editorconfig` — plus copilot/contributor instructions and PR/issue templates). **Story Mode catalog files at `content/stories/*.md` are product code, NOT docs** — they ship as `<EmbeddedResource>` in the API DLL, so a content-only edit must run CI, smoke test, and deploy. Treat such PRs as non-docs.
 
 - **PR required.** Never push non-docs changes directly to `main`. **`gh pr merge --admin` is banned by default** for non-docs PRs and may be used only as a narrow exception when **all** of the following are true: (i) every other gate in this file is satisfied — local GPT-5.5 plan review (if applicable) and final-diff review, full pre-push verification (build + tests + e2e), Copilot PR review loop clean, and all review threads resolved; (ii) CI is green and the PR is otherwise mergeable (`mergeable == MERGEABLE`, no conflicts, not draft); (iii) the **only** remaining blocker is the missing `APPROVED` review and **no human approver can grant it** — including the case where the PR was opened by the orchestrator on the user's behalf via `gh pr create`, because GitHub blocks self-approval and the user (the sole human reviewer on this personal repo) is then both the author and the only possible approver, so `gh pr review --approve` will fail; and (iv) the rationale (which condition above is unmet, e.g. "PR authored on user's behalf, self-approval blocked") is documented in a PR comment before the merge. If any of these is false, do not use `--admin` — escalate to the user and ask for approval instead.
-- **Add Copilot as a reviewer** as soon as the PR is opened: `gh pr edit <N> --add-reviewer "@copilot"` (or click "Request a review from Copilot" in the GitHub UI).
+- **Add Copilot as a reviewer** as soon as the PR is opened. **Do NOT use `gh pr edit <N> --add-reviewer "@copilot"`** — gh CLI translates that to a `requestReviewsByLogin` GraphQL mutation that puts the slug in `userLogins[]`, but `copilot-pull-request-reviewer` is a Bot, not a User, so the API rejects it with `Could not resolve user with login 'copilot'`. Likewise the REST `POST /repos/{o}/{r}/pulls/{N}/requested_reviewers` endpoint with `{"reviewers":["Copilot"]}` returns HTTP 201 but silently no-ops (the reviewer list is unchanged on the next query). Use the `requestReviewsByLogin` mutation directly with the slug in `botLogins[]`:
+
+  ```powershell
+  # 1. Look up the PR's GraphQL node ID
+  $prId = gh api graphql -f query='query { repository(owner:"<owner>",name:"<repo>"){ pullRequest(number:<N>){ id } } }' --jq .data.repository.pullRequest.id
+
+  # 2. Request the Copilot bot reviewer
+  $body = @{
+    query = 'mutation($input:RequestReviewsByLoginInput!){requestReviewsByLogin(input:$input){clientMutationId}}'
+    variables = @{ input = @{
+      pullRequestId = $prId
+      userLogins    = @()
+      botLogins     = @("copilot-pull-request-reviewer")
+      teamSlugs     = @()
+      union         = $true
+    } }
+  } | ConvertTo-Json -Depth 10 -Compress
+  $body | gh api graphql --input -
+  ```
+
+  Verify the request landed (the bot login should appear in `reviewRequests`):
+
+  ```powershell
+  gh api graphql -f query='query { repository(owner:"<owner>",name:"<repo>"){ pullRequest(number:<N>){ reviewRequests(first:10){ nodes{ requestedReviewer{ __typename ... on Bot{login} } } } } } }'
+  ```
+
+  The bot slug `copilot` is also accepted as an alias; `copilot-pull-request-reviewer[bot]` and `github-copilot` are NOT. `union: true` adds to the existing reviewer list rather than replacing it.
+
+  Clicking "Request a review from Copilot" in the GitHub UI is an equivalent fallback if you're already in the browser.
 - **Address every Copilot suggestion** — push fixes as additional commits on the PR branch. The dismissal policy from the Code Review section still applies: a suggestion may be dismissed only when clearly non-blocking, and the rationale must be recorded in a PR comment replying to that suggestion.
-- **Re-request Copilot review after each push** of new commits using the same `gh pr edit <N> --add-reviewer "@copilot"` invocation, or the "Re-request review" button in the UI.
+- **Re-request Copilot review after each push** of new commits using the same `requestReviewsByLogin` mutation above (it is idempotent — re-running with `union: true` just keeps the bot in the list and triggers a fresh review on the new commits), or the "Re-request review" button in the UI.
 - **Loop until Copilot returns a clean review** with no further comments or change suggestions. **A clean Copilot review is necessary but not sufficient to merge** — old unresolved review threads can still exist, and a non-docs PR additionally needs an `APPROVED` review (Copilot reviews are always `COMMENTED`). See the Pre-Merge Checklist above.
 - The local pre-push GPT-5.5 review is still required for every commit pushed to the PR branch — including commits that address Copilot's feedback.
 - **Dependabot/bot PRs:** the Copilot review loop applies to them too. If Copilot has actionable feedback on a bot PR, push fix-up commits directly to the bot's branch to address it. This will stop Dependabot from further auto-managing that PR (no more auto-rebase), which is acceptable because the PR is about to be merged. Only use `@dependabot rebase` when you genuinely want Dependabot to keep managing the PR (e.g., it's behind `main` and you have no fix-ups to push).
