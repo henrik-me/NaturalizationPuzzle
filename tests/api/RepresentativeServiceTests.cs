@@ -21,6 +21,51 @@ public sealed class RepresentativeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetAllRepresentativesAsync_NoFilter_ReturnsAllSeededReps()
+    {
+        var reps = await _sut.GetAllRepresentativesAsync(null, CancellationToken.None);
+
+        Assert.Equal(RepresentativeSeedData.SeedEntries.Count, reps.Count);
+        Assert.Equal(435, reps.Count);
+
+        // Verify ordering: by state name, then district. Build expected sequence
+        // by joining seed reps with state names and ordering identically.
+        var states = await _db.States.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name);
+        var expectedOrder = reps
+            .OrderBy(r => states[r.StateId])
+            .ThenBy(r => r.District)
+            .Select(r => r.Id)
+            .ToList();
+        Assert.Equal(expectedOrder, reps.Select(r => r.Id).ToList());
+    }
+
+    [Fact]
+    public async Task GetAllRepresentativesAsync_WithStateId_ReturnsOnlyThatStatesReps()
+    {
+        // StateId 43 = Texas (typical multi-district state).
+        var texasFromDb = await _db.Representatives.AsNoTracking()
+            .Where(r => r.StateId == 43)
+            .ToListAsync();
+
+        var reps = await _sut.GetAllRepresentativesAsync(43, CancellationToken.None);
+
+        Assert.NotEmpty(reps);
+        Assert.Equal(texasFromDb.Count, reps.Count);
+        Assert.All(reps, r => Assert.Equal(43, r.StateId));
+        var expectedDistricts = texasFromDb.Select(r => r.District).OrderBy(d => d).ToList();
+        var actualDistricts = reps.Select(r => r.District).OrderBy(d => d).ToList();
+        Assert.Equal(expectedDistricts, actualDistricts);
+    }
+
+    [Fact]
+    public async Task GetAllRepresentativesAsync_WithUnknownStateId_ReturnsEmpty()
+    {
+        var reps = await _sut.GetAllRepresentativesAsync(999999, CancellationToken.None);
+
+        Assert.Empty(reps);
+    }
+
+    [Fact]
     public async Task GetVacantSeatsAsync_ReturnsOnlyVacantRepresentatives()
     {
         var vacancies = await _sut.GetVacantSeatsAsync(CancellationToken.None);
