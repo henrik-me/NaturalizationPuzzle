@@ -20,10 +20,9 @@ updates:
       - dependency-name: "@vitejs/plugin-react"
         update-types: ["version-update:semver-major"]
       # @types/node tracks the Node majors the codebase supports. engines.node in
-      # src/client/package.json allows only the LTS-track even majors (22, 24),
-      # so block @types/node major bumps that would jump to a non-LTS-track or
-      # not-yet-supported major (e.g., 25, 26). When engines.node is widened to
-      # include a new LTS major, bump @types/node manually in the same PR.
+      # src/client/package.json is the source of truth for which majors are
+      # allowed, so block @types/node semver-major bumps and bump it manually in
+      # the same PR that widens engines.node to a new supported major.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
     labels:
@@ -71,11 +70,11 @@ updates:
     schedule:
       interval: "weekly"
     ignore:
-      # Node major bumps for the production image are controlled manually — only
-      # the even-numbered, LTS-track majors (22, 24, 26, ...) are eligible. Odd
-      # majors (23, 25, ...) are never on the LTS track and must not ship in the
-      # production image. Bump manually in a dedicated PR when the next LTS-track
-      # major is ready. Keep this consistent with engines.node in src/client.
+      # Node major bumps for the production image are controlled manually so any
+      # change to the supported runtime goes through a deliberate review and
+      # stays in sync with engines.node in src/client/package.json. Bump in a
+      # dedicated PR alongside engines.node and @types/node when widening the
+      # supported Node majors.
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
     labels:
