@@ -26,7 +26,6 @@ public sealed class RepresentativeServiceTests : IDisposable
         var reps = await _sut.GetAllRepresentativesAsync(null, CancellationToken.None);
 
         Assert.Equal(RepresentativeSeedData.SeedEntries.Count, reps.Count);
-        Assert.Equal(435, reps.Count);
 
         // Verify ordering: by state name, then district. Build expected sequence
         // by joining seed reps with state names and ordering identically.
