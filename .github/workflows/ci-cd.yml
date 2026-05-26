@@ -268,39 +268,33 @@ jobs:
         working-directory: src/client
         run: npm run build
 
-      # Start `vite preview` in the background ourselves rather than letting
-      # lhci spawn it via startServerCommand. lhci's startServerReadyPattern
-      # matching is flaky against vite preview's non-tty stdout (the ANSI-
-      # styled `Local:` banner doesn't reliably match), so we start the
-      # server explicitly and gate the next step on wait-on, which polls the
-      # actual HTTP endpoint instead of parsing stdout.
-      - name: Start vite preview (background)
+      # Run vite preview and lhci in the SAME step so the bash process stays
+      # alive while the background `vite preview` is serving. GitHub Actions
+      # kills any process group spawned by a step at step end, so splitting
+      # "start server" and "run client" across two steps leaves no server
+      # running by the time the second step starts (verified in an earlier
+      # attempt — wait-on timed out at 60s).
+      #
+      # We do NOT use lhci's built-in `startServerCommand` here because its
+      # `startServerReadyPattern` matching is flaky against vite preview's
+      # non-tty stdout (ANSI-styled "Local:" banner doesn't reliably match).
+      # `wait-on` polls the actual HTTP endpoint instead.
+      - name: Run Lighthouse CI (with vite preview)
         if: steps.filter.outputs.code == 'true'
         working-directory: src/client
         run: |
-          nohup npx vite preview --host 127.0.0.1 --port 4173 --strictPort > vite-preview.log 2>&1 &
-          echo $! > vite-preview.pid
+          npx vite preview --host 127.0.0.1 --port 4173 --strictPort > vite-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID 2>/dev/null || true' EXIT
+          npx --yes wait-on --timeout 60000 http://127.0.0.1:4173/
+          npx lhci autorun
 
-      - name: Wait for vite preview
-        if: steps.filter.outputs.code == 'true'
-        working-directory: src/client
-        run: npx --yes wait-on --timeout 60000 http://127.0.0.1:4173/
-
-      # `lhci autorun` runs 3 Lighthouse passes against http://127.0.0.1:4173/,
-      # asserts the budgets in lighthouserc.json, and writes raw reports to
-      # src/client/.lighthouseci/ for the artifact upload.
-      - name: Run Lighthouse CI
-        if: steps.filter.outputs.code == 'true'
-        working-directory: src/client
-        run: npx lhci autorun
-
-      - name: Stop vite preview
-        if: always() && steps.filter.outputs.code == 'true'
+      - name: Dump vite preview log on failure
+        if: failure() && steps.filter.outputs.code == 'true'
         working-directory: src/client
         run: |
-          if [ -f vite-preview.pid ]; then
-            kill "$(cat vite-preview.pid)" 2>/dev/null || true
-          fi
+          echo "--- vite-preview.log ---"
+          [ -f vite-preview.log ] && cat vite-preview.log || echo "(no log file)"
 
       - name: Upload Lighthouse reports
         if: always() && steps.filter.outputs.code == 'true'
