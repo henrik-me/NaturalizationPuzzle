@@ -255,22 +255,13 @@ jobs:
         working-directory: src/client
         run: npm ci
 
-      # Install Playwright from tests/e2e where it's a locked devDependency
-      # (src/client doesn't depend on Playwright, so installing from there
-      # would resolve an unpinned latest version at runtime).
-      - name: Install e2e dependencies
-        if: steps.filter.outputs.code == 'true'
-        working-directory: tests/e2e
-        run: npm ci
-
-      # Pin Chrome via Playwright rather than relying on the preinstalled
-      # GitHub-hosted runner Chrome (which may drift). --with-deps installs
-      # the matching system libraries. We use Chrome (stable) here rather
-      # than Chromium because Lighthouse is tuned against Chrome.
-      - name: Install Chrome (pinned via Playwright)
-        if: steps.filter.outputs.code == 'true'
-        working-directory: tests/e2e
-        run: npx --no-install playwright install --with-deps chrome
+      # Lighthouse CI uses the runner's preinstalled `google-chrome-stable`
+      # (the ubuntu-latest image ships it). We intentionally do NOT pin Chrome
+      # via Playwright here: LHCI has no `chromePath` configured, so it
+      # auto-discovers /usr/bin/google-chrome regardless of what Playwright
+      # downloads — installing Playwright's Chrome would just be dead weight
+      # and would not control browser drift. The runner image's Chrome version
+      # is what Lighthouse measures against.
 
       - name: Build client (production bundle)
         if: steps.filter.outputs.code == 'true'
