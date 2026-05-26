@@ -303,6 +303,12 @@ jobs:
           path: src/client/.lighthouseci/
           retention-days: 14
           include-hidden-files: true
+          # If lhci crashed before creating .lighthouseci/ (e.g. preview never
+          # came up), `if: always()` would otherwise turn a missing-path error
+          # in this step into a secondary failure that obscures the real LHCI
+          # error. `warn` lets the upload step succeed with a warning so the
+          # primary lhci log + vite-preview.log stays the surfaced cause.
+          if-no-files-found: warn
 
       - name: Skip notice (docs-only)
         if: steps.filter.outputs.code != 'true'
