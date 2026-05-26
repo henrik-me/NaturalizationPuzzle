@@ -19,6 +19,12 @@ updates:
       # by the same Tailwind constraint. Re-enable together with Vite 8.
       - dependency-name: "@vitejs/plugin-react"
         update-types: ["version-update:semver-major"]
+      # @types/node tracks the Node majors the codebase supports. engines.node in
+      # src/client/package.json is the source of truth for which majors are
+      # allowed, so block @types/node semver-major bumps and bump it manually in
+      # the same PR that widens engines.node to a new supported major.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     labels:
       - "dependencies"
       - "frontend"
@@ -64,9 +70,11 @@ updates:
     schedule:
       interval: "weekly"
     ignore:
-      # Node major bumps are controlled manually — only bump when a new LTS is declared
-      # (currently Node 22 is LTS; Node 24 becomes LTS 2026-10). Non-LTS majors (23, 25)
-      # must never ship in the production image.
+      # Node major bumps for the production image are controlled manually so any
+      # change to the supported runtime goes through a deliberate review and
+      # stays in sync with engines.node in src/client/package.json. Bump in a
+      # dedicated PR alongside engines.node and @types/node when widening the
+      # supported Node majors.
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
     labels:
