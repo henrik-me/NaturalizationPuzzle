@@ -279,9 +279,15 @@ jobs:
       # `startServerReadyPattern` matching is flaky against vite preview's
       # non-tty stdout (ANSI-styled "Local:" banner doesn't reliably match).
       # `wait-on` polls the actual HTTP endpoint instead.
+      #
+      # LHCI_DISABLE_HTTPS=1 disables the `@vitejs/plugin-basic-ssl` plugin
+      # for this preview run (see vite.config.ts) so wait-on / lhci can
+      # target plain http://127.0.0.1:4173/ without TLS cert juggling.
       - name: Run Lighthouse CI (with vite preview)
         if: steps.filter.outputs.code == 'true'
         working-directory: src/client
+        env:
+          LHCI_DISABLE_HTTPS: "1"
         run: |
           npx vite preview --host 127.0.0.1 --port 4173 --strictPort > vite-preview.log 2>&1 &
           PREVIEW_PID=$!

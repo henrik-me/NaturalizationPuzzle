@@ -9,7 +9,14 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    basicSsl(),
+    // basicSsl() makes `vite dev` and `vite preview` serve HTTPS with a
+    // self-signed cert. We want that locally (PWA service-worker features
+    // require HTTPS to register), but in Lighthouse CI we serve `vite
+    // preview` to a headless Chrome which would then have to bypass cert
+    // validation — and lhci's runner + wait-on would too. Setting
+    // `LHCI_DISABLE_HTTPS=1` in the CI step keeps preview on plain HTTP so
+    // the chain stays simple.
+    ...(process.env.LHCI_DISABLE_HTTPS ? [] : [basicSsl()]),
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {

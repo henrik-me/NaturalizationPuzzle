@@ -403,12 +403,15 @@ To run locally (after `npm run build` in `src/client/`):
 
 ```bash
 cd src/client
-npx vite preview --host 127.0.0.1 --port 4173 --strictPort &   # in one terminal
+# LHCI_DISABLE_HTTPS=1 turns off the basic-ssl plugin so vite preview
+# serves plain HTTP — wait-on and lhci can then target http://... without
+# self-signed-cert handling. Locally without it, vite preview serves HTTPS.
+LHCI_DISABLE_HTTPS=1 npx vite preview --host 127.0.0.1 --port 4173 --strictPort &
 npx wait-on http://127.0.0.1:4173/
-npx lhci autorun                                                # in the same/another terminal
+npx lhci autorun
 ```
 
-The CI workflow follows the same start-preview / wait-on / run-lhci sequence (lhci's built-in `startServerCommand` is intentionally not used because its ready-pattern matching is unreliable against `vite preview`'s non-tty stdout).
+The CI workflow follows the same start-preview / wait-on / run-lhci sequence, with `LHCI_DISABLE_HTTPS=1` set on the step (lhci's built-in `startServerCommand` is intentionally not used because its ready-pattern matching is unreliable against `vite preview`'s non-tty stdout).
 
 ---
 
