@@ -30,11 +30,16 @@ public sealed class RepresentativeServiceTests : IDisposable
         // Verify ordering: by state name, then district (length-then-lex so "9th" sorts
         // before "10th"). Build expected sequence by joining with state names and
         // ordering identically.
+        //
+        // Use StringComparer.Ordinal so the test sort matches SQLite's default TEXT
+        // collation (BINARY/ordinal) used in production. LINQ-to-Objects defaults to
+        // current-culture comparison, which would diverge from the SQLite ORDER BY
+        // result under non-default cultures (e.g., Turkish "i").
         var states = await _db.States.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name);
         var expectedOrder = reps
-            .OrderBy(r => states[r.StateId])
+            .OrderBy(r => states[r.StateId], StringComparer.Ordinal)
             .ThenBy(r => r.District.Length)
-            .ThenBy(r => r.District)
+            .ThenBy(r => r.District, StringComparer.Ordinal)
             .Select(r => r.Id)
             .ToList();
         Assert.Equal(expectedOrder, reps.Select(r => r.Id).ToList());
@@ -57,9 +62,11 @@ public sealed class RepresentativeServiceTests : IDisposable
         // Districts must come back in natural (length-then-lex) order, not raw
         // lexicographic order. The actual sequence is as returned by the service;
         // expected is built by sorting the same set with the natural-sort rule.
+        // StringComparer.Ordinal matches SQLite's default TEXT collation (BINARY)
+        // so the assertion is culture-independent.
         var expectedDistricts = texasFromDb.Select(r => r.District)
             .OrderBy(d => d.Length)
-            .ThenBy(d => d)
+            .ThenBy(d => d, StringComparer.Ordinal)
             .ToList();
         var actualDistricts = reps.Select(r => r.District).ToList();
         Assert.Equal(expectedDistricts, actualDistricts);
