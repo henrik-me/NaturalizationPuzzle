@@ -20,7 +20,7 @@ public sealed class RepresentativesEndpointTests : IClassFixture<Representatives
     {
         using var client = _factory.CreateClient();
 
-        var response = await client.GetAsync("/api/v1/representatives");
+        using var response = await client.GetAsync("/api/v1/representatives");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(response.Content.Headers.ContentType);
