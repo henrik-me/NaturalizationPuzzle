@@ -71,9 +71,11 @@ updates:
     schedule:
       interval: "weekly"
     ignore:
-      # Node major bumps are controlled manually — only bump when a new LTS is declared
-      # (currently Node 22 is LTS; Node 24 becomes LTS 2026-10). Non-LTS majors (23, 25)
-      # must never ship in the production image.
+      # Node major bumps for the production image are controlled manually — only
+      # the even-numbered, LTS-track majors (22, 24, 26, ...) are eligible. Odd
+      # majors (23, 25, ...) are never on the LTS track and must not ship in the
+      # production image. Bump manually in a dedicated PR when the next LTS-track
+      # major is ready. Keep this consistent with engines.node in src/client.
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
     labels:
