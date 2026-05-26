@@ -415,6 +415,8 @@ npx lhci autorun
 
 The CI workflow follows the same start-preview / wait-on / run-lhci sequence, with `LHCI_DISABLE_HTTPS=1` set on the step (lhci's built-in `startServerCommand` is intentionally not used because its ready-pattern matching is unreliable against `vite preview`'s non-tty stdout).
 
+**Known limitation — synthetic-only measurement:** The CI run targets `vite preview` without a backing API, so the client's `useWarmUpCache()` warm-up calls (e.g. `/api/v1/questions`, `/api/v1/stories`) resolve to the SPA's `index.html`. Those failed warm-ups don't affect LCP (warm-up fires inside a `useEffect` after first paint) and the budgets pass, but the synthetic perf/TBT numbers are slightly more conservative than production. Tracked as [#106](https://github.com/henrik-me/NaturalizationPuzzle/issues/106); the longer-term plan is to lean on real-world Web Vitals from Layer 1.5 (production telemetry) as the primary perf signal.
+
 ---
 
 ## E2E Tests (`tests/e2e/`)
