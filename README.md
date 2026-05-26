@@ -523,10 +523,10 @@ The pipeline is implemented in `.github/workflows/ci-cd.yml`:
   │                  │          │                  │
   │ • dotnet build   │          │ (same steps)     │
   │ • dotnet test    │          └─────────────────┘
-  │ • npm lint       │
-  │ • npm build      │
+  │ • npm run lint   │
+  │ • npm run build  │
   │ • npm run size   │
-  │ • npm test       │
+  │ • npm run test   │
   └────────┬─────────┘
            │
            ▼
