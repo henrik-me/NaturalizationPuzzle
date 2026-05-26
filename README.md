@@ -38,8 +38,9 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 │  │  Endpoints   │   │  Services    │   │  Middleware              │ │
 │  │  /questions  │──▶│  Question    │   │  • GlobalExceptionHandler│ │
 │  │  /states     │   │  State       │   │  • CORS                  │ │
-│  │  /quiz       │   │  Quiz        │   │  • OpenAPI               │ │
-│  └──────────────┘   └──────┬───────┘   └──────────────────────────┘ │
+│  │  /quiz       │   │  Quiz        │   │  • Response Compression  │ │
+│  └──────────────┘   └──────┬───────┘   │  • OpenAPI               │ │
+│                            │           └──────────────────────────┘ │
 │                            │                                        │
 │                            ▼                                        │
 │                     ┌──────────────┐                                │
@@ -145,6 +146,8 @@ src/api/
 - **Global exception handler** returns RFC 9457 `ProblemDetails` with correlation IDs. By default it logs sanitized exception fields (type, message, stack trace) without the raw `Exception` object to prevent log forging (CWE-117). Set `Logging:Exceptions:IncludeRawException = true` to log the raw `Exception` for full structured exception telemetry on OpenTelemetry / Application Insights when debugging.
 - **`LogSanitizer`** (`NaturalizationPuzzle.Api.Logging`) strips control characters (CR, LF, NEL, LS, PS, other C0/C1, DEL) and truncates user-controlled values before they enter log entries. Use `LogSanitizer.Clean(...)` or the `.ForLog()` extension on every log site that touches request input.
 - **CORS** configured to allow the frontend origins (`https://localhost:5173` and `http://localhost:5173`).
+- **Response compression** (`Microsoft.AspNetCore.ResponseCompression`) with Brotli (preferred) and Gzip providers at `CompressionLevel.Fastest`. Configured `MimeTypes` cover `application/json` (the dominant payload) and `application/problem+json` (configured defensively so future problem-details responses are compressed automatically — note that `GlobalExceptionHandler` currently writes via `WriteAsJsonAsync`, which emits `application/json`, and no call sites use `Results.ValidationProblem` yet). `EnableForHttps = true` is intentional: payloads are public read-only civics data with no per-user secrets, so the CRIME/BREACH side-channel threat model does not apply.
+- **EF Core read-path convention:** every read-only service method calls `.AsNoTracking()` before the terminal `ToListAsync` / `FirstOrDefaultAsync`. Mutation paths (e.g. `RepresentativeService` write operations) deliberately remain tracked.
 
 ### API Endpoints
 
