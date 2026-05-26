@@ -22,10 +22,13 @@ let initialized = false
  */
 export function initWebVitals(report: WebVitalsReporter = defaultReporter): void {
   if (initialized) return
-  // Browser guard: web-vitals subscriptions touch `document`/`performance`.
-  // Calling this outside a browser (e.g. from a test that accidentally
-  // imports main.tsx, or any future SSR path) would throw — silently skip
-  // instead so non-browser entry points stay safe.
+  // Browser guard: the `web-vitals` subscriptions touch `document` /
+  // `performance` internally, so a direct caller from a non-browser
+  // context (e.g. a Vitest case that imports this module without the
+  // jsdom environment) would throw. Skip silently instead. Note: this
+  // does NOT make `main.tsx` itself non-browser-safe — `main.tsx`
+  // dereferences `document.getElementById('root')` before this is even
+  // called. The guard exists for direct callers of `initWebVitals`.
   if (typeof window === 'undefined' || typeof document === 'undefined') return
   initialized = true
   onCLS(report)
