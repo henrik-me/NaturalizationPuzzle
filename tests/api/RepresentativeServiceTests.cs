@@ -1,18 +1,32 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using NaturalizationPuzzle.Api.Data;
 using NaturalizationPuzzle.Api.Services;
 
 namespace NaturalizationPuzzle.Api.Tests;
 
+/// <summary>
+/// SQLite-backed tests for <see cref="RepresentativeService"/>. The service's
+/// ordering must match what runs in production (SQLite's default TEXT collation
+/// is BINARY/ordinal); the EF InMemory provider would use LINQ-to-Objects
+/// current-culture comparison instead, making ordering assertions
+/// culture-dependent. Using SQLite in-memory (same pattern as
+/// <see cref="StateServiceTests"/>) lets <see cref="StringComparer.Ordinal"/>
+/// in the assertions actually match what the service produces.
+/// </summary>
 public sealed class RepresentativeServiceTests : IDisposable
 {
+    private readonly SqliteConnection _connection;
     private readonly AppDbContext _db;
     private readonly RepresentativeService _sut;
 
     public RepresentativeServiceTests()
     {
+        _connection = new SqliteConnection("DataSource=:memory:");
+        _connection.Open();
+
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(_connection)
             .Options;
 
         _db = new AppDbContext(options);
@@ -32,9 +46,9 @@ public sealed class RepresentativeServiceTests : IDisposable
         // ordering identically.
         //
         // Use StringComparer.Ordinal so the test sort matches SQLite's default TEXT
-        // collation (BINARY/ordinal) used in production. LINQ-to-Objects defaults to
-        // current-culture comparison, which would diverge from the SQLite ORDER BY
-        // result under non-default cultures (e.g., Turkish "i").
+        // collation (BINARY/ordinal) used by both the test fixture and production.
+        // LINQ-to-Objects defaults to current-culture comparison, which would diverge
+        // from the SQLite ORDER BY result under non-default cultures (e.g., Turkish "i").
         var states = await _db.States.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name);
         var expectedOrder = reps
             .OrderBy(r => states[r.StateId], StringComparer.Ordinal)
@@ -63,7 +77,7 @@ public sealed class RepresentativeServiceTests : IDisposable
         // lexicographic order. The actual sequence is as returned by the service;
         // expected is built by sorting the same set with the natural-sort rule.
         // StringComparer.Ordinal matches SQLite's default TEXT collation (BINARY)
-        // so the assertion is culture-independent.
+        // used by both fixture and production, so the assertion is culture-independent.
         var expectedDistricts = texasFromDb.Select(r => r.District)
             .OrderBy(d => d.Length)
             .ThenBy(d => d, StringComparer.Ordinal)
@@ -240,5 +254,9 @@ public sealed class RepresentativeServiceTests : IDisposable
         Assert.DoesNotContain(caReset, r => r.Name == "New CA Rep");
     }
 
-    public void Dispose() => _db.Dispose();
+    public void Dispose()
+    {
+        _db.Dispose();
+        _connection.Dispose();
+    }
 }
