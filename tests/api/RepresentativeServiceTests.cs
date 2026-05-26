@@ -1,23 +1,111 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using NaturalizationPuzzle.Api.Data;
 using NaturalizationPuzzle.Api.Services;
 
 namespace NaturalizationPuzzle.Api.Tests;
 
+/// <summary>
+/// SQLite-backed tests for <see cref="RepresentativeService"/>. The service's
+/// ordering must match what runs in production (SQLite's default TEXT collation
+/// is BINARY/ordinal); the EF InMemory provider would use LINQ-to-Objects
+/// current-culture comparison instead, making ordering assertions
+/// culture-dependent. Using SQLite in-memory (same pattern as
+/// <see cref="StateServiceTests"/>) lets <see cref="StringComparer.Ordinal"/>
+/// in the assertions actually match what the service produces.
+/// </summary>
 public sealed class RepresentativeServiceTests : IDisposable
 {
+    private readonly SqliteConnection _connection;
     private readonly AppDbContext _db;
     private readonly RepresentativeService _sut;
 
     public RepresentativeServiceTests()
     {
+        _connection = new SqliteConnection("DataSource=:memory:");
+        _connection.Open();
+
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(_connection)
             .Options;
 
         _db = new AppDbContext(options);
         _db.Database.EnsureCreated();
         _sut = new RepresentativeService(_db);
+    }
+
+    [Fact]
+    public async Task GetAllRepresentativesAsync_NoFilter_ReturnsAllSeededReps()
+    {
+        var reps = await _sut.GetAllRepresentativesAsync(null, CancellationToken.None);
+
+        Assert.Equal(RepresentativeSeedData.SeedEntries.Count, reps.Count);
+
+        // Verify ordering: by state name, then district (length-then-lex so "9th" sorts
+        // before "10th"). Build expected sequence by joining with state names and
+        // ordering identically.
+        //
+        // Use StringComparer.Ordinal so the test sort matches SQLite's default TEXT
+        // collation (BINARY/ordinal) used by both the test fixture and production.
+        // LINQ-to-Objects defaults to current-culture comparison, which would diverge
+        // from the SQLite ORDER BY result under non-default cultures (e.g., Turkish "i").
+        var states = await _db.States.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name);
+        var expectedOrder = reps
+            .OrderBy(r => states[r.StateId], StringComparer.Ordinal)
+            .ThenBy(r => r.District.Length)
+            .ThenBy(r => r.District, StringComparer.Ordinal)
+            .Select(r => r.Id)
+            .ToList();
+        Assert.Equal(expectedOrder, reps.Select(r => r.Id).ToList());
+    }
+
+    [Fact]
+    public async Task GetAllRepresentativesAsync_WithStateId_ReturnsOnlyThatStatesReps()
+    {
+        // Look up Texas by stable abbreviation rather than hardcoding a seed-data
+        // numeric Id — Texas is a typical multi-district state (38 districts) and
+        // a good exercise of the ordering logic with both "1st".."9th" and
+        // "10th".."38th" districts.
+        var texasId = await _db.States.AsNoTracking()
+            .Where(s => s.Abbreviation == "TX")
+            .Select(s => s.Id)
+            .SingleAsync();
+        var texasFromDb = await _db.Representatives.AsNoTracking()
+            .Where(r => r.StateId == texasId)
+            .ToListAsync();
+
+        var reps = await _sut.GetAllRepresentativesAsync(texasId, CancellationToken.None);
+
+        Assert.NotEmpty(reps);
+        Assert.Equal(texasFromDb.Count, reps.Count);
+        Assert.All(reps, r => Assert.Equal(texasId, r.StateId));
+
+        // Districts must come back in natural (length-then-lex) order, not raw
+        // lexicographic order. The actual sequence is as returned by the service;
+        // expected is built by sorting the same set with the natural-sort rule.
+        // StringComparer.Ordinal matches SQLite's default TEXT collation (BINARY)
+        // used by both fixture and production, so the assertion is culture-independent.
+        var expectedDistricts = texasFromDb.Select(r => r.District)
+            .OrderBy(d => d.Length)
+            .ThenBy(d => d, StringComparer.Ordinal)
+            .ToList();
+        var actualDistricts = reps.Select(r => r.District).ToList();
+        Assert.Equal(expectedDistricts, actualDistricts);
+
+        // Belt-and-suspenders: confirm a multi-digit district sorts AFTER its
+        // single-digit predecessor (would fail under raw lexicographic ordering).
+        var idx9th = actualDistricts.IndexOf("9th");
+        var idx10th = actualDistricts.IndexOf("10th");
+        Assert.True(idx9th >= 0 && idx10th >= 0, "expected both 9th and 10th districts present");
+        Assert.True(idx9th < idx10th, $"expected '9th' (idx {idx9th}) before '10th' (idx {idx10th})");
+    }
+
+    [Fact]
+    public async Task GetAllRepresentativesAsync_WithUnknownStateId_ReturnsEmpty()
+    {
+        var reps = await _sut.GetAllRepresentativesAsync(999999, CancellationToken.None);
+
+        Assert.Empty(reps);
     }
 
     [Fact]
@@ -173,5 +261,9 @@ public sealed class RepresentativeServiceTests : IDisposable
         Assert.DoesNotContain(caReset, r => r.Name == "New CA Rep");
     }
 
-    public void Dispose() => _db.Dispose();
+    public void Dispose()
+    {
+        _db.Dispose();
+        _connection.Dispose();
+    }
 }

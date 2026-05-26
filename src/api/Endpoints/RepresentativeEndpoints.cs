@@ -10,6 +10,16 @@ public static class RepresentativeEndpoints
         var group = app.MapGroup("/api/v1/representatives")
             .WithTags("Representatives");
 
+        group.MapGet("/", async (
+            int? stateId,
+            IRepresentativeService repService,
+            CancellationToken cancellationToken) =>
+        {
+            var reps = await repService.GetAllRepresentativesAsync(stateId, cancellationToken);
+            return Results.Ok(reps);
+        })
+        .WithName("GetRepresentatives");
+
         group.MapGet("/vacant", async (
             int? stateId,
             IRepresentativeService repService,
