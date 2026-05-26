@@ -270,23 +270,33 @@ jobs:
       #
       # LHCI_DISABLE_HTTPS=1 disables the `@vitejs/plugin-basic-ssl` plugin
       # for this preview run (see vite.config.ts) so wait-on / lhci can
-      # target plain http://127.0.0.1:4173/ without TLS cert juggling.
+      # target the plain-HTTP PREVIEW_URL below without TLS cert juggling.
       #
       # `wait-on` is declared as a devDependency in src/client/package.json
       # (with its exact version locked via package-lock.json), so
       # `npx wait-on` resolves the local node_modules/.bin/wait-on after
       # `npm ci` rather than downloading a fresh copy at every CI run.
+      #
+      # PREVIEW_PORT and PREVIEW_URL are defined once and reused for the
+      # `--port` flag, `wait-on`, and lhci's `--collect.url` override so
+      # the port/URL has a single source of truth in this file. The same
+      # `--collect.url=...` override is documented in the README's
+      # local-run snippet (see "Lighthouse CI (synthetic)") so contributors
+      # follow the same pattern locally — `lighthouserc.json` intentionally
+      # has no `url` field.
       - name: Run Lighthouse CI (with vite preview)
         if: steps.filter.outputs.code == 'true'
         working-directory: src/client
         env:
           LHCI_DISABLE_HTTPS: "1"
+          PREVIEW_PORT: "4173"
         run: |
-          npx vite preview --host 127.0.0.1 --port 4173 --strictPort > vite-preview.log 2>&1 &
+          PREVIEW_URL="http://127.0.0.1:${PREVIEW_PORT}/"
+          npx vite preview --host 127.0.0.1 --port "${PREVIEW_PORT}" --strictPort > vite-preview.log 2>&1 &
           PREVIEW_PID=$!
           trap 'kill $PREVIEW_PID 2>/dev/null || true' EXIT
-          npx wait-on --timeout 60000 http://127.0.0.1:4173/
-          npx lhci autorun
+          npx wait-on --timeout 60000 "${PREVIEW_URL}"
+          npx lhci autorun --collect.url="${PREVIEW_URL}"
 
       - name: Dump vite preview log on failure
         if: failure() && steps.filter.outputs.code == 'true'

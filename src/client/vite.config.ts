@@ -14,11 +14,14 @@ import basicSsl from '@vitejs/plugin-basic-ssl'
 // headless Chrome which would then have to bypass cert validation —
 // and lhci's runner + wait-on would too. Setting
 // `LHCI_DISABLE_HTTPS=1` (or `=true`) in the CI step keeps preview
-// on plain HTTP so the chain stays simple. We check for explicit
-// values rather than generic truthiness so accidental values like
-// "0" or "false" don't silently disable HTTPS.
-const disableHttpsForLhci =
-  process.env.LHCI_DISABLE_HTTPS === '1' || process.env.LHCI_DISABLE_HTTPS === 'true'
+// on plain HTTP so the chain stays simple. We trim + lowercase
+// before comparing so values like ` TRUE `, `True`, or `1\n` (which
+// can sneak in from shell heredocs or CI UIs) behave the same as
+// the documented `1` / `true`. Values other than the documented
+// truthy set ("1"/"true") leave HTTPS enabled.
+const disableHttpsForLhci = ['1', 'true'].includes(
+  (process.env.LHCI_DISABLE_HTTPS ?? '').trim().toLowerCase(),
+)
 
 // https://vite.dev/config/
 export default defineConfig({

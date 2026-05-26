@@ -403,15 +403,21 @@ To run locally (after `npm install` and `npm run build` in `src/client/`):
 
 ```bash
 cd src/client
+# Single source of truth for the preview port: change PREVIEW_PORT and
+# both vite preview and lhci pick it up.
+PREVIEW_PORT=4173
+PREVIEW_URL="http://127.0.0.1:${PREVIEW_PORT}/"
 # LHCI_DISABLE_HTTPS=1 turns off the basic-ssl plugin so vite preview
 # serves plain HTTP — wait-on and lhci can then target http://... without
 # self-signed-cert handling. Locally without it, vite preview serves HTTPS.
-LHCI_DISABLE_HTTPS=1 npx vite preview --host 127.0.0.1 --port 4173 --strictPort &
+LHCI_DISABLE_HTTPS=1 npx vite preview --host 127.0.0.1 --port "${PREVIEW_PORT}" --strictPort &
 PREVIEW_PID=$!
 # Ensure the background preview is killed when this shell exits or you Ctrl+C.
 trap 'kill $PREVIEW_PID 2>/dev/null' EXIT INT TERM
-npx wait-on http://127.0.0.1:4173/
-npx lhci autorun
+npx wait-on "${PREVIEW_URL}"
+# The preview URL is passed on the lhci CLI (not in lighthouserc.json) so
+# the port stays defined once at the top of this snippet.
+npx lhci autorun --collect.url="${PREVIEW_URL}"
 # Cleanup runs automatically via the trap above. If you ran the commands
 # individually instead of as a script, kill the preview manually with
 # `kill "$PREVIEW_PID"` (or `kill %+` for the current background job).
