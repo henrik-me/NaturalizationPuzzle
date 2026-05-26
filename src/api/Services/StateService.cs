@@ -6,37 +6,30 @@ namespace NaturalizationPuzzle.Api.Services;
 
 public sealed class StateService(AppDbContext db) : IStateService
 {
-    public async Task<IReadOnlyList<UsStateDto>> GetAllStatesAsync(CancellationToken cancellationToken)
-    {
-        var states = await db.States
-            .OrderBy(s => s.Name)
+    public async Task<IReadOnlyList<UsStateDto>> GetAllStatesAsync(CancellationToken cancellationToken) =>
+        await ProjectToDto(db.States.AsNoTracking().OrderBy(s => s.Name))
             .ToListAsync(cancellationToken);
 
-        var representatives = await db.Representatives
-            .ToListAsync(cancellationToken);
+    public async Task<UsStateDto?> GetStateByIdAsync(int id, CancellationToken cancellationToken) =>
+        await ProjectToDto(db.States.AsNoTracking().Where(s => s.Id == id))
+            .FirstOrDefaultAsync(cancellationToken);
 
-        return states.Select(s => MapToDto(s, representatives.Where(r => r.StateId == s.Id).ToList())).ToList();
-    }
-
-    public async Task<UsStateDto?> GetStateByIdAsync(int id, CancellationToken cancellationToken)
-    {
-        var state = await db.States.FindAsync([id], cancellationToken);
-        if (state is null) return null;
-
-        var reps = await db.Representatives
-            .Where(r => r.StateId == id)
-            .ToListAsync(cancellationToken);
-
-        return MapToDto(state, reps);
-    }
-
-    private static UsStateDto MapToDto(UsState state, IReadOnlyList<Representative> representatives) => new(
-        state.Id,
-        state.Name,
-        state.Abbreviation,
-        state.Capital,
-        state.Governor,
-        state.SenatorOne,
-        state.SenatorTwo,
-        representatives.Select(r => r.Name).ToList());
+    // Shared server-side projection: a single SQL statement loads each state with
+    // its representatives via a correlated subquery. The inner OrderBy(r => r.Id)
+    // pins a stable, deterministic ordering for the rep name list so downstream
+    // UI/tests don't depend on the database's unspecified default row order.
+    private IQueryable<UsStateDto> ProjectToDto(IQueryable<UsState> source) =>
+        source.Select(s => new UsStateDto(
+            s.Id,
+            s.Name,
+            s.Abbreviation,
+            s.Capital,
+            s.Governor,
+            s.SenatorOne,
+            s.SenatorTwo,
+            db.Representatives
+                .Where(r => r.StateId == s.Id)
+                .OrderBy(r => r.Id)
+                .Select(r => r.Name)
+                .ToList()));
 }
