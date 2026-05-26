@@ -371,6 +371,17 @@ cd src/client
 npm run lint
 ```
 
+### Bundle Size
+
+A `size-limit` gate runs in CI after `npm run build` to catch bundle-size regressions. To check locally:
+
+```bash
+cd src/client
+npm run build && npm run size
+```
+
+Budgets (brotli-compressed, measured on `dist/assets/index-*.{js,css}`): **180 kB** initial JS, **40 kB** initial CSS. Bumping the budget should be a deliberate edit to `src/client/package.json` with a brief rationale in the PR description.
+
 ---
 
 ## E2E Tests (`tests/e2e/`)
@@ -514,6 +525,7 @@ The pipeline is implemented in `.github/workflows/ci-cd.yml`:
   │ • dotnet test    │          └─────────────────┘
   │ • npm lint       │
   │ • npm build      │
+  │ • npm run size   │
   │ • npm test       │
   └────────┬─────────┘
            │
