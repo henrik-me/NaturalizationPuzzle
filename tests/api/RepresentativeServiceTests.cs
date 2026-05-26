@@ -62,16 +62,23 @@ public sealed class RepresentativeServiceTests : IDisposable
     [Fact]
     public async Task GetAllRepresentativesAsync_WithStateId_ReturnsOnlyThatStatesReps()
     {
-        // StateId 43 = Texas (typical multi-district state, 38 districts).
+        // Look up Texas by stable abbreviation rather than hardcoding a seed-data
+        // numeric Id — Texas is a typical multi-district state (38 districts) and
+        // a good exercise of the ordering logic with both "1st".."9th" and
+        // "10th".."38th" districts.
+        var texasId = await _db.States.AsNoTracking()
+            .Where(s => s.Abbreviation == "TX")
+            .Select(s => s.Id)
+            .SingleAsync();
         var texasFromDb = await _db.Representatives.AsNoTracking()
-            .Where(r => r.StateId == 43)
+            .Where(r => r.StateId == texasId)
             .ToListAsync();
 
-        var reps = await _sut.GetAllRepresentativesAsync(43, CancellationToken.None);
+        var reps = await _sut.GetAllRepresentativesAsync(texasId, CancellationToken.None);
 
         Assert.NotEmpty(reps);
         Assert.Equal(texasFromDb.Count, reps.Count);
-        Assert.All(reps, r => Assert.Equal(43, r.StateId));
+        Assert.All(reps, r => Assert.Equal(texasId, r.StateId));
 
         // Districts must come back in natural (length-then-lex) order, not raw
         // lexicographic order. The actual sequence is as returned by the service;
