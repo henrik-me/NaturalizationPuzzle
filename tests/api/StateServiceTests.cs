@@ -41,7 +41,10 @@ public sealed class StateServiceTests : IDisposable
 
         Assert.NotEmpty(states);
         var names = states.Select(s => s.Name).ToList();
-        Assert.Equal(names.OrderBy(n => n).ToList(), names);
+        // SQLite's default TEXT collation is BINARY (ordinal byte comparison),
+        // so the assertion must use StringComparer.Ordinal to match what the
+        // service's ORDER BY actually produces — not LINQ's current-culture default.
+        Assert.Equal(names.OrderBy(n => n, StringComparer.Ordinal).ToList(), names);
     }
 
     [Fact]
