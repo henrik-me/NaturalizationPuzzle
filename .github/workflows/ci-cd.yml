@@ -123,13 +123,31 @@ jobs:
       # the full Playwright suite, and only purely docs PRs skip.
       # `content/stories/*.md` is product code (embedded into the API
       # DLL), not docs, so it is intentionally NOT in the exclusion list.
+      #
+      # The `&docs_paths_filter` YAML anchor below is referenced by the
+      # `lighthouse` job's identical filter step so the two stay in sync
+      # automatically. Update the list HERE only.
       - name: Filter paths
         id: filter
         uses: dorny/paths-filter@v4
         with:
           predicate-quantifier: 'every'
-          filters: |
+          filters: &docs_paths_filter |
             code:
+              - '!README.md'
+              - '!CONTEXT.md'
+              - '!CONTRIBUTING.md'
+              - '!CODE_OF_CONDUCT.md'
+              - '!SECURITY.md'
+              - '!LastSession.md'
+              - '!src/client/README.md'
+              - '!LICENSE'
+              - '!.github/copilot-instructions.md'
+              - '!.github/instructions/**'
+              - '!.github/PULL_REQUEST_TEMPLATE.md'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.gitignore'
+              - '!.editorconfig'
               - '!README.md'
               - '!CONTEXT.md'
               - '!CONTRIBUTING.md'
@@ -216,29 +234,15 @@ jobs:
         uses: actions/checkout@v6
 
       # Docs-only PRs skip the Lighthouse run but the job still reports
-      # success so the required status check on main is satisfied. The
-      # filter list mirrors the e2e job exactly — keep them in sync.
+      # success so the required status check on main is satisfied.
+      # Filter list is shared with the e2e job via the `*docs_paths_filter`
+      # YAML anchor — update the list in the e2e job, not here.
       - name: Filter paths
         id: filter
         uses: dorny/paths-filter@v4
         with:
           predicate-quantifier: 'every'
-          filters: |
-            code:
-              - '!README.md'
-              - '!CONTEXT.md'
-              - '!CONTRIBUTING.md'
-              - '!CODE_OF_CONDUCT.md'
-              - '!SECURITY.md'
-              - '!LastSession.md'
-              - '!src/client/README.md'
-              - '!LICENSE'
-              - '!.github/copilot-instructions.md'
-              - '!.github/instructions/**'
-              - '!.github/PULL_REQUEST_TEMPLATE.md'
-              - '!.github/ISSUE_TEMPLATE/**'
-              - '!.gitignore'
-              - '!.editorconfig'
+          filters: *docs_paths_filter
 
       - name: Setup Node.js
         if: steps.filter.outputs.code == 'true'
@@ -283,6 +287,10 @@ jobs:
       # LHCI_DISABLE_HTTPS=1 disables the `@vitejs/plugin-basic-ssl` plugin
       # for this preview run (see vite.config.ts) so wait-on / lhci can
       # target plain http://127.0.0.1:4173/ without TLS cert juggling.
+      #
+      # `wait-on` is pinned in src/client/package.json devDependencies so
+      # `npx wait-on` resolves the local node_modules/.bin/wait-on rather
+      # than downloading a fresh version at every CI run.
       - name: Run Lighthouse CI (with vite preview)
         if: steps.filter.outputs.code == 'true'
         working-directory: src/client
@@ -292,7 +300,7 @@ jobs:
           npx vite preview --host 127.0.0.1 --port 4173 --strictPort > vite-preview.log 2>&1 &
           PREVIEW_PID=$!
           trap 'kill $PREVIEW_PID 2>/dev/null || true' EXIT
-          npx --yes wait-on --timeout 60000 http://127.0.0.1:4173/
+          npx wait-on --timeout 60000 http://127.0.0.1:4173/
           npx lhci autorun
 
       - name: Dump vite preview log on failure

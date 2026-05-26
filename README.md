@@ -399,7 +399,7 @@ A `lighthouse` GitHub Actions job runs three Lighthouse passes against `vite pre
 
 `INP` is intentionally omitted — Lighthouse can't measure interaction latency without user actions. Reports for every run upload to the `lighthouse-reports` artifact (14-day retention).
 
-To run locally (after `npm run build` in `src/client/`):
+To run locally (after `npm install` and `npm run build` in `src/client/`):
 
 ```bash
 cd src/client
@@ -410,6 +410,8 @@ LHCI_DISABLE_HTTPS=1 npx vite preview --host 127.0.0.1 --port 4173 --strictPort 
 npx wait-on http://127.0.0.1:4173/
 npx lhci autorun
 ```
+
+`wait-on` and `@lhci/cli` are both pinned in `src/client/package.json` devDependencies, so `npx wait-on` / `npx lhci` resolve the local installs (no network fetch at run time).
 
 The CI workflow follows the same start-preview / wait-on / run-lhci sequence, with `LHCI_DISABLE_HTTPS=1` set on the step (lhci's built-in `startServerCommand` is intentionally not used because its ready-pattern matching is unreliable against `vite preview`'s non-tty stdout).
 
