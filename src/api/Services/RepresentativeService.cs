@@ -9,8 +9,8 @@ public sealed class RepresentativeService(AppDbContext db) : IRepresentativeServ
     public async Task<IReadOnlyList<VacantSeatDto>> GetVacantSeatsAsync(CancellationToken cancellationToken)
     {
         return await (
-            from r in db.Representatives
-            join s in db.States on r.StateId equals s.Id
+            from r in db.Representatives.AsNoTracking()
+            join s in db.States.AsNoTracking() on r.StateId equals s.Id
             where r.Name == "Vacant"
             orderby s.Name, r.District
             select new VacantSeatDto(r.Id, r.StateId, s.Name, r.District)
@@ -20,8 +20,8 @@ public sealed class RepresentativeService(AppDbContext db) : IRepresentativeServ
     public async Task<IReadOnlyList<VacantSeatDto>> GetVacantSeatsByStateAsync(int stateId, CancellationToken cancellationToken)
     {
         return await (
-            from r in db.Representatives
-            join s in db.States on r.StateId equals s.Id
+            from r in db.Representatives.AsNoTracking()
+            join s in db.States.AsNoTracking() on r.StateId equals s.Id
             where r.StateId == stateId && r.Name == "Vacant"
             orderby r.District
             select new VacantSeatDto(r.Id, r.StateId, s.Name, r.District)

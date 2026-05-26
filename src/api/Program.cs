@@ -1,4 +1,6 @@
+using System.IO.Compression;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using NaturalizationPuzzle.Api.Data;
 using NaturalizationPuzzle.Api.Endpoints;
@@ -28,6 +30,30 @@ builder.Services.AddProblemDetails();
 builder.Services.Configure<ExceptionLoggingOptions>(
     builder.Configuration.GetSection(ExceptionLoggingOptions.SectionName));
 
+// Response compression for JSON API payloads. The largest endpoint
+// (/api/v1/questions) returns the full 128-question pool with tags + answers
+// and benefits substantially from Brotli/Gzip. SAFETY: EnableForHttps opts in
+// to compression over TLS — this is normally avoided due to CRIME/BREACH-class
+// attacks, but the threat model does not apply here: responses are public
+// read-only civics data with no per-user secrets in the body. Compression
+// level Fastest is the sweet spot for on-the-fly API responses (Optimal is
+// ~10x slower for marginal additional size reduction on small JSON).
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat([
+        "application/json",
+        // ProblemDetails (RFC 9457) responses emitted by GlobalExceptionHandler
+        // and Results.ValidationProblem() use this MIME type; without it,
+        // error payloads would not be compressed.
+        "application/problem+json",
+    ]);
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+
 builder.Services.AddOpenApi();
 builder.Services.AddCors(options =>
 {
@@ -53,6 +79,10 @@ if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+
+// Must come before UseStaticFiles and endpoint mapping so it can compress
+// both static-file responses and API responses on the way out.
+app.UseResponseCompression();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();

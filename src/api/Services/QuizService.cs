@@ -30,6 +30,7 @@ public sealed class QuizService(AppDbContext db) : IQuizService
     public async Task<QuizResultDto?> GetQuizResultAsync(string sessionId, CancellationToken cancellationToken)
     {
         var session = await db.QuizSessions
+            .AsNoTracking()
             .FirstOrDefaultAsync(s => s.SessionId == sessionId, cancellationToken);
 
         return session is null ? null : MapToDto(session);

@@ -9,17 +9,12 @@ public sealed class QuestionService(AppDbContext db) : IQuestionService
     public async Task<IReadOnlyList<QuestionDto>> GetAllQuestionsAsync(int? stateId, CancellationToken cancellationToken)
     {
         var questions = await db.Questions
+            .AsNoTracking()
             .Include(q => q.Answers)
             .OrderBy(q => q.Id)
             .ToListAsync(cancellationToken);
 
-        var state = stateId.HasValue
-            ? await db.States.FindAsync([stateId.Value], cancellationToken)
-            : null;
-
-        var representatives = stateId.HasValue
-            ? await db.Representatives.Where(r => r.StateId == stateId.Value).ToListAsync(cancellationToken)
-            : [];
+        var (state, representatives) = await LoadStateContextAsync(stateId, cancellationToken);
 
         return questions.Select(q => MapToDto(q, state, representatives)).ToList();
     }
@@ -27,18 +22,13 @@ public sealed class QuestionService(AppDbContext db) : IQuestionService
     public async Task<QuestionDto?> GetQuestionByIdAsync(int id, int? stateId, CancellationToken cancellationToken)
     {
         var question = await db.Questions
+            .AsNoTracking()
             .Include(q => q.Answers)
             .FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
 
         if (question is null) return null;
 
-        var state = stateId.HasValue
-            ? await db.States.FindAsync([stateId.Value], cancellationToken)
-            : null;
-
-        var representatives = stateId.HasValue
-            ? await db.Representatives.Where(r => r.StateId == stateId.Value).ToListAsync(cancellationToken)
-            : [];
+        var (state, representatives) = await LoadStateContextAsync(stateId, cancellationToken);
 
         return MapToDto(question, state, representatives);
     }
@@ -46,18 +36,13 @@ public sealed class QuestionService(AppDbContext db) : IQuestionService
     public async Task<IReadOnlyList<QuestionDto>> GetQuestionsByCategoryAsync(string category, int? stateId, CancellationToken cancellationToken)
     {
         var questions = await db.Questions
+            .AsNoTracking()
             .Include(q => q.Answers)
             .Where(q => q.Category == category)
             .OrderBy(q => q.Id)
             .ToListAsync(cancellationToken);
 
-        var state = stateId.HasValue
-            ? await db.States.FindAsync([stateId.Value], cancellationToken)
-            : null;
-
-        var representatives = stateId.HasValue
-            ? await db.Representatives.Where(r => r.StateId == stateId.Value).ToListAsync(cancellationToken)
-            : [];
+        var (state, representatives) = await LoadStateContextAsync(stateId, cancellationToken);
 
         return questions.Select(q => MapToDto(q, state, representatives)).ToList();
     }
@@ -65,18 +50,13 @@ public sealed class QuestionService(AppDbContext db) : IQuestionService
     public async Task<IReadOnlyList<QuestionDto>> Get6520QuestionsAsync(int? stateId, CancellationToken cancellationToken)
     {
         var questions = await db.Questions
+            .AsNoTracking()
             .Include(q => q.Answers)
             .Where(q => q.Is6520Designated)
             .OrderBy(q => q.Id)
             .ToListAsync(cancellationToken);
 
-        var state = stateId.HasValue
-            ? await db.States.FindAsync([stateId.Value], cancellationToken)
-            : null;
-
-        var representatives = stateId.HasValue
-            ? await db.Representatives.Where(r => r.StateId == stateId.Value).ToListAsync(cancellationToken)
-            : [];
+        var (state, representatives) = await LoadStateContextAsync(stateId, cancellationToken);
 
         return questions.Select(q => MapToDto(q, state, representatives)).ToList();
     }
@@ -90,17 +70,12 @@ public sealed class QuestionService(AppDbContext db) : IQuestionService
 
         var idSet = ids.ToHashSet();
         var questions = await db.Questions
+            .AsNoTracking()
             .Include(q => q.Answers)
             .Where(q => idSet.Contains(q.Id))
             .ToListAsync(cancellationToken);
 
-        var state = stateId.HasValue
-            ? await db.States.FindAsync([stateId.Value], cancellationToken)
-            : null;
-
-        var representatives = stateId.HasValue
-            ? await db.Representatives.Where(r => r.StateId == stateId.Value).ToListAsync(cancellationToken)
-            : [];
+        var (state, representatives) = await LoadStateContextAsync(stateId, cancellationToken);
 
         var byId = questions.ToDictionary(q => q.Id, q => MapToDto(q, state, representatives));
         var ordered = new List<QuestionDto>(ids.Count);
@@ -112,6 +87,30 @@ public sealed class QuestionService(AppDbContext db) : IQuestionService
             }
         }
         return ordered;
+    }
+
+    // Loads the optional state + its representatives for state-specific answer
+    // resolution. Both lookups are read-only and use AsNoTracking to avoid
+    // populating the change tracker on hot read paths.
+    private async Task<(UsState? state, IReadOnlyList<Representative> reps)> LoadStateContextAsync(
+        int? stateId, CancellationToken cancellationToken)
+    {
+        if (!stateId.HasValue)
+        {
+            return (null, []);
+        }
+
+        var state = await db.States
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == stateId.Value, cancellationToken);
+
+        var reps = await db.Representatives
+            .AsNoTracking()
+            .Where(r => r.StateId == stateId.Value)
+            .OrderBy(r => r.Id)
+            .ToListAsync(cancellationToken);
+
+        return (state, reps);
     }
 
     private static QuestionDto MapToDto(Question question, UsState? state, IReadOnlyList<Representative> representatives)
