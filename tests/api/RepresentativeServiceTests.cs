@@ -27,11 +27,13 @@ public sealed class RepresentativeServiceTests : IDisposable
 
         Assert.Equal(RepresentativeSeedData.SeedEntries.Count, reps.Count);
 
-        // Verify ordering: by state name, then district. Build expected sequence
-        // by joining seed reps with state names and ordering identically.
+        // Verify ordering: by state name, then district (length-then-lex so "9th" sorts
+        // before "10th"). Build expected sequence by joining with state names and
+        // ordering identically.
         var states = await _db.States.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name);
         var expectedOrder = reps
             .OrderBy(r => states[r.StateId])
+            .ThenBy(r => r.District.Length)
             .ThenBy(r => r.District)
             .Select(r => r.Id)
             .ToList();
@@ -41,7 +43,7 @@ public sealed class RepresentativeServiceTests : IDisposable
     [Fact]
     public async Task GetAllRepresentativesAsync_WithStateId_ReturnsOnlyThatStatesReps()
     {
-        // StateId 43 = Texas (typical multi-district state).
+        // StateId 43 = Texas (typical multi-district state, 38 districts).
         var texasFromDb = await _db.Representatives.AsNoTracking()
             .Where(r => r.StateId == 43)
             .ToListAsync();
@@ -51,9 +53,23 @@ public sealed class RepresentativeServiceTests : IDisposable
         Assert.NotEmpty(reps);
         Assert.Equal(texasFromDb.Count, reps.Count);
         Assert.All(reps, r => Assert.Equal(43, r.StateId));
-        var expectedDistricts = texasFromDb.Select(r => r.District).OrderBy(d => d).ToList();
-        var actualDistricts = reps.Select(r => r.District).OrderBy(d => d).ToList();
+
+        // Districts must come back in natural (length-then-lex) order, not raw
+        // lexicographic order. The actual sequence is as returned by the service;
+        // expected is built by sorting the same set with the natural-sort rule.
+        var expectedDistricts = texasFromDb.Select(r => r.District)
+            .OrderBy(d => d.Length)
+            .ThenBy(d => d)
+            .ToList();
+        var actualDistricts = reps.Select(r => r.District).ToList();
         Assert.Equal(expectedDistricts, actualDistricts);
+
+        // Belt-and-suspenders: confirm a multi-digit district sorts AFTER its
+        // single-digit predecessor (would fail under raw lexicographic ordering).
+        var idx9th = actualDistricts.IndexOf("9th");
+        var idx10th = actualDistricts.IndexOf("10th");
+        Assert.True(idx9th >= 0 && idx10th >= 0, "expected both 9th and 10th districts present");
+        Assert.True(idx9th < idx10th, $"expected '9th' (idx {idx9th}) before '10th' (idx {idx10th})");
     }
 
     [Fact]
