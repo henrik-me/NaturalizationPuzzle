@@ -62,7 +62,7 @@ A web-based study app for the **2025 USCIS Naturalization Civics Test** (128-que
 ### Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Node.js 20+](https://nodejs.org/) with npm
+- [Node.js 22+ (LTS)](https://nodejs.org/) with npm
 - **HTTPS dev certificate** (one-time setup): `dotnet dev-certs https --trust`
 
 ### Quick Start (Recommended)
