@@ -1,7 +1,7 @@
 # Stage 1: Build frontend
 FROM node:22-alpine AS frontend-build
 WORKDIR /app/client
-COPY src/client/package*.json ./
+COPY src/client/package*.json src/client/.npmrc ./
 RUN npm ci
 COPY src/client/ ./
 RUN npm run build
