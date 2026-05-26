@@ -6,7 +6,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace NaturalizationPuzzle.Api.Tests;
 
-public sealed class RepresentativesEndpointTests : IClassFixture<RepresentativesEndpointTests.Factory>, IDisposable
+public sealed class RepresentativesEndpointTests : IClassFixture<RepresentativesEndpointTests.Factory>
 {
     private readonly Factory _factory;
 
@@ -32,8 +32,6 @@ public sealed class RepresentativesEndpointTests : IClassFixture<Representatives
         Assert.Equal(JsonValueKind.Array, doc.RootElement.ValueKind);
         Assert.True(doc.RootElement.GetArrayLength() > 0, "expected non-empty representatives array");
     }
-
-    public void Dispose() => _factory.Dispose();
 
     public sealed class Factory : WebApplicationFactory<Program>
     {
