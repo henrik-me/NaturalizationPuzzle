@@ -381,7 +381,7 @@ Three things shipped most recently and all are live in production at `https://np
 
 Active state at the time of writing this guide:
 
-- `main` is at the PR #86 squash-merge tip; the production deploy is pending the `production` GitHub-environment approval gate.
+- `main` is at the PR #96 squash-merge tip (the API performance baseline shipped above), with PRs #93, #94, and #101 dependency bumps fast-followed on top; production is up-to-date or pending the `production` GitHub-environment approval gate for the most recent deploy-relevant tip.
 - `production` GitHub-environment approval gate is the sole human-in-the-loop step; check Actions for the latest run state if uncertain.
 - 0 high-severity Dependabot alerts open at the time of writing.
 
