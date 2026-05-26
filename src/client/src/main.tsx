@@ -11,6 +11,7 @@ createRoot(document.getElementById('root')!).render(
 )
 
 // Core Web Vitals instrumentation. Scaffold only — logs to console.info in
-// every environment; a production telemetry sink (App Insights / custom
-// endpoint) is a follow-up tracked under issue #97 (Layer 1.5).
+// the browser; non-browser entry points (tests, future SSR) no-op via the
+// guard in initWebVitals. A production telemetry sink (App Insights /
+// custom endpoint) is a follow-up tracked under issue #97 (Layer 1.5).
 initWebVitals()

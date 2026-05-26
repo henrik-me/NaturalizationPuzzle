@@ -384,7 +384,7 @@ Budgets (brotli-compressed, measured on `dist/assets/index-*.{js,css}`): **180 k
 
 ### Web Vitals (runtime)
 
-The client subscribes to Core Web Vitals (`LCP`, `INP`, `CLS`, `FCP`, `TTFB`) via the `web-vitals` library in `src/client/src/perf/webVitals.ts`. Each measurement is logged to the browser console (`console.info`) in every environment. There is no remote telemetry sink yet — that's a follow-up tracked under issue #97 (Layer 1.5). For now, open the DevTools console to inspect live numbers locally.
+The client subscribes to Core Web Vitals (`LCP`, `INP`, `CLS`, `FCP`, `TTFB`) via the `web-vitals` library in `src/client/src/perf/webVitals.ts`. Each measurement is logged to the browser console (`console.info`); non-browser entry points (tests, future SSR) skip subscription via a `typeof window`/`typeof document` guard. There is no remote telemetry sink yet — that's a follow-up tracked under issue #97 (Layer 1.5). For now, open the DevTools console to inspect live numbers locally.
 
 ---
 

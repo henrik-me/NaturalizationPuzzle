@@ -36,19 +36,18 @@ describe('initWebVitals', () => {
   })
 
   it('skips subscription in non-browser environments (no window/document)', () => {
-    const originalWindow = globalThis.window
-    const originalDocument = globalThis.document
-    // @ts-expect-error - simulating non-browser env
-    delete globalThis.window
-    // @ts-expect-error - simulating non-browser env
-    delete globalThis.document
+    // Use vi.stubGlobal (matches the storyService.test.ts pattern) so the
+    // jsdom globals are restored automatically by vi.unstubAllGlobals() and
+    // we don't rely on delete-on-globalThis, which can be brittle across
+    // Vitest/jsdom versions when window/document are non-configurable.
+    vi.stubGlobal('window', undefined)
+    vi.stubGlobal('document', undefined)
     try {
       initWebVitals()
       expect(mocks.onCLS).not.toHaveBeenCalled()
       expect(mocks.onLCP).not.toHaveBeenCalled()
     } finally {
-      globalThis.window = originalWindow
-      globalThis.document = originalDocument
+      vi.unstubAllGlobals()
     }
   })
 
