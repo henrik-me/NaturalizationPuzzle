@@ -5,7 +5,7 @@ Thanks for your interest in contributing. This document explains how to set up t
 ## Prerequisites
 
 - **.NET 10 SDK** (preview / RC). The API targets `net10.0`.
-- **Node.js 22.x** and npm.
+- **Node.js `^22.13.0` or `^24.0.0`** and npm (enforced by `engines.node` in `src/client/package.json` and `engine-strict=true` in `src/client/.npmrc`; other majors, including 25+, fail `npm install`).
 - **Git** with a configured user name and email.
 - Optional: Docker Desktop for container-based testing, PowerShell 7+ on non-Windows.
 
