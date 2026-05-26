@@ -1,11 +1,9 @@
 {
-  "$comment": "Lighthouse CI config. See https://github.com/GoogleChrome/lighthouse-ci. LCP/CLS use Google Core Web Vitals 'good' thresholds; performance score starts at warn=0.85 and will be tightened (or relaxed, with rationale) once we collect ~10 main-branch baseline runs. INP is intentionally omitted — Lighthouse can't measure interaction latency without user actions.",
+  "$comment": "Lighthouse CI config. See https://github.com/GoogleChrome/lighthouse-ci. LCP/CLS use Google Core Web Vitals 'good' thresholds; performance score starts at warn=0.85 and will be tightened (or relaxed, with rationale) once we collect ~10 main-branch baseline runs. INP is intentionally omitted — Lighthouse can't measure interaction latency without user actions. The CI workflow starts `vite preview` and waits for it via `wait-on` BEFORE invoking lhci, so this config does not use startServerCommand/startServerReadyPattern (the latter was flaky against vite preview's non-tty stdout).",
   "ci": {
     "collect": {
       "url": ["http://127.0.0.1:4173/"],
       "numberOfRuns": 3,
-      "startServerCommand": "npm run preview -- --host 127.0.0.1 --port 4173 --strictPort",
-      "startServerReadyPattern": "Local:",
       "settings": {
         "preset": "desktop"
       }

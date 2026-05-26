@@ -277,14 +277,39 @@ jobs:
         working-directory: src/client
         run: npm run build
 
-      # `lhci autorun` starts `vite preview` (via startServerCommand in
-      # lighthouserc.json), runs 3 Lighthouse passes against
-      # http://127.0.0.1:4173/, asserts the budgets, and writes raw
-      # reports to src/client/.lighthouseci/ for the artifact upload.
+      # Start `vite preview` in the background ourselves rather than letting
+      # lhci spawn it via startServerCommand. lhci's startServerReadyPattern
+      # matching is flaky against vite preview's non-tty stdout (the ANSI-
+      # styled `Local:` banner doesn't reliably match), so we start the
+      # server explicitly and gate the next step on wait-on, which polls the
+      # actual HTTP endpoint instead of parsing stdout.
+      - name: Start vite preview (background)
+        if: steps.filter.outputs.code == 'true'
+        working-directory: src/client
+        run: |
+          nohup npx vite preview --host 127.0.0.1 --port 4173 --strictPort > vite-preview.log 2>&1 &
+          echo $! > vite-preview.pid
+
+      - name: Wait for vite preview
+        if: steps.filter.outputs.code == 'true'
+        working-directory: src/client
+        run: npx --yes wait-on --timeout 60000 http://127.0.0.1:4173/
+
+      # `lhci autorun` runs 3 Lighthouse passes against http://127.0.0.1:4173/,
+      # asserts the budgets in lighthouserc.json, and writes raw reports to
+      # src/client/.lighthouseci/ for the artifact upload.
       - name: Run Lighthouse CI
         if: steps.filter.outputs.code == 'true'
         working-directory: src/client
         run: npx lhci autorun
+
+      - name: Stop vite preview
+        if: always() && steps.filter.outputs.code == 'true'
+        working-directory: src/client
+        run: |
+          if [ -f vite-preview.pid ]; then
+            kill "$(cat vite-preview.pid)" 2>/dev/null || true
+          fi
 
       - name: Upload Lighthouse reports
         if: always() && steps.filter.outputs.code == 'true'

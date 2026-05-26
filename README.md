@@ -397,7 +397,18 @@ A `lighthouse` GitHub Actions job runs three Lighthouse passes against `vite pre
 | `categories:performance` | ≥ 0.85 | `warn` (will tighten after ~10 baseline runs) |
 | `categories:accessibility` | ≥ 0.9 | `error` (synthetic backstop to the axe-core e2e checks) |
 
-`INP` is intentionally omitted — Lighthouse can't measure interaction latency without user actions. Reports for every run upload to the `lighthouse-reports` artifact (14-day retention). Run locally with `cd src/client && npx lhci autorun` after `npm run build`.
+`INP` is intentionally omitted — Lighthouse can't measure interaction latency without user actions. Reports for every run upload to the `lighthouse-reports` artifact (14-day retention).
+
+To run locally (after `npm run build` in `src/client/`):
+
+```bash
+cd src/client
+npx vite preview --host 127.0.0.1 --port 4173 --strictPort &   # in one terminal
+npx wait-on http://127.0.0.1:4173/
+npx lhci autorun                                                # in the same/another terminal
+```
+
+The CI workflow follows the same start-preview / wait-on / run-lhci sequence (lhci's built-in `startServerCommand` is intentionally not used because its ready-pattern matching is unreliable against `vite preview`'s non-tty stdout).
 
 ---
 
