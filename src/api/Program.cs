@@ -43,7 +43,13 @@ builder.Services.AddResponseCompression(options =>
     options.EnableForHttps = true;
     options.Providers.Add<BrotliCompressionProvider>();
     options.Providers.Add<GzipCompressionProvider>();
-    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(["application/json"]);
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat([
+        "application/json",
+        // ProblemDetails (RFC 9457) responses emitted by GlobalExceptionHandler
+        // and Results.ValidationProblem() use this MIME type; without it,
+        // error payloads would not be compressed.
+        "application/problem+json",
+    ]);
 });
 builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);

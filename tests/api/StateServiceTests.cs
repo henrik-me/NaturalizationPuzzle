@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using NaturalizationPuzzle.Api.Data;
 using NaturalizationPuzzle.Api.Models;
@@ -5,15 +6,27 @@ using NaturalizationPuzzle.Api.Services;
 
 namespace NaturalizationPuzzle.Api.Tests;
 
+/// <summary>
+/// SQLite-backed tests for <see cref="StateService"/>. The service uses a
+/// correlated subquery inside a projection (see <c>GetAllStatesAsync</c>),
+/// which the EF InMemory provider would not actually validate against real
+/// SQL translation. Using SQLite in-memory (matching the
+/// <c>QuestionTagsPersistenceTests</c> pattern) ensures the query both
+/// translates and executes correctly against the same provider production uses.
+/// </summary>
 public sealed class StateServiceTests : IDisposable
 {
+    private readonly SqliteConnection _connection;
     private readonly AppDbContext _db;
     private readonly StateService _sut;
 
     public StateServiceTests()
     {
+        _connection = new SqliteConnection("DataSource=:memory:");
+        _connection.Open();
+
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseSqlite(_connection)
             .Options;
 
         _db = new AppDbContext(options);
@@ -49,23 +62,24 @@ public sealed class StateServiceTests : IDisposable
         var states = await _sut.GetAllStatesAsync(CancellationToken.None);
         var california = states.First(s => s.Abbreviation == "CA");
 
-        var caRepIds = await _db.Representatives
+        var caRepNames = await _db.Representatives
             .Where(r => r.StateId == california.Id)
             .OrderBy(r => r.Id)
             .Select(r => r.Name)
             .ToListAsync();
 
-        Assert.Equal(caRepIds, california.Representatives);
+        Assert.Equal(caRepNames, california.Representatives);
     }
 
     [Fact]
     public async Task GetAllStatesAsync_ReturnsRepresentativesInIdOrder_EvenWhenInsertedOutOfOrder()
     {
-        // Seed a synthetic state with representatives inserted in a deliberately
-        // non-ascending Id order. If the projection's inner OrderBy(r => r.Id) is
-        // ever removed, the InMemory provider would return reps in insertion
-        // order and this assertion would fail. Anchors the ordering contract
-        // independently of the seed data's coincidental Id-ordered layout.
+        // Seed a synthetic state with representatives inserted in deliberately
+        // non-ascending Id order. Without the projection's inner OrderBy(r => r.Id),
+        // SQLite's default row ordering for an unindexed correlated subquery is
+        // not guaranteed to be ascending by Id, so removing the OrderBy would
+        // surface here. Anchors the ordering contract independently of any
+        // coincidental Id-ordered layout in the seed data.
         const int syntheticStateId = 9001;
         _db.States.Add(new UsState
         {
@@ -84,7 +98,8 @@ public sealed class StateServiceTests : IDisposable
             new Representative { Id = 9015, StateId = syntheticStateId, District = "2", Name = "Rep Bravo" });
         await _db.SaveChangesAsync();
 
-        var state = await _sut.GetStateByIdAsync(syntheticStateId, CancellationToken.None);
+        var allStates = await _sut.GetAllStatesAsync(CancellationToken.None);
+        var state = allStates.FirstOrDefault(s => s.Abbreviation == "ZZ");
 
         Assert.NotNull(state);
         Assert.Equal(new[] { "Rep Alpha", "Rep Bravo", "Rep Charlie" }, state!.Representatives);
@@ -109,5 +124,9 @@ public sealed class StateServiceTests : IDisposable
         Assert.Null(fetched);
     }
 
-    public void Dispose() => _db.Dispose();
+    public void Dispose()
+    {
+        _db.Dispose();
+        _connection.Dispose();
+    }
 }
