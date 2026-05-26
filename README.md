@@ -386,6 +386,19 @@ Budgets (brotli-compressed, measured on `dist/assets/index-*.{js,css}`): **180 k
 
 The client subscribes to Core Web Vitals (`LCP`, `INP`, `CLS`, `FCP`, `TTFB`) via the `web-vitals` library in `src/client/src/perf/webVitals.ts`. Each measurement is logged to the browser console (`console.info`). The perf module itself guards on `typeof window`/`typeof document` so direct callers without browser globals (e.g. a Vitest case importing the module without jsdom) skip subscription instead of throwing; `main.tsx` itself still requires a browser because it mounts React on `document.getElementById('root')`. There is no remote telemetry sink yet — that's a follow-up tracked under issue #97 (Layer 1.5). For now, open the DevTools console to inspect live numbers locally.
 
+### Lighthouse CI (synthetic)
+
+A `lighthouse` GitHub Actions job runs three Lighthouse passes against `vite preview` on every non-docs PR and asserts these budgets (config: [`src/client/lighthouserc.json`](src/client/lighthouserc.json)):
+
+| Metric | Threshold | Severity |
+|---|---|---|
+| `largest-contentful-paint` | ≤ 2500 ms | `error` (Google Core Web Vitals "good") |
+| `cumulative-layout-shift` | ≤ 0.1 | `error` (Google Core Web Vitals "good") |
+| `categories:performance` | ≥ 0.85 | `warn` (will tighten after ~10 baseline runs) |
+| `categories:accessibility` | ≥ 0.9 | `error` (synthetic backstop to the axe-core e2e checks) |
+
+`INP` is intentionally omitted — Lighthouse can't measure interaction latency without user actions. Reports for every run upload to the `lighthouse-reports` artifact (14-day retention). Run locally with `cd src/client && npx lhci autorun` after `npm run build`.
+
 ---
 
 ## E2E Tests (`tests/e2e/`)

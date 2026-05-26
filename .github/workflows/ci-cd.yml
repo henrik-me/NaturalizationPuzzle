@@ -200,9 +200,108 @@ jobs:
         if: steps.filter.outputs.code != 'true'
         run: echo "Docs-only change detected — Playwright skipped, required check satisfied."
 
+  lighthouse:
+    name: Lighthouse CI
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Same rationale as the e2e job above: dorny/paths-filter needs
+    # pull-requests:read on pull_request events.
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Docs-only PRs skip the Lighthouse run but the job still reports
+      # success so the required status check on main is satisfied. The
+      # filter list mirrors the e2e job exactly — keep them in sync.
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          predicate-quantifier: 'every'
+          filters: |
+            code:
+              - '!README.md'
+              - '!CONTEXT.md'
+              - '!CONTRIBUTING.md'
+              - '!CODE_OF_CONDUCT.md'
+              - '!SECURITY.md'
+              - '!LastSession.md'
+              - '!src/client/README.md'
+              - '!LICENSE'
+              - '!.github/copilot-instructions.md'
+              - '!.github/instructions/**'
+              - '!.github/PULL_REQUEST_TEMPLATE.md'
+              - '!.github/ISSUE_TEMPLATE/**'
+              - '!.gitignore'
+              - '!.editorconfig'
+
+      - name: Setup Node.js
+        if: steps.filter.outputs.code == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: |
+            src/client/package-lock.json
+            tests/e2e/package-lock.json
+
+      - name: Install client dependencies
+        if: steps.filter.outputs.code == 'true'
+        working-directory: src/client
+        run: npm ci
+
+      # Install Playwright from tests/e2e where it's a locked devDependency
+      # (src/client doesn't depend on Playwright, so installing from there
+      # would resolve an unpinned latest version at runtime).
+      - name: Install e2e dependencies
+        if: steps.filter.outputs.code == 'true'
+        working-directory: tests/e2e
+        run: npm ci
+
+      # Pin Chrome via Playwright rather than relying on the preinstalled
+      # GitHub-hosted runner Chrome (which may drift). --with-deps installs
+      # the matching system libraries. We use Chrome (stable) here rather
+      # than Chromium because Lighthouse is tuned against Chrome.
+      - name: Install Chrome (pinned via Playwright)
+        if: steps.filter.outputs.code == 'true'
+        working-directory: tests/e2e
+        run: npx --no-install playwright install --with-deps chrome
+
+      - name: Build client (production bundle)
+        if: steps.filter.outputs.code == 'true'
+        working-directory: src/client
+        run: npm run build
+
+      # `lhci autorun` starts `vite preview` (via startServerCommand in
+      # lighthouserc.json), runs 3 Lighthouse passes against
+      # http://127.0.0.1:4173/, asserts the budgets, and writes raw
+      # reports to src/client/.lighthouseci/ for the artifact upload.
+      - name: Run Lighthouse CI
+        if: steps.filter.outputs.code == 'true'
+        working-directory: src/client
+        run: npx lhci autorun
+
+      - name: Upload Lighthouse reports
+        if: always() && steps.filter.outputs.code == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-reports
+          path: src/client/.lighthouseci/
+          retention-days: 14
+          include-hidden-files: true
+
+      - name: Skip notice (docs-only)
+        if: steps.filter.outputs.code != 'true'
+        run: echo "Docs-only change detected — Lighthouse CI skipped, required check satisfied."
+
   docker-build-push:
     name: Docker Build & Push
-    needs: [build-and-test, e2e]
+    needs: [build-and-test, e2e, lighthouse]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -311,7 +410,7 @@ jobs:
 
   detect-changes:
     name: Detect deployable changes
-    needs: [build-and-test, e2e]
+    needs: [build-and-test, e2e, lighthouse]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
