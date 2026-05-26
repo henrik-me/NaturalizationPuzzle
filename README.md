@@ -411,7 +411,7 @@ npx wait-on http://127.0.0.1:4173/
 npx lhci autorun
 ```
 
-`wait-on` and `@lhci/cli` are both pinned in `src/client/package.json` devDependencies, so `npx wait-on` / `npx lhci` resolve the local installs (no network fetch at run time).
+`wait-on` and `@lhci/cli` are both declared as `src/client/package.json` devDependencies with their exact resolved versions locked via `package-lock.json`, so after `npm ci` the `npx wait-on` / `npx lhci` invocations resolve the local installs (no network fetch at run time).
 
 The CI workflow follows the same start-preview / wait-on / run-lhci sequence, with `LHCI_DISABLE_HTTPS=1` set on the step (lhci's built-in `startServerCommand` is intentionally not used because its ready-pattern matching is unreliable against `vite preview`'s non-tty stdout).
 

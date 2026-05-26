@@ -10,14 +10,18 @@ export default defineConfig({
     react(),
     tailwindcss(),
     // basicSsl() makes `vite dev` and `vite preview` serve HTTPS with a
-    // self-signed cert. We want that locally (PWA service-worker features
-    // require HTTPS to register), but in Lighthouse CI we serve `vite
-    // preview` to a headless Chrome which would then have to bypass cert
-    // validation — and lhci's runner + wait-on would too. Setting
-    // `LHCI_DISABLE_HTTPS=1` (or `=true`) in the CI step keeps preview on
-    // plain HTTP so the chain stays simple. We check for explicit values
-    // rather than generic truthiness so accidental values like "0" or
-    // "false" don't silently disable HTTPS.
+    // self-signed cert. We want that locally for parity with the
+    // production deployment, which is served over HTTPS — running the
+    // dev/preview servers on HTTP works (service workers are allowed on
+    // localhost as a secure context), but exercising the PWA chain over
+    // HTTPS locally surfaces cert/CORS quirks that only otherwise show
+    // up after deploy. In Lighthouse CI we serve `vite preview` to a
+    // headless Chrome which would then have to bypass cert validation —
+    // and lhci's runner + wait-on would too. Setting
+    // `LHCI_DISABLE_HTTPS=1` (or `=true`) in the CI step keeps preview
+    // on plain HTTP so the chain stays simple. We check for explicit
+    // values rather than generic truthiness so accidental values like
+    // "0" or "false" don't silently disable HTTPS.
     ...(process.env.LHCI_DISABLE_HTTPS === '1' || process.env.LHCI_DISABLE_HTTPS === 'true'
       ? []
       : [basicSsl()]),

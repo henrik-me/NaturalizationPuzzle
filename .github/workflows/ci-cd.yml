@@ -272,9 +272,10 @@ jobs:
       # for this preview run (see vite.config.ts) so wait-on / lhci can
       # target plain http://127.0.0.1:4173/ without TLS cert juggling.
       #
-      # `wait-on` is pinned in src/client/package.json devDependencies so
-      # `npx wait-on` resolves the local node_modules/.bin/wait-on rather
-      # than downloading a fresh version at every CI run.
+      # `wait-on` is declared as a devDependency in src/client/package.json
+      # (with its exact version locked via package-lock.json), so
+      # `npx wait-on` resolves the local node_modules/.bin/wait-on after
+      # `npm ci` rather than downloading a fresh copy at every CI run.
       - name: Run Lighthouse CI (with vite preview)
         if: steps.filter.outputs.code == 'true'
         working-directory: src/client
