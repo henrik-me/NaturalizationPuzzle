@@ -407,8 +407,14 @@ cd src/client
 # serves plain HTTP — wait-on and lhci can then target http://... without
 # self-signed-cert handling. Locally without it, vite preview serves HTTPS.
 LHCI_DISABLE_HTTPS=1 npx vite preview --host 127.0.0.1 --port 4173 --strictPort &
+PREVIEW_PID=$!
+# Ensure the background preview is killed when this shell exits or you Ctrl+C.
+trap 'kill $PREVIEW_PID 2>/dev/null' EXIT INT TERM
 npx wait-on http://127.0.0.1:4173/
 npx lhci autorun
+# Cleanup runs automatically via the trap above. If you ran the commands
+# individually instead of as a script, kill the preview manually with
+# `kill "$PREVIEW_PID"` (or `kill %+` for the current background job).
 ```
 
 `wait-on` and `@lhci/cli` are both declared as `src/client/package.json` devDependencies with their exact resolved versions locked via `package-lock.json`, so after `npm ci` the `npx wait-on` / `npx lhci` invocations resolve the local installs (no network fetch at run time).
