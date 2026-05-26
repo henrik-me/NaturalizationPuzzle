@@ -382,6 +382,10 @@ npm run build && npm run size
 
 Budgets (brotli-compressed, measured on `dist/assets/index-*.{js,css}`): **180 kB** initial JS, **40 kB** initial CSS. Bumping the budget should be a deliberate edit to `src/client/package.json` with a brief rationale in the PR description.
 
+### Web Vitals (runtime)
+
+The client subscribes to Core Web Vitals (`LCP`, `INP`, `CLS`, `FCP`, `TTFB`) via the `web-vitals` library in `src/client/src/perf/webVitals.ts`. Each measurement is logged to the browser console (`console.info`). The perf module itself guards on `typeof window`/`typeof document` so direct callers without browser globals (e.g. a Vitest case importing the module without jsdom) skip subscription instead of throwing; `main.tsx` itself still requires a browser because it mounts React on `document.getElementById('root')`. There is no remote telemetry sink yet — that's a follow-up tracked under issue #97 (Layer 1.5). For now, open the DevTools console to inspect live numbers locally.
+
 ---
 
 ## E2E Tests (`tests/e2e/`)
