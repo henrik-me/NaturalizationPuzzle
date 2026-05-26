@@ -8,35 +8,47 @@ public sealed class StateService(AppDbContext db) : IStateService
 {
     public async Task<IReadOnlyList<UsStateDto>> GetAllStatesAsync(CancellationToken cancellationToken)
     {
-        var states = await db.States
+        // Single server-side projection: replaces the previous "load all states +
+        // load all representatives + in-memory filter" pattern. The inner OrderBy
+        // by Representative.Id preserves the historical insertion ordering that
+        // the legacy in-memory filter inherited from the unordered ToListAsync().
+        return await db.States
+            .AsNoTracking()
             .OrderBy(s => s.Name)
+            .Select(s => new UsStateDto(
+                s.Id,
+                s.Name,
+                s.Abbreviation,
+                s.Capital,
+                s.Governor,
+                s.SenatorOne,
+                s.SenatorTwo,
+                db.Representatives
+                    .Where(r => r.StateId == s.Id)
+                    .OrderBy(r => r.Id)
+                    .Select(r => r.Name)
+                    .ToList()))
             .ToListAsync(cancellationToken);
-
-        var representatives = await db.Representatives
-            .ToListAsync(cancellationToken);
-
-        return states.Select(s => MapToDto(s, representatives.Where(r => r.StateId == s.Id).ToList())).ToList();
     }
 
     public async Task<UsStateDto?> GetStateByIdAsync(int id, CancellationToken cancellationToken)
     {
-        var state = await db.States.FindAsync([id], cancellationToken);
-        if (state is null) return null;
-
-        var reps = await db.Representatives
-            .Where(r => r.StateId == id)
-            .ToListAsync(cancellationToken);
-
-        return MapToDto(state, reps);
+        return await db.States
+            .AsNoTracking()
+            .Where(s => s.Id == id)
+            .Select(s => new UsStateDto(
+                s.Id,
+                s.Name,
+                s.Abbreviation,
+                s.Capital,
+                s.Governor,
+                s.SenatorOne,
+                s.SenatorTwo,
+                db.Representatives
+                    .Where(r => r.StateId == s.Id)
+                    .OrderBy(r => r.Id)
+                    .Select(r => r.Name)
+                    .ToList()))
+            .FirstOrDefaultAsync(cancellationToken);
     }
-
-    private static UsStateDto MapToDto(UsState state, IReadOnlyList<Representative> representatives) => new(
-        state.Id,
-        state.Name,
-        state.Abbreviation,
-        state.Capital,
-        state.Governor,
-        state.SenatorOne,
-        state.SenatorTwo,
-        representatives.Select(r => r.Name).ToList());
 }
