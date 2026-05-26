@@ -148,20 +148,6 @@ jobs:
               - '!.github/ISSUE_TEMPLATE/**'
               - '!.gitignore'
               - '!.editorconfig'
-              - '!README.md'
-              - '!CONTEXT.md'
-              - '!CONTRIBUTING.md'
-              - '!CODE_OF_CONDUCT.md'
-              - '!SECURITY.md'
-              - '!LastSession.md'
-              - '!src/client/README.md'
-              - '!LICENSE'
-              - '!.github/copilot-instructions.md'
-              - '!.github/instructions/**'
-              - '!.github/PULL_REQUEST_TEMPLATE.md'
-              - '!.github/ISSUE_TEMPLATE/**'
-              - '!.gitignore'
-              - '!.editorconfig'
 
       - name: Setup .NET
         if: steps.filter.outputs.code == 'true'
@@ -250,9 +236,7 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: |
-            src/client/package-lock.json
-            tests/e2e/package-lock.json
+          cache-dependency-path: src/client/package-lock.json
 
       - name: Install client dependencies
         if: steps.filter.outputs.code == 'true'

@@ -14,9 +14,13 @@ export default defineConfig({
     // require HTTPS to register), but in Lighthouse CI we serve `vite
     // preview` to a headless Chrome which would then have to bypass cert
     // validation — and lhci's runner + wait-on would too. Setting
-    // `LHCI_DISABLE_HTTPS=1` in the CI step keeps preview on plain HTTP so
-    // the chain stays simple.
-    ...(process.env.LHCI_DISABLE_HTTPS ? [] : [basicSsl()]),
+    // `LHCI_DISABLE_HTTPS=1` (or `=true`) in the CI step keeps preview on
+    // plain HTTP so the chain stays simple. We check for explicit values
+    // rather than generic truthiness so accidental values like "0" or
+    // "false" don't silently disable HTTPS.
+    ...(process.env.LHCI_DISABLE_HTTPS === '1' || process.env.LHCI_DISABLE_HTTPS === 'true'
+      ? []
+      : [basicSsl()]),
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
