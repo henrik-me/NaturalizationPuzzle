@@ -1,10 +1,11 @@
 # API Performance Benchmark
 
 A k6-based load benchmark for the NaturalizationPuzzle backend. It runs as
-the `api-benchmark` job in CI on every PR and on `main`, publishes
-per-endpoint p50/p95/p99 + throughput + average decoded response body
-size as build artifacts, and is **advisory only** — it does not gate
-merges or deploys.
+the `api-benchmark` job in CI on every code-changing PR and on `main`
+(docs-only PRs are skipped via the shared `*docs_paths_filter` paths
+filter), publishes per-endpoint p50/p95/p99 + throughput + average
+decoded response body size as build artifacts, and is **advisory only** —
+it does not gate merges or deploys.
 
 This is Layer 2 of the perf measurement plan tracked in issue #97.
 
@@ -127,8 +128,12 @@ BENCH_STORY_SLUG=my-story k6 run tests/perf/api-bench.js
 
 ## CI artifacts
 
-The `api-benchmark` job uploads `api-bench-results` on every PR run
-(`if: always()`, even if the bench step itself failed). It contains:
+The `api-benchmark` job uploads `api-bench-results` on every
+benchmark run (`if: always()`, even if the bench step itself failed,
+but the upload step -- like the rest of the job -- is gated on
+`steps.filter.outputs.code == 'true'`, so docs-only PRs that skip the
+bench also skip the artifact upload; there is nothing to upload). It
+contains:
 
 - `k6-results.json` — full `handleSummary()` output (machine-readable).
 - `k6-stdout.txt`   — k6's default text summary (human-readable).
