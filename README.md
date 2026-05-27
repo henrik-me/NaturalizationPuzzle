@@ -429,6 +429,12 @@ The CI workflow follows the same start-preview / wait-on / run-lhci sequence, wi
 
 **Known limitation — synthetic-only measurement:** The CI run targets `vite preview` without a backing API, so the client's `useWarmUpCache()` warm-up calls (e.g. `/api/v1/questions`, `/api/v1/stories`) resolve to the SPA's `index.html`. Those failed warm-ups don't affect LCP (warm-up fires inside a `useEffect` after first paint) and the budgets pass, but the synthetic perf/TBT numbers are slightly more conservative than production. Tracked as [#106](https://github.com/henrik-me/NaturalizationPuzzle/issues/106); the longer-term plan is to lean on real-world Web Vitals from Layer 1.5 (production telemetry) as the primary perf signal.
 
+### API performance benchmark (k6)
+
+The `api-benchmark` GitHub Actions job runs a [k6](https://k6.io/) load benchmark against a locally-started Release-build API on every code-changing PR and `main` push (docs-only PRs skip the bench via the shared `*docs_paths_filter` paths filter, so a doc fix doesn't burn CI minutes on a benchmark that has nothing to measure). It hits the seven endpoints that the client warms up on startup (`/api/v1/questions`, `/api/v1/questions/6520?stateId=5`, `/api/v1/questions?stateId=5`, `/api/v1/states`, `/api/v1/states/5`, `/api/v1/stories`, `/api/v1/stories/{slug}?stateId=5`) sequentially with 5 VUs × 30 s each, and uploads per-endpoint p50/p95/p99 + throughput + average decoded response body bytes as the `api-bench-results` artifact (90-day retention). The `stateId=5` example resolves to California (the API expects a numeric state id, not a postal code).
+
+The job is **advisory only** — there are no performance-gating thresholds today (the script auto-generates no-op visualisation thresholds plus strict `http_req_failed{endpoint:*}: rate==0` correctness sentinels), and it is intentionally not in any downstream `needs:`, so it cannot block merge or deploy. The full design (scenario model, why sequential, slug resolution, threshold population workflow) and the advisory → gating promotion path live in [`tests/perf/README.md`](tests/perf/README.md). Layer 2 of issue [#97](https://github.com/henrik-me/NaturalizationPuzzle/issues/97).
+
 ---
 
 ## E2E Tests (`tests/e2e/`)

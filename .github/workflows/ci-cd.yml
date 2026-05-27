@@ -22,6 +22,7 @@ on:
       - 'SECURITY.md'
       - 'LastSession.md'
       - 'src/client/README.md'
+      - 'tests/perf/README.md'
       - 'LICENSE'
       - '.github/copilot-instructions.md'
       - '.github/instructions/**'
@@ -141,6 +142,7 @@ jobs:
               - '!SECURITY.md'
               - '!LastSession.md'
               - '!src/client/README.md'
+              - '!tests/perf/README.md'
               - '!LICENSE'
               - '!.github/copilot-instructions.md'
               - '!.github/instructions/**'
@@ -324,6 +326,172 @@ jobs:
         if: steps.filter.outputs.code != 'true'
         run: echo "Docs-only change detected — Lighthouse CI skipped, required check satisfied."
 
+  # api-benchmark: Layer 2 of issue #97. k6-based per-endpoint load benchmark
+  # against a locally-started Release-build API. ADVISORY ONLY — the bench
+  # step is `continue-on-error: true` and this job is intentionally NOT in
+  # any downstream `needs:` list, so a slow/failed benchmark cannot block
+  # deploy. The harness, scenario design, and promotion-to-gating path are
+  # documented in tests/perf/README.md.
+  api-benchmark:
+    name: API Benchmark (k6, advisory)
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Same rationale as the e2e/lighthouse jobs above: dorny/paths-filter
+    # needs pull-requests:read on pull_request events.
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Docs-only PRs skip the bench entirely. The job is advisory (not in
+      # any downstream `needs:` and not a required check), so there's no
+      # status-check obligation to satisfy on skip -- the explicit "Skip
+      # notice" step below just leaves a visible breadcrumb in the run log.
+      # Filter list is shared with the e2e/lighthouse jobs via the
+      # `*docs_paths_filter` YAML anchor -- update the list in the e2e job,
+      # not here.
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          predicate-quantifier: 'every'
+          filters: *docs_paths_filter
+
+      - name: Setup .NET
+        if: steps.filter.outputs.code == 'true'
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+          dotnet-quality: "preview"
+
+      - name: Setup Node.js
+        # Pin Node so `node tests/perf/summarize.mjs` is reproducible.
+        # Other jobs in this workflow use Node 22; match that to avoid
+        # surprises if the ubuntu-latest runner's preinstalled Node
+        # ever diverges from what summarize.mjs is tested against.
+        if: steps.filter.outputs.code == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup k6
+        if: steps.filter.outputs.code == 'true'
+        uses: grafana/setup-k6-action@v1
+        with:
+          # Pin k6 so baseline-comparison runs aren't perturbed by k6 itself
+          # changing summary-metric shape or thresholds-evaluation semantics
+          # between bumps. Bump deliberately (separate PR) when we want to
+          # upgrade and re-establish baselines.
+          k6-version: '2.0.0'
+
+      - name: Restore API
+        if: steps.filter.outputs.code == 'true'
+        run: dotnet restore src/api/NaturalizationPuzzle.Api.csproj
+
+      - name: Build API (Release)
+        if: steps.filter.outputs.code == 'true'
+        run: dotnet build src/api/NaturalizationPuzzle.Api.csproj -c Release --no-restore
+
+      # Single bash step: start API → wait for /api/health → run k6 →
+      # summarize → tear down. We use `trap` so the background dotnet
+      # process is killed even on failure; `continue-on-error: true` keeps
+      # the bench advisory; `id: bench` lets the upload step always run.
+      #
+      # Note: we capture k6's exit code rather than letting `set -e` abort
+      # the step immediately. If k6 trips a threshold (e.g. the strict
+      # `http_req_failed{endpoint:*}: rate==0` correctness sentinel), we
+      # still want `summarize.mjs` to produce `k6-summary.md` from the
+      # partial results -- that's the artifact a human needs to diagnose
+      # WHICH endpoint failed. The step still exits non-zero at the end
+      # if k6 failed, so `steps.bench.outcome` remains accurate.
+      - name: Run k6 benchmark
+        id: bench
+        if: steps.filter.outputs.code == 'true'
+        continue-on-error: true
+        env:
+          # Pin Production env explicitly so the API does NOT enter
+          # Development mode (which enables UseHttpsRedirection() and
+          # MapOpenApi() in Program.cs; the redirect in particular can
+          # 307 our plain-HTTP bench traffic into HTTPS and the extra
+          # middleware would skew per-endpoint latency numbers).
+          ASPNETCORE_ENVIRONMENT: Production
+        run: |
+          set -euo pipefail
+          # `--no-launch-profile` prevents launchSettings.json from
+          # overriding ASPNETCORE_ENVIRONMENT (and from layering its own
+          # `applicationUrl` on top of our explicit `--urls`).
+          dotnet run --project src/api/NaturalizationPuzzle.Api.csproj -c Release --no-build --no-launch-profile --urls http://127.0.0.1:5099 > api.log 2>&1 &
+          API_PID=$!
+          trap 'kill $API_PID 2>/dev/null || true' EXIT
+
+          echo "Waiting for /api/health..."
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5099/api/health > /dev/null 2>&1; then
+              echo "API healthy after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          # Final hard check — exits non-zero if the API never came up.
+          curl -fsS http://127.0.0.1:5099/api/health > /dev/null
+
+          set +e
+          k6 run tests/perf/api-bench.js
+          K6_EXIT=$?
+          set -e
+
+          # Run summarize.mjs under `set +e` too — it intentionally exits 1
+          # when any scenario produced zero requests, and we still want to
+          # `cat` whatever k6-summary.md it managed to write AND surface the
+          # k6 exit code as the step's outcome. Without `set +e` here, a
+          # summarize failure would abort the step before the cat and before
+          # the final `exit "$K6_EXIT"`, so steps.bench.outcome would no
+          # longer faithfully reflect the captured k6 exit.
+          SUMM_EXIT=0
+          if [ -f tests/perf/k6-results.json ]; then
+            set +e
+            node tests/perf/summarize.mjs tests/perf/k6-results.json > tests/perf/k6-summary.md
+            SUMM_EXIT=$?
+            set -e
+            echo "--- k6-summary.md ---"
+            cat tests/perf/k6-summary.md || echo "(k6-summary.md missing or empty)"
+          else
+            echo "(no k6-results.json produced; skipping summarize)"
+          fi
+
+          # Surface whichever failure happened: prefer the k6 exit code
+          # (the load test itself) over the summarizer exit (post-processing).
+          if [ "$K6_EXIT" -ne 0 ]; then
+            exit "$K6_EXIT"
+          fi
+          exit "$SUMM_EXIT"
+
+      - name: Dump API log on bench failure
+        if: always() && steps.filter.outputs.code == 'true' && steps.bench.outcome == 'failure'
+        run: |
+          echo "--- api.log ---"
+          [ -f api.log ] && cat api.log || echo "(no log file)"
+
+      - name: Upload benchmark artifacts
+        if: always() && steps.filter.outputs.code == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-bench-results
+          path: |
+            tests/perf/k6-results.json
+            tests/perf/k6-summary.md
+            api.log
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Skip notice (docs-only)
+        if: steps.filter.outputs.code != 'true'
+        run: echo "Docs-only change detected — API benchmark skipped (job is advisory, no required check to satisfy)."
+
   docker-build-push:
     name: Docker Build & Push
     needs: [build-and-test, e2e, lighthouse]
@@ -433,6 +601,98 @@ jobs:
         if: always()
         run: docker rm -f smoke || true
 
+  container-e2e:
+    name: Container E2E (Playwright)
+    needs: docker-build-push
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: tests/e2e/package-lock.json
+
+      - name: Install e2e dependencies
+        working-directory: tests/e2e
+        run: npm ci
+
+      - name: Install Playwright browser (chromium)
+        working-directory: tests/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and run image
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker-build-push.outputs.image-tag }}
+        run: |
+          set -euo pipefail
+          echo "Pulling image: $IMAGE"
+          docker pull "$IMAGE"
+          docker run -d --name e2e-container -p 8080:8080 \
+            -e ASPNETCORE_ENVIRONMENT=Production \
+            "$IMAGE"
+
+      - name: Wait for /api/health
+        run: |
+          set -euo pipefail
+          # 60 retries chosen over image-smoke-test's 30 because container-e2e
+          # also has Playwright bootstrap running on the same runner; budget
+          # extra margin for cold-start contention. Stream A bumped local
+          # webServer timeout to 120s for the same reason.
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/api/health >/tmp/health.json 2>/dev/null \
+              && jq -e '.status == "healthy" and .database == true and .questionCount > 0' /tmp/health.json >/dev/null; then
+              echo "Healthy after ${i}s:"
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Health check did not succeed within 60s"
+          docker logs e2e-container || true
+          exit 1
+
+      - name: Run Playwright suite against container
+        working-directory: tests/e2e
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:8080
+        # PLAYWRIGHT_BASE_URL is honored by playwright.config.ts (Stream A
+        # of #20): when set, the dev-stack webServer blocks are skipped and
+        # tests target the external URL — here, the production Docker image.
+        run: npx playwright test --reporter=list
+
+      - name: Capture container logs on failure
+        if: failure()
+        run: docker logs --tail 500 e2e-container || true
+
+      - name: Upload Playwright test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: container-e2e-playwright-results
+          path: tests/e2e/test-results/
+          retention-days: 14
+
+      - name: Tear down container
+        if: always()
+        run: docker rm -f e2e-container || true
+
   detect-changes:
     name: Detect deployable changes
     needs: [build-and-test, e2e, lighthouse]
@@ -496,7 +756,7 @@ jobs:
 
   deploy-apply:
     name: Deploy Apply (gated)
-    needs: [docker-build-push, deploy-plan, detect-changes]
+    needs: [docker-build-push, deploy-plan, detect-changes, container-e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     environment:
