@@ -128,12 +128,13 @@ BENCH_STORY_SLUG=my-story k6 run tests/perf/api-bench.js
 
 ## CI artifacts
 
-The `api-benchmark` job uploads `api-bench-results` on every
-benchmark run (`if: always()`, even if the bench step itself failed,
-but the upload step -- like the rest of the job -- is gated on
-`steps.filter.outputs.code == 'true'`, so docs-only PRs that skip the
-bench also skip the artifact upload; there is nothing to upload). It
-contains:
+The `api-benchmark` job's artifact-upload step runs `if: always()`,
+so partial results are uploaded even if the bench itself failed.
+Both the bench and the upload are gated on the shared
+`*docs_paths_filter` (`steps.filter.outputs.code == 'true'`), so a
+docs-only PR skips the entire job -- there is nothing to upload in
+that case, not even an empty artifact. On code-changing PRs and on
+every push to `main`, the `api-bench-results` artifact contains:
 
 - `k6-results.json` — full `handleSummary()` output (machine-readable).
 - `k6-summary.md`   — the per-endpoint table produced by `summarize.mjs`
