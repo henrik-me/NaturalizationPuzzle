@@ -99,7 +99,7 @@ if [[ ${#missing[@]} -gt 0 ]]; then
     red "  Install hints:"
     red "    docker:        https://docs.docker.com/get-docker/"
     red "    curl:          typically preinstalled; apt/brew install curl"
-    red "    jq:            apt install jq | brew install jq | choco install jq"
+    red "    jq:            apt install jq, or brew install jq, or choco install jq"
     red "    node/npm/npx:  install Node.js 22+ from https://nodejs.org/ (bundles npm/npx)"
     exit 1
 fi

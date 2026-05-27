@@ -524,7 +524,7 @@ docker compose down
 .\container-test.ps1
 ```
 
-For a deeper pre-push check that runs the full Playwright suite against the production image (catches Docker-context-only bugs the dev-stack E2E can't — e.g., missing-from-build-context embedded resources, see the PR #81 silent-empty-stories incident), use the container E2E reproducer:
+For a deeper pre-push check that runs the full Playwright suite against the production image (catches Docker-context-only bugs the dev-stack E2E can't — e.g., embedded resources missing from the Docker build context, static-asset pipeline changes, or `.dockerignore` exclusions that silently empty a shipped feature), use the container E2E reproducer:
 
 ```powershell
 # Windows (Windows PowerShell or pwsh)
