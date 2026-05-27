@@ -128,7 +128,7 @@ export function questions_all() {
 }
 
 export function questions_65_20() {
-  hit(`${BASE_URL}/api/v1/questions/65-20`, 'questions-65-20');
+  hit(`${BASE_URL}/api/v1/questions/6520`, 'questions-65-20');
 }
 
 export function questions_stateid() {

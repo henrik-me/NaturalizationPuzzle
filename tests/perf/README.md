@@ -16,7 +16,7 @@ Seven endpoints, mirroring the production client's warm-up fan-out
 | Scenario tag         | Endpoint                                        |
 |----------------------|-------------------------------------------------|
 | `questions-all`      | `GET /api/v1/questions`                         |
-| `questions-65-20`    | `GET /api/v1/questions/65-20`                   |
+| `questions-65-20`    | `GET /api/v1/questions/6520`                    |
 | `questions-stateid`  | `GET /api/v1/questions?stateId=5` (California)  |
 | `states-list`        | `GET /api/v1/states`                            |
 | `states-detail`      | `GET /api/v1/states/5` (California)             |
