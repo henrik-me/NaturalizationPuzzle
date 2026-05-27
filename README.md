@@ -533,7 +533,7 @@ For a deeper pre-push check that runs the full Playwright suite against the prod
 
 The script builds the image, starts it, waits for `/api/health`, runs the full Playwright suite with `PLAYWRIGHT_BASE_URL=http://localhost:8080`, and tears the container down on exit. Add `-SkipBuild` (PowerShell) or `--skip-build` (bash) to re-run the tests against an already-built image.
 
-The bash script requires `docker`, `curl`, and `jq` (the PowerShell script requires `docker` only — health response is parsed via `Invoke-RestMethod`). On macOS, install `jq` with `brew install jq`; on Debian/Ubuntu, `apt install jq`. The script fails fast with an install hint if any prerequisite is missing.
+Both scripts require `docker` and Node.js 22+ (`node` / `npm` / `npx`) on `PATH` for the Playwright bootstrap. The bash script additionally requires `curl` and `jq` for the `/api/health` gate. Each script fails fast with an install hint if any prerequisite is missing. On macOS, install `jq` with `brew install jq`; on Debian/Ubuntu, `apt install jq`.
 
 ### Production Architecture (Azure Container Apps)
 

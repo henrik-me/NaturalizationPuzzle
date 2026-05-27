@@ -38,6 +38,23 @@ function Stop-E2EContainer {
     docker rm -f $containerName 2>$null | Out-Null
 }
 
+# Prereq check — fail fast with a clear message rather than mid-script with a
+# confusing error. docker is required for the container build/run; node/npm/npx
+# are required for the Playwright bootstrap and test execution.
+$missing = @()
+foreach ($tool in @("docker", "node", "npm", "npx")) {
+    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
+        $missing += $tool
+    }
+}
+if ($missing.Count -gt 0) {
+    Write-Host "ERROR: required tool(s) not found in PATH: $($missing -join ', ')" -ForegroundColor Red
+    Write-Host "  Install hints:" -ForegroundColor Red
+    Write-Host "    docker:        https://docs.docker.com/get-docker/" -ForegroundColor Red
+    Write-Host "    node/npm/npx:  install Node.js 22+ from https://nodejs.org/ (bundles npm/npx)" -ForegroundColor Red
+    exit 1
+}
+
 try {
     Write-Step "Stopping any prior '$containerName' container"
     Stop-E2EContainer
@@ -94,14 +111,12 @@ try {
     Push-Location "$repoRoot\tests\e2e"
     $pushed = $true
 
-    if (-not (Test-Path node_modules)) {
-        Write-Host "  Installing tests/e2e dependencies (npm ci)..." -ForegroundColor DarkGray
-        npm ci
-        if ($LASTEXITCODE -ne 0) { throw "npm ci in tests/e2e failed" }
-    }
-    else {
-        Write-Host "  tests/e2e/node_modules present, skipping npm ci" -ForegroundColor DarkGray
-    }
+    # Always run `npm ci` for a reproducible install matching package-lock.json.
+    # Skipping when node_modules exists can mask stale-deps regressions, which
+    # defeats the point of a pre-push reproducer.
+    Write-Host "  Installing tests/e2e dependencies (npm ci)..." -ForegroundColor DarkGray
+    npm ci
+    if ($LASTEXITCODE -ne 0) { throw "npm ci in tests/e2e failed" }
 
     Write-Host "  Ensuring Chromium browser is installed..." -ForegroundColor DarkGray
     npx playwright install chromium

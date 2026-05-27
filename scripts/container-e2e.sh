@@ -46,12 +46,15 @@ green() { printf '\033[32m%s\033[0m\n' "$1"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$1"; }
 red() { printf '\033[31m%s\033[0m\n' "$1"; }
 
-# Prereq check — fail fast with a clear message rather than time-out silently.
-# jq is used to parse /api/health (matching ci-cd.yml image-smoke-test). It is
-# preinstalled on Ubuntu CI runners but not always on macOS / WSL; surface it
-# explicitly so developers know what to install.
+# Prereq check — fail fast with a clear message rather than time-out silently
+# or fail mid-script with a confusing error.
+#   docker / curl / jq: container build + run + health gate (jq matches ci-cd.yml
+#     image-smoke-test parsing).
+#   node / npm / npx:   Playwright bootstrap and test execution.
+# jq is preinstalled on Ubuntu CI runners but not always on macOS / WSL; surface
+# it explicitly so developers know what to install.
 missing=()
-for tool in docker curl jq; do
+for tool in docker curl jq node npm npx; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         missing+=("$tool")
     fi
@@ -59,13 +62,29 @@ done
 if [[ ${#missing[@]} -gt 0 ]]; then
     red "ERROR: required tool(s) not found in PATH: ${missing[*]}"
     red "  Install hints:"
-    red "    docker: https://docs.docker.com/get-docker/"
-    red "    curl:   typically preinstalled; apt/brew install curl"
-    red "    jq:     apt install jq | brew install jq | choco install jq"
+    red "    docker:        https://docs.docker.com/get-docker/"
+    red "    curl:          typically preinstalled; apt/brew install curl"
+    red "    jq:            apt install jq | brew install jq | choco install jq"
+    red "    node/npm/npx:  install Node.js 22+ from https://nodejs.org/ (bundles npm/npx)"
     exit 1
 fi
 
-trap 'docker rm -f "$container_name" >/dev/null 2>&1 || true' EXIT INT TERM
+# Temp file for /api/health response — created upfront so the trap can clean it
+# up even if the script is interrupted before the health loop completes.
+health_file="$(mktemp)"
+
+# Cleanup runs once on EXIT. Signal handlers re-raise as explicit exits so the
+# cleanup happens via EXIT (single source of truth) AND the script actually
+# aborts instead of resuming the interrupted command (e.g., the health-loop
+# `sleep` would otherwise be resumed after cleanup and run against a removed
+# container).
+cleanup() {
+    docker rm -f "$container_name" >/dev/null 2>&1 || true
+    rm -f "$health_file"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 cyan "Stopping any prior '$container_name' container"
 docker rm -f "$container_name" >/dev/null 2>&1 || true
@@ -85,10 +104,10 @@ docker run -d --name "$container_name" -p "${PORT}:8080" \
 cyan "Waiting for /api/health (timeout: ${HEALTH_TIMEOUT}s)"
 healthy=0
 for ((i = 1; i <= HEALTH_TIMEOUT; i++)); do
-    if curl -fsS "http://localhost:${PORT}/api/health" -o health.json 2>/dev/null; then
-        if jq -e '.status == "healthy" and .database == true and .questionCount > 0' health.json >/dev/null; then
+    if curl -fsS "http://localhost:${PORT}/api/health" -o "$health_file" 2>/dev/null; then
+        if jq -e '.status == "healthy" and .database == true and .questionCount > 0' "$health_file" >/dev/null; then
             green "Health OK after ${i}s:"
-            cat health.json
+            cat "$health_file"
             echo
             healthy=1
             break
@@ -103,20 +122,17 @@ done
 if [[ "$healthy" -eq 0 ]]; then
     yellow "Health check failed after ${HEALTH_TIMEOUT}s. Container logs:"
     docker logs "$container_name" || true
-    rm -f health.json
     exit 1
 fi
-rm -f health.json
 
 cyan "Bootstrapping Playwright in tests/e2e"
 cd "$repo_root/tests/e2e"
 
-if [[ ! -d node_modules ]]; then
-    echo "  Installing tests/e2e dependencies (npm ci)..."
-    npm ci
-else
-    echo "  tests/e2e/node_modules present, skipping npm ci"
-fi
+# Always run `npm ci` for a reproducible install matching package-lock.json.
+# Skipping when node_modules exists can mask stale-deps regressions, which
+# defeats the point of a pre-push reproducer.
+echo "  Installing tests/e2e dependencies (npm ci)..."
+npm ci
 
 echo "  Ensuring Chromium browser is installed..."
 npx playwright install chromium
