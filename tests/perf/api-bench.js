@@ -10,8 +10,11 @@
 //     `setup()` from the live `/api/v1/stories` index. We never hardcode a
 //     slug (Story Mode catalog changes would silently break the bench).
 //   - Default `Accept-Encoding` is left intact so the production compression
-//     middleware (Brotli/Gzip, see PR #96) is exercised — avg compressed
-//     size per endpoint is one of the things this bench reports.
+//     middleware (Brotli/Gzip, see PR #96) is exercised on the wire. The
+//     bench reports the *decoded* per-endpoint body size (via the
+//     `bench_response_bytes` Counter populated from `res.body.length`) as
+//     a proxy for payload bloat; on-the-wire compressed-byte attribution
+//     per endpoint is intentionally out of scope (see tests/perf/README.md).
 //   - This bench is ADVISORY ONLY in CI. `thresholds.json` ships empty;
 //     real thresholds get added after ~10 main-branch baselines (see
 //     tests/perf/README.md).
