@@ -23,6 +23,10 @@
 import http from 'k6/http';
 import { check } from 'k6';
 import { Counter } from 'k6/metrics';
+// Shared with summarize.mjs so the bench scenarios, advisory
+// thresholds, and the summary renderer all use the same list and
+// can't silently drift out of sync.
+import { ENDPOINT_TAGS } from './endpoint-tags.mjs';
 
 const BASE_URL = __ENV.BENCH_BASE_URL || 'http://127.0.0.1:5099';
 const STATE_ID = __ENV.BENCH_STATE_ID || '5'; // 5 = California in SeedData.cs
@@ -50,17 +54,6 @@ const OVERRIDE_SLUG = __ENV.BENCH_STORY_SLUG || null;
 // requires harness-level access to on-the-wire bytes per request, which k6
 // doesn't currently expose. That gap is tracked separately.
 const responseBytes = new Counter('bench_response_bytes');
-
-// Endpoint tags MUST stay in sync with summarize.mjs's ENDPOINT_TAGS list.
-const ENDPOINT_TAGS = [
-  'questions-all',
-  'questions-65-20',
-  'questions-stateid',
-  'states-list',
-  'states-detail',
-  'stories-list',
-  'stories-detail',
-];
 
 // k6 only materializes a tagged sub-metric (e.g. `http_req_duration{endpoint:foo}`)
 // in handleSummary output when a threshold is registered for it. Without these

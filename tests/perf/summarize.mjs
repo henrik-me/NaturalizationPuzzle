@@ -12,15 +12,10 @@
 
 import { readFileSync } from 'node:fs';
 
-const ENDPOINT_TAGS = [
-  'questions-all',
-  'questions-65-20',
-  'questions-stateid',
-  'states-list',
-  'states-detail',
-  'stories-list',
-  'stories-detail',
-];
+// Shared with api-bench.js so the bench scenarios, advisory
+// thresholds, and this summary renderer can't silently drift out of
+// sync.
+import { ENDPOINT_TAGS } from './endpoint-tags.mjs';
 
 function fail(msg) {
   process.stderr.write(`summarize: ${msg}\n`);
