@@ -39,14 +39,26 @@ const ENDPOINT_TAGS = [
 // no-op thresholds, the empty `thresholds.json` would mean summarize.mjs sees
 // zero per-endpoint data and incorrectly reports every scenario as 0 requests.
 // `count>=0` and `p(95)>=0` are always-true: they materialize the submetric
-// without imposing any pass/fail criteria. Real gating thresholds added via
-// thresholds.json take precedence (object spread below).
+// without imposing any pass/fail criteria.
+//
+// `http_req_failed{endpoint:foo}: ['rate==0']` is NOT a no-op -- it is an
+// intentional correctness sentinel. A typoed URL returning 404 (or any 5xx)
+// would otherwise silently produce a "normal" summary because k6's `check()`
+// failures do not by themselves affect exit code. With this threshold, any
+// failed request trips the threshold, k6 exits non-zero, the GH step is
+// marked failure, and the "Dump API log on bench failure" step fires. The
+// JOB itself still succeeds because `continue-on-error: true`, so deploy is
+// not blocked -- but the failure is surfaced for human review.
+//
+// Real gating thresholds added via thresholds.json take precedence (object
+// spread below).
 function buildAdvisoryThresholds() {
   const out = {};
   for (const tag of ENDPOINT_TAGS) {
     out[`http_reqs{endpoint:${tag}}`] = ['count>=0'];
     out[`http_req_duration{endpoint:${tag}}`] = ['p(95)>=0'];
     out[`data_received{endpoint:${tag}}`] = ['count>=0'];
+    out[`http_req_failed{endpoint:${tag}}`] = ['rate==0'];
   }
   return out;
 }

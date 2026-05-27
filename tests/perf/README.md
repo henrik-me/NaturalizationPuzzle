@@ -119,13 +119,28 @@ Find them under the run's **Artifacts** section in the GitHub Actions UI.
 ## Advisory → gating promotion path
 
 Today [`thresholds.json`](./thresholds.json) is `{}`. The k6 script
-auto-generates no-op thresholds (`count>=0`, `p(95)>=0`) for every endpoint
-tag so k6 materializes the per-tag submetrics that `summarize.mjs` needs to
-build the report. Without those, k6 wouldn't emit per-endpoint breakdowns
-at all and the bench would silently look "broken". User-supplied entries
-in `thresholds.json` are merged on top (via object spread) and override
-the auto-generated no-ops — so adding `"http_req_duration{endpoint:foo}":
-["p(95)<100"]` replaces the no-op with a real threshold.
+auto-generates two kinds of thresholds for every endpoint tag:
+
+- **No-op visualisation thresholds** — `http_reqs{endpoint:foo}: count>=0`,
+  `http_req_duration{endpoint:foo}: p(95)>=0`, and
+  `data_received{endpoint:foo}: count>=0`. These are always true; their only
+  job is to force k6 to emit per-tag submetrics in the `handleSummary`
+  output. Without them, `summarize.mjs` would see no per-endpoint data and
+  report every scenario as 0 requests.
+- **Strict correctness sentinel** — `http_req_failed{endpoint:foo}: rate==0`.
+  A typoed URL returning 404 (or any 5xx) would otherwise silently produce
+  a "normal" summary, because k6's `check()` failures do not by themselves
+  affect exit code. With this threshold, any non-2xx response trips it,
+  k6 exits non-zero, the GH step is marked failure, and the
+  "Dump API log on bench failure" step fires. The JOB still succeeds
+  (`continue-on-error: true`), so deploy is **not** blocked — but the
+  failure is surfaced for human review.
+
+User-supplied entries in `thresholds.json` are merged on top (via object
+spread) and override the auto-generated thresholds — so adding
+`"http_req_duration{endpoint:foo}": ["p(95)<100"]` replaces the no-op
+with a real threshold, and `"http_req_failed{endpoint:foo}": ["rate<0.01"]`
+would relax the strict zero-failure sentinel to a 1 % tolerance if needed.
 
 To promote to a gating check:
 
@@ -149,9 +164,20 @@ To promote to a gating check:
 
 ## Failure semantics
 
-`summarize.mjs` exits with code **1** if any scenario recorded zero
-requests — that nearly always means the API died mid-run, and we want
-the failure mode loud even though the bench step is otherwise advisory.
+The bench step uses `continue-on-error: true`, so the `api-benchmark`
+JOB always succeeds and never blocks deploy. Two mechanisms surface
+problems for human review without blocking:
+
+- **k6 threshold trip → step outcome "failure"** — the strict
+  `http_req_failed{endpoint:foo}: rate==0` thresholds (and any user-added
+  thresholds) make a 404/5xx or a performance regression flip the step's
+  outcome to failure, which triggers the "Dump API log on bench failure"
+  step and turns the step red in the run summary.
+- **`summarize.mjs` exit code 1** — if any scenario recorded zero
+  requests, that nearly always means the API died mid-run, and the
+  summarizer fails loudly even though the bench step is otherwise
+  advisory.
+
 The `actions/upload-artifact@v7` step uses `if: always()` so partial
-artifacts (including `k6-stdout.txt`) are still uploaded when this
-happens.
+artifacts (including `k6-stdout.txt` and `api.log`) are still uploaded
+when either of these fires.
