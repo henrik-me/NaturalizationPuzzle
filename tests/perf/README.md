@@ -136,8 +136,9 @@ bench also skip the artifact upload; there is nothing to upload). It
 contains:
 
 - `k6-results.json` — full `handleSummary()` output (machine-readable).
-- `k6-stdout.txt`   — k6's default text summary (human-readable).
-- `k6-summary.md`   — the table produced by `summarize.mjs`.
+- `k6-summary.md`   — the per-endpoint table produced by `summarize.mjs`
+  (the human-readable summary; the bench step also `cat`s this into the
+  job log so failures are diagnosable without downloading the artifact).
 - `api.log`         — stdout/stderr from the locally-started API
   process during the bench (invaluable for post-mortem when the bench
   step itself fails or when an endpoint returns unexpected results).
@@ -207,5 +208,5 @@ problems for human review without blocking:
   advisory.
 
 The `actions/upload-artifact@v7` step uses `if: always()` so partial
-artifacts (including `k6-stdout.txt` and `api.log`) are still uploaded
-when either of these fires.
+artifacts (including `k6-results.json`, `k6-summary.md`, and `api.log`)
+are still uploaded when either of these fires.

@@ -23,7 +23,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
 import { Counter } from 'k6/metrics';
-import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.2/index.js';
 
 const BASE_URL = __ENV.BENCH_BASE_URL || 'http://127.0.0.1:5099';
 const STATE_ID = __ENV.BENCH_STATE_ID || '5'; // 5 = California in SeedData.cs
@@ -210,9 +209,18 @@ export function stories_detail(data) {
 }
 
 export function handleSummary(data) {
+  // We intentionally do NOT import `textSummary` from `jslib.k6.io` -- that
+  // would have k6 fetch and execute a remote script at run time, which is a
+  // supply-chain risk and a CI-flakiness risk if the host is unreachable.
+  // Human-readable output comes from `tests/perf/summarize.mjs` (which
+  // produces `k6-summary.md` from the JSON below), and the bench-step bash
+  // block in `.github/workflows/ci-cd.yml` already `cat`s that summary into
+  // the job log.
   return {
     'tests/perf/k6-results.json': JSON.stringify(data, null, 2),
-    'tests/perf/k6-stdout.txt': textSummary(data, { indent: ' ', enableColors: false }),
-    stdout: textSummary(data, { indent: ' ', enableColors: true }),
+    stdout:
+      '\nk6 run complete. See tests/perf/k6-summary.md for the human-readable\n' +
+      'per-endpoint table, or tests/perf/k6-results.json for the full machine-\n' +
+      'readable summary (both are uploaded as the `api-bench-results` artifact).\n',
   };
 }
