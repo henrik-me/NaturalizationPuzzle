@@ -33,7 +33,8 @@ correct as the Story Mode catalog evolves. Override with the
 middleware (added in PR #96) is exercised on the wire. The "Avg body
 bytes (decoded)" column is `bench_response_bytes / requests` per
 endpoint, where `bench_response_bytes` is a custom k6 `Counter`
-populated from each response's decoded body length (`res.body.length`).
+populated from each response's decoded body length in true UTF-8 bytes
+(`res.body.byteLength` with `responseType: 'binary'` set on the request).
 We measure *decoded* bytes rather than wire bytes because the API uses
 ASP.NET `ResponseCompression`, which streams compressed responses with
 `Transfer-Encoding: chunked` and no `Content-Length` header — so a
@@ -114,7 +115,9 @@ BENCH_STORY_SLUG=my-story k6 run tests/perf/api-bench.js
   endpoint" number.
 - **Avg body bytes (decoded)** is `bench_response_bytes / requests`
   per endpoint, where `bench_response_bytes` is a custom k6 `Counter`
-  that the script populates from `res.body.length` on each response.
+  that the script populates from `res.body.byteLength` on each response
+  (the request uses `responseType: 'binary'`, so this is a true UTF-8
+  byte count rather than a UTF-16 code-unit count).
   These are the *decoded* body bytes (k6 has already transparently
   decompressed any `Content-Encoding`), so this column tracks
   application payload bloat — not the on-the-wire compressed size.

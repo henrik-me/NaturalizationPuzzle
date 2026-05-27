@@ -42,9 +42,11 @@ const OVERRIDE_SLUG = __ENV.BENCH_STORY_SLUG || null;
 // connection layer (so it folds in TLS / HTTP framing overhead), and its
 // per-request tag propagation has been inconsistent across k6 versions.
 //
-// `res.body.length` is the *decoded* (decompressed) body length. It is
-// reliably available for every request regardless of transfer encoding, and
-// it's a stable proxy for "did this endpoint's payload accidentally bloat?".
+// `res.body.byteLength` (with `responseType: 'binary'` set on the request,
+// see `hit()` below) is the *decoded* (decompressed) body length in true
+// UTF-8 bytes -- not JS-string UTF-16 code units. It is reliably available
+// for every request regardless of transfer encoding, and it's a stable
+// proxy for "did this endpoint's payload accidentally bloat?".
 // It is NOT a proxy for "did the compression middleware regress?" -- that
 // requires harness-level access to on-the-wire bytes per request, which k6
 // doesn't currently expose. That gap is tracked separately.
