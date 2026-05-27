@@ -31,8 +31,13 @@ correct as the Story Mode catalog evolves. Override with the
 
 `Accept-Encoding` is left at k6's default so the production Brotli/Gzip
 middleware (added in PR #96) is exercised. The "Avg compressed size"
-column is `data_received / requests` per endpoint and therefore reflects
-on-the-wire bytes.
+column is `bench_bytes_received / requests` per endpoint, where
+`bench_bytes_received` is a custom k6 `Counter` populated from each
+response's `Content-Length` header (the on-the-wire compressed body
+length when a `Content-Encoding` is negotiated). We use a custom counter
+rather than the built-in `data_received` to keep per-request byte
+attribution explicit and version-stable, and to exclude TLS / HTTP
+framing overhead.
 
 ## Why sequential, not parallel
 
@@ -100,8 +105,11 @@ BENCH_STORY_SLUG=my-story k6 run tests/perf/api-bench.js
   20 ms-per-request endpoint will report ≈ 250 req/s. This is **not** a
   saturation number; it's a "five concurrent clients hammering this one
   endpoint" number.
-- **Avg compressed size** is `data_received / requests` per endpoint. This
-  reflects on-the-wire bytes after the compression middleware. Watch this
+- **Avg compressed size** is `bench_bytes_received / requests` per
+  endpoint, where `bench_bytes_received` is a custom k6 `Counter` that
+  the script populates from each response's `Content-Length` header (so
+  it's the compressed body length when the API negotiates a
+  `Content-Encoding`, excluding TLS / HTTP framing overhead). Watch this
   alongside PR #96's compression budgets — a regression here usually means
   the middleware is no longer matching the response's content type.
 
@@ -123,10 +131,10 @@ auto-generates two kinds of thresholds for every endpoint tag:
 
 - **No-op visualisation thresholds** — `http_reqs{endpoint:foo}: count>=0`,
   `http_req_duration{endpoint:foo}: p(95)>=0`, and
-  `data_received{endpoint:foo}: count>=0`. These are always true; their only
-  job is to force k6 to emit per-tag submetrics in the `handleSummary`
-  output. Without them, `summarize.mjs` would see no per-endpoint data and
-  report every scenario as 0 requests.
+  `bench_bytes_received{endpoint:foo}: count>=0`. These are always true;
+  their only job is to force k6 to emit per-tag submetrics in the
+  `handleSummary` output. Without them, `summarize.mjs` would see no
+  per-endpoint data and report every scenario as 0 requests.
 - **Strict correctness sentinel** — `http_req_failed{endpoint:foo}: rate==0`.
   A typoed URL returning 404 (or any 5xx) would otherwise silently produce
   a "normal" summary, because k6's `check()` failures do not by themselves

@@ -82,7 +82,7 @@ const emptyScenarios = [];
 for (const tag of ENDPOINT_TAGS) {
   const reqs = findSubmetric('http_reqs', tag);
   const dur = findSubmetric('http_req_duration', tag);
-  const size = findSubmetric('data_received', tag);
+  const size = findSubmetric('bench_bytes_received', tag);
 
   const count = getValue(reqs, 'count');
   if (!count || count === 0) {
