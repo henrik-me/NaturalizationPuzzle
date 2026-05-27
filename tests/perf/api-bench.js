@@ -156,16 +156,21 @@ export function setup() {
 }
 
 function hit(url, tag) {
-  const res = http.get(url, { tags: { endpoint: tag } });
+  // `responseType: 'binary'` makes res.body an ArrayBuffer rather than a
+  // JavaScript string. We need this so we can read `byteLength` (the true
+  // UTF-8 payload size) instead of `length` (UTF-16 code units, which
+  // would understate the size of any non-ASCII content -- e.g. story
+  // bodies with em-dashes / smart-quotes / accented characters).
+  const res = http.get(url, { tags: { endpoint: tag }, responseType: 'binary' });
   check(res, {
     'status is 200': r => r.status === 200,
-    'body is non-empty': r => r.body && r.body.length > 0,
+    'body is non-empty': r => r.body && r.body.byteLength > 0,
   });
-  // Record the decoded body length per endpoint. See the comment on
-  // `responseBytes` above for why this is the decompressed body, not
-  // wire bytes.
+  // Record the decoded body length (in bytes) per endpoint. See the
+  // comment on `responseBytes` above for why this is the decompressed
+  // body, not wire bytes.
   if (res.body) {
-    responseBytes.add(res.body.length, { endpoint: tag });
+    responseBytes.add(res.body.byteLength, { endpoint: tag });
   }
 }
 
