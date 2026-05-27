@@ -527,7 +527,11 @@ docker compose down
 For a deeper pre-push check that runs the full Playwright suite against the production image (catches Docker-context-only bugs the dev-stack E2E can't — e.g., missing-from-build-context embedded resources, see the PR #81 silent-empty-stories incident), use the container E2E reproducer:
 
 ```powershell
-.\scripts\container-e2e.ps1    # PowerShell (Windows / PowerShell on *nix)
+# Windows (Windows PowerShell or pwsh)
+.\scripts\container-e2e.ps1
+
+# pwsh on Linux / macOS (note the leading ./ and forward slashes)
+pwsh ./scripts/container-e2e.ps1
 ```
 
 ```bash

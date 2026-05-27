@@ -18,7 +18,13 @@
 param(
     [string]$ImageName = "natpuzzle",
     [string]$ImageTag = "local",
+    # Mirror the bash script's `require_positive_int` / port-range validation
+    # so non-integer or out-of-range values are rejected up-front with a clear
+    # PowerShell parameter-binding error instead of failing later in the
+    # docker port-mapping or HTTP loop.
+    [ValidateRange(1, 65535)]
     [int]$Port = 8080,
+    [ValidateRange(1, [int]::MaxValue)]
     [int]$HealthTimeoutSeconds = 60,
     [switch]$SkipBuild,
     [string[]]$PlaywrightArgs = @()
@@ -119,7 +125,17 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "npm ci in tests/e2e failed" }
 
     Write-Host "  Ensuring Chromium browser is installed..." -ForegroundColor DarkGray
-    npx playwright install chromium
+    # On Linux, install Chromium's system dependencies too (mirrors the bash
+    # script's branch and matches CI's `playwright install --with-deps chromium`
+    # in ci-cd.yml). $IsLinux is a PowerShell Core automatic variable, defined
+    # only on pwsh 6+ — Windows PowerShell 5.1 doesn't run on Linux, so it being
+    # $null there is fine and correctly takes the else branch.
+    if ($IsLinux) {
+        npx playwright install --with-deps chromium
+    }
+    else {
+        npx playwright install chromium
+    }
     if ($LASTEXITCODE -ne 0) { throw "playwright install chromium failed" }
 
     Write-Step "Running Playwright suite against http://localhost:${Port}"

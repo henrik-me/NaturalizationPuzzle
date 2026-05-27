@@ -173,7 +173,15 @@ echo "  Installing tests/e2e dependencies (npm ci)..."
 npm ci
 
 echo "  Ensuring Chromium browser is installed..."
-npx playwright install chromium
+# On Linux, install Chromium's system dependencies too (matches CI's
+# `playwright install --with-deps chromium` invocation in ci-cd.yml so local
+# reproducer results match CI). macOS doesn't expose --with-deps the same way
+# (Playwright skips system deps on Darwin); plain install is correct there.
+if [[ "$(uname -s)" == "Linux" ]]; then
+    npx playwright install --with-deps chromium
+else
+    npx playwright install chromium
+fi
 
 cyan "Running Playwright suite against http://localhost:${PORT}"
 export PLAYWRIGHT_BASE_URL="http://localhost:${PORT}"
