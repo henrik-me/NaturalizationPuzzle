@@ -42,6 +42,13 @@ would make the runner CPU (and the API process) the bottleneck instead of
 the individual endpoint code path, contaminating per-endpoint latency with
 queueing delay from sibling scenarios. Total wall time is ≈ 4 min 5 s.
 
+Each scenario also sets `gracefulStop: '0s'` (k6's default is 30s). With
+`STEP=35s` and `DURATION=30s`, the default would let a request started in
+the last second of scenario N stay in-flight for up to 30s into scenario
+N+1, polluting both scenarios' p95/p99. With `gracefulStop: '0s'` the
+scenario boundary is hard: any straggler counts as a (likely failed)
+request in scenario N rather than as latency bleed into N+1.
+
 ## Why k6 over bombardier / wrk / autocannon
 
 - **Per-endpoint tagging:** k6 scenarios with custom tags give us clean

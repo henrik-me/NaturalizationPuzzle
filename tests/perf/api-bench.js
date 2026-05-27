@@ -69,6 +69,12 @@ function scenario(endpointTag, index) {
     vus: VUS,
     duration: DURATION,
     startTime: `${index * STEP}s`,
+    // k6's default gracefulStop is 30s. With STEP=35s and DURATION=30s, a
+    // request started near the end of scenario N could otherwise still be
+    // in-flight up to 30s into scenario N+1, contaminating both scenarios'
+    // latency tails. 0s = hard-cut at scenario end; any straggler counts
+    // as a (likely failed) request in scenario N, not as overlap into N+1.
+    gracefulStop: '0s',
     exec: endpointTag.replace(/-/g, '_'),
     tags: { endpoint: endpointTag },
   };
