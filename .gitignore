@@ -37,6 +37,7 @@ TestResults/
 coverage/
 playwright-report/
 test-results/
+.lighthouseci/
 
 # SQLite
 *.db

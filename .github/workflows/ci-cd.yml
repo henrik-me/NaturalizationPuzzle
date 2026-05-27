@@ -84,6 +84,10 @@ jobs:
         working-directory: src/client
         run: npm run build
 
+      - name: Check frontend bundle size
+        working-directory: src/client
+        run: npm run size
+
       - name: Test frontend
         working-directory: src/client
         run: npm test
@@ -119,12 +123,16 @@ jobs:
       # the full Playwright suite, and only purely docs PRs skip.
       # `content/stories/*.md` is product code (embedded into the API
       # DLL), not docs, so it is intentionally NOT in the exclusion list.
+      #
+      # The `&docs_paths_filter` YAML anchor below is referenced by the
+      # `lighthouse` job's identical filter step so the two stay in sync
+      # automatically. Update the list HERE only.
       - name: Filter paths
         id: filter
         uses: dorny/paths-filter@v4
         with:
           predicate-quantifier: 'every'
-          filters: |
+          filters: &docs_paths_filter |
             code:
               - '!README.md'
               - '!CONTEXT.md'
@@ -196,9 +204,129 @@ jobs:
         if: steps.filter.outputs.code != 'true'
         run: echo "Docs-only change detected — Playwright skipped, required check satisfied."
 
+  lighthouse:
+    name: Lighthouse CI
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Same rationale as the e2e job above: dorny/paths-filter needs
+    # pull-requests:read on pull_request events.
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Docs-only PRs skip the Lighthouse run but the job still reports
+      # success so the required status check on main is satisfied.
+      # Filter list is shared with the e2e job via the `*docs_paths_filter`
+      # YAML anchor — update the list in the e2e job, not here.
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          predicate-quantifier: 'every'
+          filters: *docs_paths_filter
+
+      - name: Setup Node.js
+        if: steps.filter.outputs.code == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: src/client/package-lock.json
+
+      - name: Install client dependencies
+        if: steps.filter.outputs.code == 'true'
+        working-directory: src/client
+        run: npm ci
+
+      # Lighthouse CI uses the runner's preinstalled `google-chrome-stable`
+      # (the ubuntu-latest image ships it). We intentionally do NOT pin Chrome
+      # via Playwright here: LHCI has no `chromePath` configured, so it
+      # auto-discovers /usr/bin/google-chrome regardless of what Playwright
+      # downloads — installing Playwright's Chrome would just be dead weight
+      # and would not control browser drift. The runner image's Chrome version
+      # is what Lighthouse measures against.
+
+      - name: Build client (production bundle)
+        if: steps.filter.outputs.code == 'true'
+        working-directory: src/client
+        run: npm run build
+
+      # Run vite preview and lhci in the SAME step so the bash process stays
+      # alive while the background `vite preview` is serving. GitHub Actions
+      # kills any process group spawned by a step at step end, so splitting
+      # "start server" and "run client" across two steps leaves no server
+      # running by the time the second step starts (verified in an earlier
+      # attempt — wait-on timed out at 60s).
+      #
+      # We do NOT use lhci's built-in `startServerCommand` here because its
+      # `startServerReadyPattern` matching is flaky against vite preview's
+      # non-tty stdout (ANSI-styled "Local:" banner doesn't reliably match).
+      # `wait-on` polls the actual HTTP endpoint instead.
+      #
+      # LHCI_DISABLE_HTTPS=1 disables the `@vitejs/plugin-basic-ssl` plugin
+      # for this preview run (see vite.config.ts) so wait-on / lhci can
+      # target the plain-HTTP PREVIEW_URL below without TLS cert juggling.
+      #
+      # `wait-on` is declared as a devDependency in src/client/package.json
+      # (with its exact version locked via package-lock.json), so
+      # `npx wait-on` resolves the local node_modules/.bin/wait-on after
+      # `npm ci` rather than downloading a fresh copy at every CI run.
+      #
+      # PREVIEW_PORT and PREVIEW_URL are defined once and reused for the
+      # `--port` flag, `wait-on`, and lhci's `--collect.url` override so
+      # the port/URL has a single source of truth in this file. The same
+      # `--collect.url=...` override is documented in the README's
+      # local-run snippet (see "Lighthouse CI (synthetic)") so contributors
+      # follow the same pattern locally — `lighthouserc.json` intentionally
+      # has no `url` field.
+      - name: Run Lighthouse CI (with vite preview)
+        if: steps.filter.outputs.code == 'true'
+        working-directory: src/client
+        env:
+          LHCI_DISABLE_HTTPS: "1"
+          PREVIEW_PORT: "4173"
+        run: |
+          PREVIEW_URL="http://127.0.0.1:${PREVIEW_PORT}/"
+          npx vite preview --host 127.0.0.1 --port "${PREVIEW_PORT}" --strictPort > vite-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID 2>/dev/null || true' EXIT
+          npx wait-on --timeout 60000 "${PREVIEW_URL}"
+          npx lhci autorun --collect.url="${PREVIEW_URL}"
+
+      - name: Dump vite preview log on failure
+        if: failure() && steps.filter.outputs.code == 'true'
+        working-directory: src/client
+        run: |
+          echo "--- vite-preview.log ---"
+          [ -f vite-preview.log ] && cat vite-preview.log || echo "(no log file)"
+
+      - name: Upload Lighthouse reports
+        if: always() && steps.filter.outputs.code == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-reports
+          path: src/client/.lighthouseci/
+          retention-days: 14
+          include-hidden-files: true
+          # If lhci crashed before creating .lighthouseci/ (e.g. preview never
+          # came up), `if: always()` would otherwise turn a missing-path error
+          # in this step into a secondary failure that obscures the real LHCI
+          # error. `warn` lets the upload step succeed with a warning so the
+          # primary lhci log + vite-preview.log stays the surfaced cause.
+          if-no-files-found: warn
+
+      - name: Skip notice (docs-only)
+        if: steps.filter.outputs.code != 'true'
+        run: echo "Docs-only change detected — Lighthouse CI skipped, required check satisfied."
+
   docker-build-push:
     name: Docker Build & Push
-    needs: [build-and-test, e2e]
+    needs: [build-and-test, e2e, lighthouse]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -307,7 +435,7 @@ jobs:
 
   detect-changes:
     name: Detect deployable changes
-    needs: [build-and-test, e2e]
+    needs: [build-and-test, e2e, lighthouse]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
