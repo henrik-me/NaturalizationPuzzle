@@ -654,6 +654,13 @@ Log forging (CWE-117) happens when attacker-controlled CR/LF or other control ch
 - All tests must pass in headless mode for CI compatibility.
 - Include accessibility checks using `@axe-core/playwright` in critical user flows.
 
+### Performance Benchmarks (k6)
+
+The advisory `API Benchmark (k6, advisory)` CI job (`.github/workflows/ci-cd.yml`) runs `tests/perf/api-bench.js` against a locally-built API and uploads `k6-results.json` + `k6-summary.md` + `api.log` as the `api-bench-results` artifact. Full local-run instructions live in `tests/perf/README.md`. Two repo-specific gotchas any future perf work must respect:
+
+- **Always launch the API under bench with `dotnet run -c Release --no-launch-profile` AND `ASPNETCORE_ENVIRONMENT=Production`.** The default first profile in `src/api/Properties/launchSettings.json` is the "https" profile, which sets `ASPNETCORE_ENVIRONMENT=Development`. That activates `app.UseHttpsRedirection()` in `src/api/Program.cs`, which 307s plain HTTP requests to HTTPS. k6 follows redirects by default, so the bench will silently produce skewed measurements rather than failing. The CI step and `tests/perf/README.md` already set these flags; preserve them when editing either side. Same rule applies to any future load test, smoke test, or benchmark script that points at this API.
+- **k6 is pinned to `2.0.0` via `grafana/setup-k6-action@v1` (`k6-version: '2.0.0'`, no `v` prefix).** Bump as a deliberate single-purpose PR — never fold a k6 upgrade into unrelated work. k6 minor versions can change the `handleSummary()` metric shape, submetric-threshold materialization in JSON output, or per-endpoint latency in ways that invalidate baseline-comparison runs across main pushes. The shared `ENDPOINT_TAGS` source of truth lives in `tests/perf/endpoint-tags.mjs` and is imported by both `api-bench.js` and `summarize.mjs`.
+
 ### Civics Test Domain
 
 - The 2025 USCIS civics test has **128 questions** in the study pool.
