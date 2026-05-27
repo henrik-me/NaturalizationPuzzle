@@ -42,13 +42,19 @@ const metrics = raw.metrics || {};
 // k6 reports per-tag submetrics in two slightly different shapes depending
 // on version: either as a separate top-level key like
 // `http_req_duration{endpoint:foo}`, or nested under the parent metric's
-// `submetrics`/`thresholds` map. Probe both.
+// `submetrics` collection (which has been emitted as an array in some
+// k6 versions and as an object keyed by submetric name in others). Probe
+// both top-level and nested, and normalise the nested shape so iteration
+// works either way.
 function findSubmetric(metricName, tag) {
   const flatKey = `${metricName}{endpoint:${tag}}`;
   if (metrics[flatKey]) return metrics[flatKey];
   const parent = metrics[metricName];
   if (parent && parent.submetrics) {
-    const sub = parent.submetrics.find(s => s.tags && s.tags.endpoint === tag);
+    const submetrics = Array.isArray(parent.submetrics)
+      ? parent.submetrics
+      : Object.values(parent.submetrics);
+    const sub = submetrics.find(s => s && s.tags && s.tags.endpoint === tag);
     if (sub) return sub;
   }
   return null;
