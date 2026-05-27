@@ -406,9 +406,19 @@ jobs:
         id: bench
         if: steps.filter.outputs.code == 'true'
         continue-on-error: true
+        env:
+          # Pin Production env explicitly so the API does NOT enter
+          # Development mode (which enables UseHttpsRedirection() and
+          # MapOpenApi() in Program.cs; the redirect in particular can
+          # 307 our plain-HTTP bench traffic into HTTPS and the extra
+          # middleware would skew per-endpoint latency numbers).
+          ASPNETCORE_ENVIRONMENT: Production
         run: |
           set -euo pipefail
-          dotnet run --project src/api/NaturalizationPuzzle.Api.csproj -c Release --no-build --urls http://127.0.0.1:5099 > api.log 2>&1 &
+          # `--no-launch-profile` prevents launchSettings.json from
+          # overriding ASPNETCORE_ENVIRONMENT (and from layering its own
+          # `applicationUrl` on top of our explicit `--urls`).
+          dotnet run --project src/api/NaturalizationPuzzle.Api.csproj -c Release --no-build --no-launch-profile --urls http://127.0.0.1:5099 > api.log 2>&1 &
           API_PID=$!
           trap 'kill $API_PID 2>/dev/null || true' EXIT
 

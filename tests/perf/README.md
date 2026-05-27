@@ -79,10 +79,18 @@ request in scenario N rather than as latency bleed into N+1.
 
 Prereqs: [k6](https://k6.io/docs/get-started/installation/) installed.
 
-In one terminal, start the API:
+In one terminal, start the API. Pass `--no-launch-profile` and
+`-c Release` (and set `ASPNETCORE_ENVIRONMENT=Production`) so the
+local bench matches the CI configuration. Without these, the default
+`launchSettings.json` profile would set `ASPNETCORE_ENVIRONMENT=Development`,
+which in this repo enables `UseHttpsRedirection()` and `MapOpenApi()`
+in `Program.cs` -- the redirect can 307 your plain-HTTP bench traffic
+into HTTPS and the extra middleware skews per-endpoint numbers:
 
 ```bash
-dotnet run --project src/api/NaturalizationPuzzle.Api.csproj --urls http://127.0.0.1:5099
+ASPNETCORE_ENVIRONMENT=Production \
+  dotnet run --project src/api/NaturalizationPuzzle.Api.csproj \
+    -c Release --no-launch-profile --urls http://127.0.0.1:5099
 ```
 
 In another terminal, run the bench:
