@@ -94,6 +94,9 @@ function scenario(endpointTag, index) {
 
 export const options = {
   discardResponseBodies: false,
+  // k6's default summaryTrendStats is ['avg','min','med','max','p(90)','p(95)'].
+  // We want p(99) too because tail latency is a primary axis of this bench.
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
   scenarios: {
     questions_all:      scenario('questions-all', 0),
     questions_65_20:    scenario('questions-65-20', 1),
