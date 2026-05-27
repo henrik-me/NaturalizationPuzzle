@@ -369,7 +369,7 @@ Deferred / handled outside Phase 4:
     **Codebase findings (already validated):**
     - Specs are portable — `grep` for `localhost:`/`baseURL` in `tests/e2e/specs/` returns nothing; all navigation uses page objects + relative paths.
     - `offline.spec.ts` already documents container compatibility in its header comment.
-    - `playwright.config.ts` hardcodes `baseURL: 'https://localhost:5173'` and unconditionally starts `webServer` blocks — must become conditional on a `PLAYWRIGHT_BASE_URL` env var.
+    - `playwright.config.ts` previously hardcoded `baseURL: 'https://localhost:5173'` and unconditionally started `webServer` blocks; Stream A (item A1 below) makes both conditional on a `PLAYWRIGHT_BASE_URL` env var.
     - Container speaks HTTP on :8080 (not HTTPS); SW registration on `http://localhost:8080` is a secure context.
     - `docker-build-push` is push-only (`if: github.event_name == 'push'`); container-e2e is therefore a merge→deploy gate, not a PR-time gate.
 
