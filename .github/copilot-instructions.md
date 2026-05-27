@@ -569,6 +569,14 @@ Maintain the `README.md` file in the repository root. The README is the public-f
 - Name async methods with the `Async` suffix.
 - Seal classes that are not designed for inheritance.
 
+### Cross-Platform Scripts (`scripts/`)
+
+The repo ships dual-shell scripts (e.g., `scripts/container-e2e.ps1` + `scripts/container-e2e.sh`) so contributors on Windows, macOS, and Linux can run the same gates. When adding or porting scripts:
+
+- **PowerShell string interpolation: `${name}` is variable-lookup, not sub-expression evaluation.** `${HealthTimeoutSeconds}` interpolates the variable `$HealthTimeoutSeconds`; it does NOT evaluate an arbitrary expression. To embed an expression in a double-quoted string, use `$(...)` — e.g. `"now: $(Get-Date)"`, `"elapsed: $($timer.Elapsed.TotalSeconds)"`. The `${...}` form only escapes special chars in the variable name itself (e.g. `${weird-name}`).
+- **Polling / health-check loops must print progress branch-independently.** A loop that only logs inside the success branch or inside the catch branch will be silent during an "endpoint-responds-but-payload-unhealthy" run — looking exactly like a hang until timeout. The pattern is: print a periodic "Waiting…" tick `if (elapsed % N == 0)` OUTSIDE the success/catch branches so it fires no matter which branch was taken this iteration. For richer diagnostics, also record the last-observed status into a variable inside each branch and include that variable in the tick — `container-e2e.ps1` (lines 87–113) does this with `$lastStatus`. `container-e2e.sh` (lines 142–158) prints a generic elapsed-seconds tick; same branch-independence, less detail. Preserve at least the branch-independent tick when adding similar loops, and prefer the variable-capture form for new loops.
+- **Keep the two scripts behaviorally equivalent.** When one side changes (e.g., a new health-check field, an extra container flag), the sibling must change in the same commit. GPT-5.5 / Copilot reviews routinely flag drift between the `.ps1` and `.sh` variants.
+
 ### ESLint & Formatting
 
 - ESLint with `@typescript-eslint/recommended` and `react-hooks` plugin.
