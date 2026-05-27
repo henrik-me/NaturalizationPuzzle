@@ -84,6 +84,7 @@ try {
     $elapsed = 0
     $healthy = $false
     $response = $null
+    $lastStatus = "no response yet"
 
     while ($elapsed -lt $HealthTimeoutSeconds) {
         Start-Sleep -Seconds 2
@@ -96,9 +97,19 @@ try {
                 $healthy = $true
                 break
             }
+            # Endpoint responded but payload is not yet healthy — record the last
+            # observed status so the periodic "Waiting..." log can include it.
+            $lastStatus = "status=$($response.status) database=$($response.database) questionCount=$($response.questionCount)"
         }
         catch {
-            Write-Host "  Waiting... (${elapsed}s)" -ForegroundColor DarkGray
+            $lastStatus = "no response ($($_.Exception.Message -replace '\s+', ' '))"
+        }
+
+        # Print progress every 6 seconds (every 3rd 2-second iteration) regardless
+        # of whether the endpoint responded — otherwise an unhealthy-payload loop
+        # is completely silent until timeout and looks like a hang.
+        if (($elapsed % 6) -eq 0) {
+            Write-Host "  Waiting... (${elapsed}s) — $lastStatus" -ForegroundColor DarkGray
         }
     }
 
