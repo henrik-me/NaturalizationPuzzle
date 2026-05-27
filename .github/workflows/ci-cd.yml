@@ -335,14 +335,32 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Same rationale as the e2e/lighthouse jobs above: dorny/paths-filter
+    # needs pull-requests:read on pull_request events.
     permissions:
       contents: read
+      pull-requests: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # Docs-only PRs skip the bench entirely. The job is advisory (not in
+      # any downstream `needs:` and not a required check), so there's no
+      # status-check obligation to satisfy on skip -- the explicit "Skip
+      # notice" step below just leaves a visible breadcrumb in the run log.
+      # Filter list is shared with the e2e/lighthouse jobs via the
+      # `*docs_paths_filter` YAML anchor -- update the list in the e2e job,
+      # not here.
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          predicate-quantifier: 'every'
+          filters: *docs_paths_filter
+
       - name: Setup .NET
+        if: steps.filter.outputs.code == 'true'
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
@@ -353,17 +371,21 @@ jobs:
         # Other jobs in this workflow use Node 22; match that to avoid
         # surprises if the ubuntu-latest runner's preinstalled Node
         # ever diverges from what summarize.mjs is tested against.
+        if: steps.filter.outputs.code == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
       - name: Setup k6
+        if: steps.filter.outputs.code == 'true'
         uses: grafana/setup-k6-action@v1
 
       - name: Restore API
+        if: steps.filter.outputs.code == 'true'
         run: dotnet restore src/api/NaturalizationPuzzle.Api.csproj
 
       - name: Build API (Release)
+        if: steps.filter.outputs.code == 'true'
         run: dotnet build src/api/NaturalizationPuzzle.Api.csproj -c Release --no-restore
 
       # Single bash step: start API → wait for /api/health → run k6 →
@@ -380,6 +402,7 @@ jobs:
       # if k6 failed, so `steps.bench.outcome` remains accurate.
       - name: Run k6 benchmark
         id: bench
+        if: steps.filter.outputs.code == 'true'
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -414,13 +437,13 @@ jobs:
           exit "$K6_EXIT"
 
       - name: Dump API log on bench failure
-        if: always() && steps.bench.outcome == 'failure'
+        if: always() && steps.filter.outputs.code == 'true' && steps.bench.outcome == 'failure'
         run: |
           echo "--- api.log ---"
           [ -f api.log ] && cat api.log || echo "(no log file)"
 
       - name: Upload benchmark artifacts
-        if: always()
+        if: always() && steps.filter.outputs.code == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: api-bench-results
@@ -431,6 +454,10 @@ jobs:
             api.log
           if-no-files-found: warn
           retention-days: 90
+
+      - name: Skip notice (docs-only)
+        if: steps.filter.outputs.code != 'true'
+        run: echo "Docs-only change detected — API benchmark skipped (job is advisory, no required check to satisfy)."
 
   docker-build-push:
     name: Docker Build & Push
