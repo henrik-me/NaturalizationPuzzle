@@ -528,6 +528,9 @@ For a deeper pre-push check that runs the full Playwright suite against the prod
 
 ```powershell
 .\scripts\container-e2e.ps1    # PowerShell (Windows / PowerShell on *nix)
+```
+
+```bash
 ./scripts/container-e2e.sh     # bash (Linux / macOS / WSL)
 ```
 

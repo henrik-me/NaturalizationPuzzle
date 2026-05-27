@@ -71,7 +71,10 @@ fi
 
 # Temp file for /api/health response — created upfront so the trap can clean it
 # up even if the script is interrupted before the health loop completes.
-health_file="$(mktemp)"
+#
+# `mktemp` with no template works on GNU coreutils (Linux) but BSD mktemp
+# (macOS) requires a template; the `||` fallback uses `-t` for portability.
+health_file="$(mktemp 2>/dev/null || mktemp -t natpuzzle-health.XXXXXX)"
 
 # Cleanup runs once on EXIT. Signal handlers re-raise as explicit exits so the
 # cleanup happens via EXIT (single source of truth) AND the script actually
