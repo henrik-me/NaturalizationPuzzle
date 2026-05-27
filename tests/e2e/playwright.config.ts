@@ -59,7 +59,10 @@ export default defineConfig({
             url: 'https://localhost:7075/api/v1/states',
             ignoreHTTPSErrors: true,
             reuseExistingServer: !process.env.CI,
-            timeout: 30000,
+            // 30 s is enough locally with hot caches but `dotnet run` cold
+            // start on the CI runner regularly takes 60-90 s (restore + JIT).
+            // Use 2 min so CI doesn't flake on first-run timing.
+            timeout: 120_000,
           },
           {
             command: 'cd ../../src/client && npm run dev',
@@ -70,7 +73,7 @@ export default defineConfig({
             // to be in effect (a stale dev server started without it would
             // silently disable the PWA service worker, breaking offline tests).
             reuseExistingServer: false,
-            timeout: 30000,
+            timeout: 120_000,
             env: {
               // The PWA dev service worker is opt-in (see vite.config.ts).
               // E2E tests need it enabled to exercise the offline behavior.

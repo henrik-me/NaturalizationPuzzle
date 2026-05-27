@@ -379,7 +379,7 @@ Deferred / handled outside Phase 4:
       - A1. `playwright.config.ts`: if `PLAYWRIGHT_BASE_URL` is set → skip `webServer` blocks, override `baseURL`, drop `--ignore-certificate-errors` (HTTP container doesn't need it); else preserve current dev-server behavior unchanged.
       - A2. Add npm script `test:external` in `tests/e2e/package.json`.
       - A3. Audit `offline.spec.ts` warm-up `waitForResponse` regexes — already match `/api/v1/...` paths the container serves identically. Verify, don't change.
-      - A4. Local validation: `docker run` image on :8080, run `PLAYWRIGHT_BASE_URL=http://localhost:8080 npx playwright test`, all 6 specs green.
+      - A4. Local validation: `docker run` image on :8080, run `PLAYWRIGHT_BASE_URL=http://localhost:8080 npx playwright test`, full Playwright suite green.
       - A5. GPT-5.5 plan review + final-diff review + Copilot PR loop. Merge.
 
     - **Stream B — Local container E2E reproducer** *(can start the moment A1 lands, or develop in parallel against a manually-hacked baseURL; gives developers a prod-equivalent local check)*
