@@ -111,9 +111,16 @@ Find them under the run's **Artifacts** section in the GitHub Actions UI.
 
 ## Advisory → gating promotion path
 
-Today [`thresholds.json`](./thresholds.json) is `{}`, so no threshold can
-fail and the bench step is `continue-on-error: true`. To promote it to a
-gating check:
+Today [`thresholds.json`](./thresholds.json) is `{}`. The k6 script
+auto-generates no-op thresholds (`count>=0`, `p(95)>=0`) for every endpoint
+tag so k6 materializes the per-tag submetrics that `summarize.mjs` needs to
+build the report. Without those, k6 wouldn't emit per-endpoint breakdowns
+at all and the bench would silently look "broken". User-supplied entries
+in `thresholds.json` are merged on top (via object spread) and override
+the auto-generated no-ops — so adding `"http_req_duration{endpoint:foo}":
+["p(95)<100"]` replaces the no-op with a real threshold.
+
+To promote to a gating check:
 
 1. Collect ≈ 10 main-branch runs from the artifact and compute p95
    ceilings per endpoint (a 30 % headroom over the observed p95 is a

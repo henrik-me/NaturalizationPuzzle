@@ -23,8 +23,38 @@ const BASE_URL = __ENV.BENCH_BASE_URL || 'http://127.0.0.1:5099';
 const STATE_ID = __ENV.BENCH_STATE_ID || '5'; // 5 = California in SeedData.cs
 const OVERRIDE_SLUG = __ENV.BENCH_STORY_SLUG || null;
 
-// Load advisory thresholds at init time. Empty object = no gating.
-const thresholds = JSON.parse(open('./thresholds.json'));
+// Endpoint tags MUST stay in sync with summarize.mjs's ENDPOINT_TAGS list.
+const ENDPOINT_TAGS = [
+  'questions-all',
+  'questions-65-20',
+  'questions-stateid',
+  'states-list',
+  'states-detail',
+  'stories-list',
+  'stories-detail',
+];
+
+// k6 only materializes a tagged sub-metric (e.g. `http_req_duration{endpoint:foo}`)
+// in handleSummary output when a threshold is registered for it. Without these
+// no-op thresholds, the empty `thresholds.json` would mean summarize.mjs sees
+// zero per-endpoint data and incorrectly reports every scenario as 0 requests.
+// `count>=0` and `p(95)>=0` are always-true: they materialize the submetric
+// without imposing any pass/fail criteria. Real gating thresholds added via
+// thresholds.json take precedence (object spread below).
+function buildAdvisoryThresholds() {
+  const out = {};
+  for (const tag of ENDPOINT_TAGS) {
+    out[`http_reqs{endpoint:${tag}}`] = ['count>=0'];
+    out[`http_req_duration{endpoint:${tag}}`] = ['p(95)>=0'];
+    out[`data_received{endpoint:${tag}}`] = ['count>=0'];
+  }
+  return out;
+}
+
+// Load advisory thresholds at init time. File contents (typically `{}`) override
+// or extend the auto-generated no-op thresholds.
+const fileThresholds = JSON.parse(open('./thresholds.json'));
+const thresholds = { ...buildAdvisoryThresholds(), ...fileThresholds };
 
 // Sequential scenarios: each one runs for 30s, with 5s of headroom between
 // scenarios so the previous scenario's tail latency doesn't bleed into the
