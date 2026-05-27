@@ -46,6 +46,31 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Numeric validation for flags consumed in arithmetic contexts further down
+# (`for ((i = 1; i <= HEALTH_TIMEOUT; i++))`, `(( i % 5 == 0 ))`) and for the
+# Docker `-p` port mapping. Without this, a typo like `--port 8O8O` (letter O)
+# surfaces as an opaque bash arithmetic-syntax error mid-run; fail fast with a
+# clear message instead.
+require_positive_int() {
+    local flag="$1" value="$2"
+    # Regex check first ensures `value` is digits-only. Then force base-10
+    # interpretation with `10#` so leading-zero inputs like `008` don't trip
+    # bash's octal parser (which would otherwise emit "value too great for
+    # base" for any digit ≥ 8 and skip past this check).
+    if ! [[ "$value" =~ ^[0-9]+$ ]] || (( 10#$value <= 0 )); then
+        echo "Invalid value for $flag: '$value' (expected positive integer)" >&2
+        usage
+        exit 2
+    fi
+}
+require_positive_int --port "$PORT"
+require_positive_int --health-timeout "$HEALTH_TIMEOUT"
+if (( 10#$PORT > 65535 )); then
+    echo "Invalid value for --port: '$PORT' (must be 1-65535)" >&2
+    usage
+    exit 2
+fi
+
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 container_name="natpuzzle-e2e"
