@@ -46,6 +46,25 @@ green() { printf '\033[32m%s\033[0m\n' "$1"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$1"; }
 red() { printf '\033[31m%s\033[0m\n' "$1"; }
 
+# Prereq check — fail fast with a clear message rather than time-out silently.
+# jq is used to parse /api/health (matching ci-cd.yml image-smoke-test). It is
+# preinstalled on Ubuntu CI runners but not always on macOS / WSL; surface it
+# explicitly so developers know what to install.
+missing=()
+for tool in docker curl jq; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        missing+=("$tool")
+    fi
+done
+if [[ ${#missing[@]} -gt 0 ]]; then
+    red "ERROR: required tool(s) not found in PATH: ${missing[*]}"
+    red "  Install hints:"
+    red "    docker: https://docs.docker.com/get-docker/"
+    red "    curl:   typically preinstalled; apt/brew install curl"
+    red "    jq:     apt install jq | brew install jq | choco install jq"
+    exit 1
+fi
+
 trap 'docker rm -f "$container_name" >/dev/null 2>&1 || true' EXIT INT TERM
 
 cyan "Stopping any prior '$container_name' container"
