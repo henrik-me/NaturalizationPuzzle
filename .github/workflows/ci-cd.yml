@@ -324,6 +324,86 @@ jobs:
         if: steps.filter.outputs.code != 'true'
         run: echo "Docs-only change detected — Lighthouse CI skipped, required check satisfied."
 
+  # api-benchmark: Layer 2 of issue #97. k6-based per-endpoint load benchmark
+  # against a locally-started Release-build API. ADVISORY ONLY — the bench
+  # step is `continue-on-error: true` and this job is intentionally NOT in
+  # any downstream `needs:` list, so a slow/failed benchmark cannot block
+  # deploy. The harness, scenario design, and promotion-to-gating path are
+  # documented in tests/perf/README.md.
+  api-benchmark:
+    name: API Benchmark (k6, advisory)
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+          dotnet-quality: "preview"
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Restore API
+        run: dotnet restore src/api/NaturalizationPuzzle.Api.csproj
+
+      - name: Build API (Release)
+        run: dotnet build src/api/NaturalizationPuzzle.Api.csproj -c Release --no-restore
+
+      # Single bash step: start API → wait for /api/health → run k6 →
+      # summarize → tear down. We use `trap` so the background dotnet
+      # process is killed even on failure; `continue-on-error: true` keeps
+      # the bench advisory; `id: bench` lets the upload step always run.
+      - name: Run k6 benchmark
+        id: bench
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          dotnet run --project src/api/NaturalizationPuzzle.Api.csproj -c Release --no-build --urls http://127.0.0.1:5099 > api.log 2>&1 &
+          API_PID=$!
+          trap 'kill $API_PID 2>/dev/null || true' EXIT
+
+          echo "Waiting for /api/health..."
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5099/api/health > /dev/null 2>&1; then
+              echo "API healthy after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          # Final hard check — exits non-zero if the API never came up.
+          curl -fsS http://127.0.0.1:5099/api/health > /dev/null
+
+          k6 run tests/perf/api-bench.js
+          node tests/perf/summarize.mjs tests/perf/k6-results.json > tests/perf/k6-summary.md
+          echo "--- k6-summary.md ---"
+          cat tests/perf/k6-summary.md
+
+      - name: Dump API log on bench failure
+        if: always() && steps.bench.outcome == 'failure'
+        run: |
+          echo "--- api.log ---"
+          [ -f api.log ] && cat api.log || echo "(no log file)"
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-bench-results
+          path: |
+            tests/perf/k6-results.json
+            tests/perf/k6-summary.md
+            tests/perf/k6-stdout.txt
+          if-no-files-found: warn
+          retention-days: 90
+
   docker-build-push:
     name: Docker Build & Push
     needs: [build-and-test, e2e, lighthouse]
