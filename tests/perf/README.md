@@ -130,6 +130,9 @@ The `api-benchmark` job uploads `api-bench-results` on every PR run
 - `k6-results.json` — full `handleSummary()` output (machine-readable).
 - `k6-stdout.txt`   — k6's default text summary (human-readable).
 - `k6-summary.md`   — the table produced by `summarize.mjs`.
+- `api.log`         — stdout/stderr from the locally-started API
+  process during the bench (invaluable for post-mortem when the bench
+  step itself fails or when an endpoint returns unexpected results).
 
 Find them under the run's **Artifacts** section in the GitHub Actions UI.
 
