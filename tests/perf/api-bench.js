@@ -140,7 +140,7 @@ export function questions_all() {
 }
 
 export function questions_65_20() {
-  hit(`${BASE_URL}/api/v1/questions/6520`, 'questions-65-20');
+  hit(`${BASE_URL}/api/v1/questions/6520?stateId=${STATE_ID}`, 'questions-65-20');
 }
 
 export function questions_stateid() {
@@ -160,7 +160,10 @@ export function stories_list() {
 }
 
 export function stories_detail(data) {
-  hit(`${BASE_URL}/api/v1/stories/${encodeURIComponent(data.storySlug)}`, 'stories-detail');
+  hit(
+    `${BASE_URL}/api/v1/stories/${encodeURIComponent(data.storySlug)}?stateId=${STATE_ID}`,
+    'stories-detail',
+  );
 }
 
 export function handleSummary(data) {

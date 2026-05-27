@@ -13,15 +13,15 @@ This is Layer 2 of the perf measurement plan tracked in issue #97.
 Seven endpoints, mirroring the production client's warm-up fan-out
 (`src/client/src/hooks/useWarmUpCache.ts`):
 
-| Scenario tag         | Endpoint                                        |
-|----------------------|-------------------------------------------------|
-| `questions-all`      | `GET /api/v1/questions`                         |
-| `questions-65-20`    | `GET /api/v1/questions/6520`                    |
-| `questions-stateid`  | `GET /api/v1/questions?stateId=5` (California)  |
-| `states-list`        | `GET /api/v1/states`                            |
-| `states-detail`      | `GET /api/v1/states/5` (California)             |
-| `stories-list`       | `GET /api/v1/stories`                           |
-| `stories-detail`     | `GET /api/v1/stories/{slug}` (first in index)   |
+| Scenario tag         | Endpoint                                                  |
+|----------------------|-----------------------------------------------------------|
+| `questions-all`      | `GET /api/v1/questions`                                   |
+| `questions-65-20`    | `GET /api/v1/questions/6520?stateId=5` (California)       |
+| `questions-stateid`  | `GET /api/v1/questions?stateId=5` (California)            |
+| `states-list`        | `GET /api/v1/states`                                      |
+| `states-detail`      | `GET /api/v1/states/5` (California)                       |
+| `stories-list`       | `GET /api/v1/stories`                                     |
+| `stories-detail`     | `GET /api/v1/stories/{slug}?stateId=5` (first in index)   |
 
 Each scenario uses k6's `constant-vus` executor: **5 virtual users for 30
 seconds**. The `stories-detail` slug is resolved dynamically in `setup()`

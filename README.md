@@ -431,7 +431,7 @@ The CI workflow follows the same start-preview / wait-on / run-lhci sequence, wi
 
 ### API performance benchmark (k6)
 
-A `api-benchmark` GitHub Actions job runs a [k6](https://k6.io/) load benchmark against a locally-started Release-build API on every PR and `main` push. It hits the seven endpoints that the client warms up on startup (`/api/v1/questions`, `/api/v1/questions/6520`, `/api/v1/questions?stateId=…`, `/api/v1/states`, `/api/v1/states/{id}`, `/api/v1/stories`, `/api/v1/stories/{slug}`) sequentially with 5 VUs × 30 s each, and uploads per-endpoint p50/p95/p99 + throughput + average compressed response size as the `api-bench-results` artifact (90-day retention).
+A `api-benchmark` GitHub Actions job runs a [k6](https://k6.io/) load benchmark against a locally-started Release-build API on every PR and `main` push. It hits the seven endpoints that the client warms up on startup (`/api/v1/questions`, `/api/v1/questions/6520?stateId={CA}`, `/api/v1/questions?stateId={CA}`, `/api/v1/states`, `/api/v1/states/{id}`, `/api/v1/stories`, `/api/v1/stories/{slug}?stateId={CA}`) sequentially with 5 VUs × 30 s each, and uploads per-endpoint p50/p95/p99 + throughput + average compressed response size as the `api-bench-results` artifact (90-day retention).
 
 The job is **advisory only** — no thresholds today, and it is intentionally not in any downstream `needs:`, so it cannot block merge or deploy. The full design (scenario model, why sequential, slug resolution, threshold population workflow) and the advisory → gating promotion path live in [`tests/perf/README.md`](tests/perf/README.md). Layer 2 of issue [#97](https://github.com/henrik-me/NaturalizationPuzzle/issues/97).
 
