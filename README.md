@@ -524,6 +524,15 @@ docker compose down
 .\container-test.ps1
 ```
 
+For a deeper pre-push check that runs the full Playwright suite against the production image (catches Docker-context-only bugs the dev-stack E2E can't — e.g., missing-from-build-context embedded resources, see the PR #81 silent-empty-stories incident), use the container E2E reproducer:
+
+```powershell
+.\scripts\container-e2e.ps1    # PowerShell (Windows / PowerShell on *nix)
+./scripts/container-e2e.sh     # bash (Linux / macOS / WSL)
+```
+
+The script builds the image, starts it, waits for `/api/health`, runs the full Playwright suite with `PLAYWRIGHT_BASE_URL=http://localhost:8080`, and tears the container down on exit. Add `-SkipBuild` (PowerShell) or `--skip-build` (bash) to re-run the tests against an already-built image.
+
 ### Production Architecture (Azure Container Apps)
 
 ```
