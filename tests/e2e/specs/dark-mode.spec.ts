@@ -63,11 +63,14 @@ test.describe('Dark Mode', () => {
     await settings.setStoredThemePreference('dark');
 
     // Block the app entry so React cannot mount; only the inline FOUC script
-    // in index.html will have run when we make our assertions. We use
+    // in index.html will have run when we make our assertions. The regex
+    // matches both the Vite dev entry (/src/main.tsx) and the production
+    // build entry (/assets/index-<hash>.js) so this test works in both modes
+    // (dev-stack and PLAYWRIGHT_BASE_URL targeting a container). We use
     // waitUntil:'commit' (the earliest signal Playwright offers) and then
     // explicitly waitForFunction on documentElement.style.colorScheme to
     // synchronize on the inline script having executed.
-    await page.route('**/src/main.tsx', route => route.abort());
+    await page.route(/\/(src\/main\.tsx|assets\/index-[^/]+\.js)$/, route => route.abort());
     await page.goto('/settings', { waitUntil: 'commit' });
     // Wait until the inline FOUC script has executed (it sets colorScheme).
     await page.waitForFunction(() => document.documentElement.style.colorScheme !== '');
@@ -91,7 +94,8 @@ test.describe('Dark Mode', () => {
     await settings.goto();
     await settings.setStoredThemePreference('light');
 
-    await page.route('**/src/main.tsx', route => route.abort());
+    // Same dual-mode block pattern as the previous test — see comment there.
+    await page.route(/\/(src\/main\.tsx|assets\/index-[^/]+\.js)$/, route => route.abort());
     await page.goto('/settings', { waitUntil: 'commit' });
     await page.waitForFunction(() => document.documentElement.style.colorScheme !== '');
 

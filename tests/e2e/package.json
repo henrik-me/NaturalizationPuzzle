@@ -6,7 +6,8 @@
   "scripts": {
     "test": "npx playwright test",
     "test:headed": "npx playwright test --headed",
-    "test:ui": "npx playwright test --ui"
+    "test:ui": "npx playwright test --ui",
+    "test:external": "cross-env PLAYWRIGHT_BASE_URL=http://localhost:8080 playwright test"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +15,7 @@
   "type": "commonjs",
   "devDependencies": {
     "@axe-core/playwright": "^4.11.1",
-    "@playwright/test": "^1.58.2"
+    "@playwright/test": "^1.58.2",
+    "cross-env": "^7.0.3"
   }
 }

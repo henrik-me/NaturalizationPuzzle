@@ -362,10 +362,62 @@ Deferred / handled outside Phase 4:
 
 19. ~~**Story comprehension quiz: optional "real-quiz" (typed-input) mode**~~ ✅ complete (PR #86) — adds an opt-in typed-input mode to the end-of-story comprehension quiz, alongside today's reveal-on-click flow. Two-CTA chooser on every `/stories/:slug` (no default selected): `Continue with Study` (existing reveal flow) or `Continue with Quiz` (typed answers with per-question green/red feedback, no PASS/FAIL banner, no early stop, "X out of N correct" results panel). Scored attempts persist in a new `naturalizationProgress.storyQuizHistory` array, kept **separate** from `quizHistory` so the existing /quiz summary stats stay anchored on USCIS thresholds. The History page gains a "Story Comprehension" block below "All Attempts" with three sub-sections — Stats panel (Total Attempts + Average Score), Per-Story aggregation (best score + attempt count, sorted by most recent), and chronological list (trailing × delete with ~7s inline Undo banner). Hook surface: `addStoryQuizResult({ storySlug, storyTitle, correct, total })` (id + date generated inside the hook), `removeStoryQuizResult(id)`, `restoreStoryQuizResult(entry)` (idempotent), `clearStoryQuizHistory()`. Persisted array order is not semantic — every view sorts by date at render time, so undo of any deletion (latest or non-latest) restores correctly. Full execution plan and locked decisions A–S in [issue #85](https://github.com/henrik-me/NaturalizationPuzzle/issues/85).
 
-20. **Containerized + post-deploy Playwright E2E** (deferred from PR #81 to keep that PR scoped to the immediate prod fix):
-    - **Container E2E** — new CI job that `docker run`s the freshly-built `$IMAGE` on the runner, exposes port 8080, and runs the Playwright suite with `baseURL=http://localhost:8080` (no Vite, no proxy, same suite). Gates `deploy-apply` via `needs:[..., container-e2e]`. Requires `playwright.config.ts` to skip the `webServer` block when targeting an external URL (likely via a `PLAYWRIGHT_BASE_URL` env var) and a few specs that currently rely on the Vite proxy may need the absolute URL. **This is the high-value job — it would have caught the PR #81 silent-empty-stories regression at the smoke step before the deploy ever ran.**
-    - **Post-deploy E2E** — smoke-flavored subset of the Playwright suite (main user flows; skip axe-core deep checks) against `https://np.metzger.dk` after `Deploy Apply` succeeds. Catches prod-only issues (TLS, custom-domain binding, Azure runtime quirks) that even container E2E can't see. Failure should block the next deploy and ideally trigger a rollback to the previous container revision.
-    - **Motivation**: the dev-stack Playwright suite (Vite dev server + `dotnet run`) is fundamentally different from the deployed image — Vite serves from memory with HMR, prod serves the built `dist/` from `wwwroot/` via the .NET app, and the Docker build context can omit files (or `.dockerignore` can exclude them) that the local repository tree contains. Bug classes like "EmbeddedResource Include path resolves to a directory that wasn't COPYed into the Docker build context" literally cannot manifest in the dev stack, so even a thorough dev-stack E2E suite cannot catch them. The container E2E closes that gap; the post-deploy E2E catches the remaining prod-only gaps.
+20. **Containerized Playwright E2E** (deferred from PR #81 to keep that PR scoped to the immediate prod fix). Goal: run the existing Playwright suite against the freshly-built Docker image in CI, gating `deploy-apply`, so Docker-context-only bug classes (the PR #81 silent-empty-stories class) cannot reach production. **This is the high-value job — it would have caught PR #81 at the gate before the deploy ever ran.**
+
+    **Motivation**: the dev-stack Playwright suite (Vite dev server + `dotnet run`) is fundamentally different from the deployed image — Vite serves from memory with HMR, prod serves the built `dist/` from `wwwroot/` via the .NET app, and the Docker build context can omit files (or `.dockerignore` can exclude them) that the local repository tree contains. Bug classes like "EmbeddedResource Include path resolves to a directory that wasn't COPYed into the Docker build context" literally cannot manifest in the dev stack, so even a thorough dev-stack E2E suite cannot catch them. The container E2E closes that gap.
+
+    **Codebase findings (already validated):**
+    - Specs are portable — `grep` for `localhost:`/`baseURL` in `tests/e2e/specs/` returns nothing; all navigation uses page objects + relative paths.
+    - `offline.spec.ts` already documents container compatibility in its header comment.
+    - `playwright.config.ts` hardcodes `baseURL: 'https://localhost:5173'` and unconditionally starts `webServer` blocks — must become conditional on a `PLAYWRIGHT_BASE_URL` env var.
+    - Container speaks HTTP on :8080 (not HTTPS); SW registration on `http://localhost:8080` is a secure context.
+    - `docker-build-push` is push-only (`if: github.event_name == 'push'`); container-e2e is therefore a merge→deploy gate, not a PR-time gate.
+
+    **Parallel-optimized breakdown (3 streams, 2 critical-path PRs):**
+
+    - **Stream A — Playwright targeting plumbing** *(prerequisite PR, ~½ day, no Docker, validatable locally)*
+      - A1. `playwright.config.ts`: if `PLAYWRIGHT_BASE_URL` is set → skip `webServer` blocks, override `baseURL`, drop `--ignore-certificate-errors` (HTTP container doesn't need it); else preserve current dev-server behavior unchanged.
+      - A2. Add npm script `test:external` in `tests/e2e/package.json`.
+      - A3. Audit `offline.spec.ts` warm-up `waitForResponse` regexes — already match `/api/v1/...` paths the container serves identically. Verify, don't change.
+      - A4. Local validation: `docker run` image on :8080, run `PLAYWRIGHT_BASE_URL=http://localhost:8080 npx playwright test`, all 6 specs green.
+      - A5. GPT-5.5 plan review + final-diff review + Copilot PR loop. Merge.
+
+    - **Stream B — Local container E2E reproducer** *(can start the moment A1 lands, or develop in parallel against a manually-hacked baseURL; gives developers a prod-equivalent local check)*
+      - B1. Add `scripts/container-e2e.ps1` + `.sh`: build → run → wait for `/api/health` → run Playwright with `PLAYWRIGHT_BASE_URL` → tear down. Reuse `container-test.ps1` patterns.
+      - B2. README "Pre-push validation" section gains a container E2E subsection.
+      - B3. `.github/copilot-instructions.md` Pre-Push Verification gains an optional container-E2E bullet for changes that touch `Dockerfile`, `.dockerignore`, embedded resources, or asset pipeline.
+
+    - **Stream C — CI integration** *(starts after Stream A merges; B can be in flight in parallel)*
+      - C1. New `container-e2e` job in `ci-cd.yml`: `needs: docker-build-push` (parallel to `image-smoke-test`, not after — both pull image once and are independent). Pull `${IMAGE}:${tag}` from GHCR → `docker run -d -p 8080:8080 ASPNETCORE_ENVIRONMENT=Production` → wait for `/api/health` (reuse smoke-test bash loop) → `npm ci` + `npx playwright install --with-deps chromium` → `PLAYWRIGHT_BASE_URL=http://localhost:8080 npx playwright test --reporter=list` → on failure upload `tests/e2e/test-results/` + `docker logs` artifacts → always tear down with `docker rm -f`.
+      - C2. Wire `deploy-apply.needs` to include `container-e2e`.
+      - C3. **Decision locked: keep push-only.** PR-time validation stays on the dev-stack E2E job; container-e2e is the merge→deploy gate. Matches existing `image-smoke-test` semantics; avoids ~3 min added PR time. "Container-e2e on PRs" can be opened as a follow-up if useful.
+      - C4. Validate the workflow on a TEMP-branch push (the same technique used for PR #31/#32 workflow batches) before opening PR-C. GPT-5.5 reviews + Copilot loop. Merge.
+
+    **Open decisions locked before implementation:**
+    - PR-time gating: **push-only** (matches `image-smoke-test`).
+    - Parallelism: `container-e2e` runs parallel to `image-smoke-test` (both `needs: docker-build-push`), shaving ~3–5 min off the critical path versus serial.
+    - Failure UX: container-e2e failure ≠ rollback (nothing is deployed yet); it just blocks the deploy gate. The job summary documents this.
+
+    **Effort & critical path:**
+    - PR-A (Stream A, plumbing) — ~½ day — **on critical path**
+    - PR-B (Stream B, local reproducer) — ~½ day — parallel, not on critical path
+    - PR-C (Stream C, CI integration) — ~½–1 day — **on critical path**, blocks on PR-A
+    - **Total wall time with parallelism: ~1.5 days.** Without parallelism: ~2 days.
+
+21. **Post-deploy Playwright E2E against production** (follow-up to #20 — **depends on #20 landing first**).
+
+    **Why this is a follow-up to #20 (not part of it):**
+    1. Reuses the `PLAYWRIGHT_BASE_URL` plumbing introduced by Stream A of #20 — without that plumbing, the same spec-portability refactor would need to ship here, duplicating effort.
+    2. Reuses the CI job pattern (image pull, Playwright install, env-var-targeted run, artifact upload) introduced by Stream C of #20 — the post-deploy job is a near-copy of `container-e2e` with a different base URL and a smaller spec selection.
+    3. **Different value tier**: container E2E catches the highest-value regression class (Docker build context / EmbeddedResource / asset packaging — i.e. the PR #81 class). Post-deploy E2E catches the remaining prod-only gaps (TLS, custom-domain binding, Azure runtime quirks, scale-to-zero cold-start interactions, real CDN/DNS path). Shipping in this order maximizes value-per-PR.
+
+    **Scope:**
+    - Smoke-flavored subset of the Playwright suite against `https://np.metzger.dk` (and the default Container Apps FQDN) after `deploy-apply` succeeds.
+    - Run the main user flows: state selection, study, quiz, stories index + detail, offline. **Skip axe-core deep checks** (they are container-equivalent — already covered by #20's container-e2e job).
+    - Cold-start tolerance: first request may take ~22 s on a scale-to-zero replica; bump per-test timeouts accordingly or run a `/api/health` warm-up step before Playwright starts.
+    - Failure handling: the job's failure blocks the next deploy via job dependency, AND **should trigger a rollback** to the previous Container App revision (`az containerapp revision activate --revision <previous>` — verify the previous revision is still in `Provisioned` state before swapping; if not, fail loudly and alert).
+    - New CI job: `post-deploy-e2e` with `needs: deploy-apply`, runs against the deployed `${app-url}` (or custom domain).
+    - **Open question to lock when starting this work**: rollback automation vs alert-only on failure. Auto-rollback is safer for the user but requires extra plumbing (lookup previous revision, swap traffic). Alert-only is simpler and matches the current "human-gated deploy" posture. Recommendation: start with alert-only, add auto-rollback if a real prod regression motivates it.
 
 ## Resume Guide (read this first when picking up after a restart)
 
@@ -389,7 +441,7 @@ Active state at the time of writing this guide:
 
 | What | Where |
 |---|---|
-| All deferred / postponed work | [Next Steps](#next-steps) — items 9, 16, 17, 18, 20 are open (items 14, 15, 19 are ✅ complete) |
+| All deferred / postponed work | [Next Steps](#next-steps) — items 9, 16, 17, 18, 20, 21 are open (items 14, 15, 19 are ✅ complete) |
 | Existing tech debt | [Known Issues / Tech Debt](#known-issues--tech-debt), plus tracked GitHub issues (#73) |
 | How to add another Story Mode story | [Story Mode — Authoring Guide](#story-mode--authoring-guide) — file layout, frontmatter spec, the 8 enforced body-markup rules, license posture, and a per-story checklist |
 | Project conventions, agent orchestration rules, review workflow | `.github/copilot-instructions.md` (single source of truth — keep that file authoritative) |
