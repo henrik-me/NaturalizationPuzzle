@@ -348,6 +348,15 @@ jobs:
           dotnet-version: "10.0.x"
           dotnet-quality: "preview"
 
+      - name: Setup Node.js
+        # Pin Node so `node tests/perf/summarize.mjs` is reproducible.
+        # Other jobs in this workflow use Node 22; match that to avoid
+        # surprises if the ubuntu-latest runner's preinstalled Node
+        # ever diverges from what summarize.mjs is tested against.
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
       - name: Setup k6
         uses: grafana/setup-k6-action@v1
 
