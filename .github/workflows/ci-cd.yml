@@ -361,6 +361,14 @@ jobs:
       # summarize → tear down. We use `trap` so the background dotnet
       # process is killed even on failure; `continue-on-error: true` keeps
       # the bench advisory; `id: bench` lets the upload step always run.
+      #
+      # Note: we capture k6's exit code rather than letting `set -e` abort
+      # the step immediately. If k6 trips a threshold (e.g. the strict
+      # `http_req_failed{endpoint:*}: rate==0` correctness sentinel), we
+      # still want `summarize.mjs` to produce `k6-summary.md` from the
+      # partial results -- that's the artifact a human needs to diagnose
+      # WHICH endpoint failed. The step still exits non-zero at the end
+      # if k6 failed, so `steps.bench.outcome` remains accurate.
       - name: Run k6 benchmark
         id: bench
         continue-on-error: true
@@ -381,10 +389,20 @@ jobs:
           # Final hard check — exits non-zero if the API never came up.
           curl -fsS http://127.0.0.1:5099/api/health > /dev/null
 
+          set +e
           k6 run tests/perf/api-bench.js
-          node tests/perf/summarize.mjs tests/perf/k6-results.json > tests/perf/k6-summary.md
-          echo "--- k6-summary.md ---"
-          cat tests/perf/k6-summary.md
+          K6_EXIT=$?
+          set -e
+
+          if [ -f tests/perf/k6-results.json ]; then
+            node tests/perf/summarize.mjs tests/perf/k6-results.json > tests/perf/k6-summary.md
+            echo "--- k6-summary.md ---"
+            cat tests/perf/k6-summary.md
+          else
+            echo "(no k6-results.json produced; skipping summarize)"
+          fi
+
+          exit "$K6_EXIT"
 
       - name: Dump API log on bench failure
         if: always() && steps.bench.outcome == 'failure'
