@@ -2,9 +2,9 @@
 
 A k6-based load benchmark for the NaturalizationPuzzle backend. It runs as
 the `api-benchmark` job in CI on every PR and on `main`, publishes
-per-endpoint p50/p95/p99 + throughput + average compressed response size as
-build artifacts, and is **advisory only** — it does not gate merges or
-deploys.
+per-endpoint p50/p95/p99 + throughput + average decoded response body
+size as build artifacts, and is **advisory only** — it does not gate
+merges or deploys.
 
 This is Layer 2 of the perf measurement plan tracked in issue #97.
 
@@ -30,14 +30,21 @@ correct as the Story Mode catalog evolves. Override with the
 `BENCH_STORY_SLUG` env var if you want to pin a specific story.
 
 `Accept-Encoding` is left at k6's default so the production Brotli/Gzip
-middleware (added in PR #96) is exercised. The "Avg compressed size"
-column is `bench_bytes_received / requests` per endpoint, where
-`bench_bytes_received` is a custom k6 `Counter` populated from each
-response's `Content-Length` header (the on-the-wire compressed body
-length when a `Content-Encoding` is negotiated). We use a custom counter
-rather than the built-in `data_received` to keep per-request byte
-attribution explicit and version-stable, and to exclude TLS / HTTP
-framing overhead.
+middleware (added in PR #96) is exercised on the wire. The "Avg body
+bytes (decoded)" column is `bench_response_bytes / requests` per
+endpoint, where `bench_response_bytes` is a custom k6 `Counter`
+populated from each response's decoded body length (`res.body.length`).
+We measure *decoded* bytes rather than wire bytes because the API uses
+ASP.NET `ResponseCompression`, which streams compressed responses with
+`Transfer-Encoding: chunked` and no `Content-Length` header — so a
+counter keyed on `Content-Length` would silently record zero samples
+for every compressed response. The built-in `data_received` metric was
+also rejected: it is accounted at the connection layer (so it folds in
+TLS / HTTP framing overhead), and its per-request tag propagation has
+been inconsistent across k6 versions. Detecting on-the-wire compression
+regressions per endpoint requires harness-level access to compressed
+byte counts that k6 doesn't currently expose; that is tracked as future
+work.
 
 ## Why sequential, not parallel
 
@@ -105,13 +112,15 @@ BENCH_STORY_SLUG=my-story k6 run tests/perf/api-bench.js
   20 ms-per-request endpoint will report ≈ 250 req/s. This is **not** a
   saturation number; it's a "five concurrent clients hammering this one
   endpoint" number.
-- **Avg compressed size** is `bench_bytes_received / requests` per
-  endpoint, where `bench_bytes_received` is a custom k6 `Counter` that
-  the script populates from each response's `Content-Length` header (so
-  it's the compressed body length when the API negotiates a
-  `Content-Encoding`, excluding TLS / HTTP framing overhead). Watch this
-  alongside PR #96's compression budgets — a regression here usually means
-  the middleware is no longer matching the response's content type.
+- **Avg body bytes (decoded)** is `bench_response_bytes / requests`
+  per endpoint, where `bench_response_bytes` is a custom k6 `Counter`
+  that the script populates from `res.body.length` on each response.
+  These are the *decoded* body bytes (k6 has already transparently
+  decompressed any `Content-Encoding`), so this column tracks
+  application payload bloat — not the on-the-wire compressed size.
+  Compression-regression detection per endpoint is intentionally out
+  of scope today; see the "What it measures" section for the
+  rationale.
 
 ## CI artifacts
 
@@ -131,7 +140,7 @@ auto-generates two kinds of thresholds for every endpoint tag:
 
 - **No-op visualisation thresholds** — `http_reqs{endpoint:foo}: count>=0`,
   `http_req_duration{endpoint:foo}: p(95)>=0`, and
-  `bench_bytes_received{endpoint:foo}: count>=0`. These are always true;
+  `bench_response_bytes{endpoint:foo}: count>=0`. These are always true;
   their only job is to force k6 to emit per-tag submetrics in the
   `handleSummary` output. Without them, `summarize.mjs` would see no
   per-endpoint data and report every scenario as 0 requests.

@@ -82,7 +82,7 @@ const emptyScenarios = [];
 for (const tag of ENDPOINT_TAGS) {
   const reqs = findSubmetric('http_reqs', tag);
   const dur = findSubmetric('http_req_duration', tag);
-  const size = findSubmetric('bench_bytes_received', tag);
+  const size = findSubmetric('bench_response_bytes', tag);
 
   const count = getValue(reqs, 'count');
   if (!count || count === 0) {
@@ -116,7 +116,7 @@ if (emptyScenarios.length > 0) {
   out += '\n';
 }
 
-out += '| Endpoint | Requests | p50 (ms) | p95 (ms) | p99 (ms) | Throughput (req/s) | Avg compressed size |\n';
+out += '| Endpoint | Requests | p50 (ms) | p95 (ms) | p99 (ms) | Throughput (req/s) | Avg body bytes (decoded) |\n';
 out += '|---|---:|---:|---:|---:|---:|---:|\n';
 for (const r of rows) {
   out += `| \`${r.tag}\` | ${r.count} | ${fmtMs(r.p50)} | ${fmtMs(r.p95)} | ${fmtMs(r.p99)} | ${fmtRate(r.rate)} | ${fmtBytes(r.avgSize)} |\n`;

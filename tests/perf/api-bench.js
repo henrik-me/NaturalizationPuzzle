@@ -24,15 +24,26 @@ const BASE_URL = __ENV.BENCH_BASE_URL || 'http://127.0.0.1:5099';
 const STATE_ID = __ENV.BENCH_STATE_ID || '5'; // 5 = California in SeedData.cs
 const OVERRIDE_SLUG = __ENV.BENCH_STORY_SLUG || null;
 
-// Custom per-endpoint compressed-bytes counter. We do NOT rely on the built-in
-// `data_received{endpoint:foo}` submetric because k6's `data_received`
-// accounting is at the connection layer and historically has been brittle to
-// reason about for per-request byte attribution across versions; it also
-// folds in TLS/header overhead. Reading the response's Content-Length header
-// (which the API always sets, and which equals the on-the-wire compressed
-// body length when a Content-Encoding is negotiated) gives us an explicit,
-// per-request, per-endpoint number that matches what the README advertises.
-const bytesReceived = new Counter('bench_bytes_received');
+// Custom per-endpoint *uncompressed* response-body counter.
+//
+// Earlier iterations tried to measure compressed wire bytes via the response's
+// `Content-Length` header, but the API is fronted by
+// `Microsoft.AspNetCore.ResponseCompression`, which streams compressed
+// responses with `Transfer-Encoding: chunked` and no `Content-Length`.
+// Every sample would have been silently skipped and the "Avg size" column
+// would have come out blank in CI.
+//
+// Built-in `data_received` is also unsuitable: it is accounted at the
+// connection layer (so it folds in TLS / HTTP framing overhead), and its
+// per-request tag propagation has been inconsistent across k6 versions.
+//
+// `res.body.length` is the *decoded* (decompressed) body length. It is
+// reliably available for every request regardless of transfer encoding, and
+// it's a stable proxy for "did this endpoint's payload accidentally bloat?".
+// It is NOT a proxy for "did the compression middleware regress?" -- that
+// requires harness-level access to on-the-wire bytes per request, which k6
+// doesn't currently expose. That gap is tracked separately.
+const responseBytes = new Counter('bench_response_bytes');
 
 // Endpoint tags MUST stay in sync with summarize.mjs's ENDPOINT_TAGS list.
 const ENDPOINT_TAGS = [
@@ -68,7 +79,7 @@ function buildAdvisoryThresholds() {
   for (const tag of ENDPOINT_TAGS) {
     out[`http_reqs{endpoint:${tag}}`] = ['count>=0'];
     out[`http_req_duration{endpoint:${tag}}`] = ['p(95)>=0'];
-    out[`bench_bytes_received{endpoint:${tag}}`] = ['count>=0'];
+    out[`bench_response_bytes{endpoint:${tag}}`] = ['count>=0'];
     out[`http_req_failed{endpoint:${tag}}`] = ['rate==0'];
   }
   return out;
@@ -147,19 +158,11 @@ function hit(url, tag) {
     'status is 200': r => r.status === 200,
     'body is non-empty': r => r.body && r.body.length > 0,
   });
-  // Record the on-the-wire compressed body length per endpoint. When the API
-  // negotiates Content-Encoding (Brotli/Gzip via the compression middleware
-  // from PR #96), Content-Length is the compressed length -- which is what
-  // we want to report in the "Avg compressed size" column. If for some reason
-  // the header is missing, we skip the sample rather than substitute a
-  // different unit (uncompressed res.body.length would silently inflate the
-  // number).
-  const len = res.headers['Content-Length'];
-  if (len) {
-    const n = parseInt(len, 10);
-    if (Number.isFinite(n) && n >= 0) {
-      bytesReceived.add(n, { endpoint: tag });
-    }
+  // Record the decoded body length per endpoint. See the comment on
+  // `responseBytes` above for why this is the decompressed body, not
+  // wire bytes.
+  if (res.body) {
+    responseBytes.add(res.body.length, { endpoint: tag });
   }
 }
 
