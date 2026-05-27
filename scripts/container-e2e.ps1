@@ -27,7 +27,7 @@ param(
 $ErrorActionPreference = "Stop"
 $containerName = "natpuzzle-e2e"
 $image = "${ImageName}:${ImageTag}"
-$repoRoot = (Resolve-Path "$PSScriptRoot\..").Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $pushed = $false
 
 function Write-Step($message) {
@@ -108,7 +108,7 @@ try {
     Write-Host "  Question count: $($response.questionCount)" -ForegroundColor Green
 
     Write-Step "Bootstrapping Playwright in tests/e2e"
-    Push-Location "$repoRoot\tests\e2e"
+    Push-Location (Join-Path $repoRoot (Join-Path 'tests' 'e2e'))
     $pushed = $true
 
     # Always run `npm ci` for a reproducible install matching package-lock.json.
