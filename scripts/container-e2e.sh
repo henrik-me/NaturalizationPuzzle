@@ -24,11 +24,21 @@ EOF
 }
 
 while [[ $# -gt 0 ]]; do
+    # Helper: fail fast with a clear message when a flag is missing its value.
+    # Without this, `set -u` turns a missing `$2` into "unbound variable" which
+    # is opaque to the caller — surface the actual problem (which flag) instead.
+    require_arg() {
+        if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
+            echo "Missing value for $1" >&2
+            usage
+            exit 2
+        fi
+    }
     case "$1" in
-        --image-name)     IMAGE_NAME="$2"; shift 2 ;;
-        --image-tag)      IMAGE_TAG="$2"; shift 2 ;;
-        --port)           PORT="$2"; shift 2 ;;
-        --health-timeout) HEALTH_TIMEOUT="$2"; shift 2 ;;
+        --image-name)     require_arg "$@"; IMAGE_NAME="$2"; shift 2 ;;
+        --image-tag)      require_arg "$@"; IMAGE_TAG="$2"; shift 2 ;;
+        --port)           require_arg "$@"; PORT="$2"; shift 2 ;;
+        --health-timeout) require_arg "$@"; HEALTH_TIMEOUT="$2"; shift 2 ;;
         --skip-build)     SKIP_BUILD=1; shift ;;
         -h|--help)        usage; exit 0 ;;
         --)               shift; PLAYWRIGHT_ARGS=("$@"); break ;;

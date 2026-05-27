@@ -61,7 +61,7 @@ try {
 
     if (-not $SkipBuild) {
         Write-Step "Building Docker image: $image (context: $repoRoot)"
-        docker build -t $image $repoRoot
+        docker build -t $image "$repoRoot"
         if ($LASTEXITCODE -ne 0) { throw "Docker build failed" }
     }
     else {
