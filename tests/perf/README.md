@@ -78,6 +78,9 @@ request in scenario N rather than as latency bleed into N+1.
 ## Running locally
 
 Prereqs: [k6](https://k6.io/docs/get-started/installation/) installed.
+For results comparable to CI, use the same version CI pins
+(see `.github/workflows/ci-cd.yml`'s `Setup k6` step -- currently
+`k6-version: '2.0.0'`).
 
 In one terminal, start the API. Pass `--no-launch-profile` and
 `-c Release` (and set `ASPNETCORE_ENVIRONMENT=Production`) so the
