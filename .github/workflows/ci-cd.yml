@@ -433,6 +433,98 @@ jobs:
         if: always()
         run: docker rm -f smoke || true
 
+  container-e2e:
+    name: Container E2E (Playwright)
+    needs: docker-build-push
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: tests/e2e/package-lock.json
+
+      - name: Install e2e dependencies
+        working-directory: tests/e2e
+        run: npm ci
+
+      - name: Install Playwright browser (chromium)
+        working-directory: tests/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and run image
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker-build-push.outputs.image-tag }}
+        run: |
+          set -euo pipefail
+          echo "Pulling image: $IMAGE"
+          docker pull "$IMAGE"
+          docker run -d --name e2e-container -p 8080:8080 \
+            -e ASPNETCORE_ENVIRONMENT=Production \
+            "$IMAGE"
+
+      - name: Wait for /api/health
+        run: |
+          set -euo pipefail
+          # 60 retries chosen over image-smoke-test's 30 because container-e2e
+          # also has Playwright bootstrap running on the same runner; budget
+          # extra margin for cold-start contention. Stream A bumped local
+          # webServer timeout to 120s for the same reason.
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/api/health >/tmp/health.json 2>/dev/null \
+              && jq -e '.status == "healthy" and .database == true and .questionCount > 0' /tmp/health.json >/dev/null; then
+              echo "Healthy after ${i}s:"
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Health check did not succeed within 60s"
+          docker logs e2e-container || true
+          exit 1
+
+      - name: Run Playwright suite against container
+        working-directory: tests/e2e
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:8080
+        # PLAYWRIGHT_BASE_URL is honored by playwright.config.ts (Stream A
+        # of #20): when set, the dev-stack webServer blocks are skipped and
+        # tests target the external URL — here, the production Docker image.
+        run: npx playwright test --reporter=list
+
+      - name: Capture container logs on failure
+        if: failure()
+        run: docker logs --tail 500 e2e-container || true
+
+      - name: Upload Playwright test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: container-e2e-playwright-results
+          path: tests/e2e/test-results/
+          retention-days: 14
+
+      - name: Tear down container
+        if: always()
+        run: docker rm -f e2e-container || true
+
   detect-changes:
     name: Detect deployable changes
     needs: [build-and-test, e2e, lighthouse]
@@ -496,7 +588,7 @@ jobs:
 
   deploy-apply:
     name: Deploy Apply (gated)
-    needs: [docker-build-push, deploy-plan, detect-changes]
+    needs: [docker-build-push, deploy-plan, detect-changes, container-e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     environment:
