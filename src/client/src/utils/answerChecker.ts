@@ -7,7 +7,7 @@
  * this function and live in `generateCandidates` and `normalizeNumbers` so each
  * concern stays small and independently testable.
  */
-export function normalizeText(text: string): string {
+function normalizeText(text: string): string {
   return text
     .toLowerCase()
     .replace(/[^\w\s]/g, ' ') // strip punctuation/hyphens/parens to spaces
@@ -52,8 +52,22 @@ const TENS: Readonly<Record<string, number>> = {
   ninety: 90,
 };
 
+/**
+ * Own-property lookup into one of the number-word maps. Avoids the `in`
+ * operator (which walks the prototype chain and would treat inherited keys like
+ * `__proto__`, `constructor`, or `toString` as number words).
+ */
+function numberValue(map: Readonly<Record<string, number>>, token: string): number | undefined {
+  return Object.hasOwn(map, token) ? map[token] : undefined;
+}
+
 function isNumberWord(token: string): boolean {
-  return token in ONES || token in TEENS || token in TENS || token === 'hundred';
+  return (
+    numberValue(ONES, token) !== undefined ||
+    numberValue(TEENS, token) !== undefined ||
+    numberValue(TENS, token) !== undefined ||
+    token === 'hundred'
+  );
 }
 
 function stripOrdinalSuffix(token: string): string {
@@ -72,20 +86,24 @@ function splitGroups(tokens: readonly string[]): number[] {
   let i = 0;
   while (i < tokens.length) {
     const t = tokens[i];
-    if (t in TEENS) {
-      groups.push(TEENS[t]);
+    const teen = numberValue(TEENS, t);
+    const ten = numberValue(TENS, t);
+    const one = numberValue(ONES, t);
+    if (teen !== undefined) {
+      groups.push(teen);
       i += 1;
-    } else if (t in TENS) {
-      let value = TENS[t];
-      if (i + 1 < tokens.length && tokens[i + 1] in ONES) {
-        value += ONES[tokens[i + 1]];
+    } else if (ten !== undefined) {
+      let value = ten;
+      const nextOne = i + 1 < tokens.length ? numberValue(ONES, tokens[i + 1]) : undefined;
+      if (nextOne !== undefined) {
+        value += nextOne;
         i += 2;
       } else {
         i += 1;
       }
       groups.push(value);
-    } else if (t in ONES) {
-      groups.push(ONES[t]);
+    } else if (one !== undefined) {
+      groups.push(one);
       i += 1;
     } else {
       i += 1;
@@ -102,7 +120,7 @@ function parseCardinal(tokens: readonly string[]): number {
       current = (current === 0 ? 1 : current) * 100;
       continue;
     }
-    const value = ONES[w] ?? TEENS[w] ?? TENS[w];
+    const value = numberValue(ONES, w) ?? numberValue(TEENS, w) ?? numberValue(TENS, w);
     if (value !== undefined) current += value;
   }
   return current;
@@ -123,14 +141,14 @@ function convertNumberRun(run: readonly string[]): string {
 /**
  * Converts number WORDS to digits via a greedy longest-match phrase pass over
  * whitespace tokens. Handles:
- *  - cardinals 0..999 (tens+ones, hundreds with optional "and")
+ *  - cardinals: tens + ones, and hundreds with optional "and"
  *  - 4-digit spoken-year pairs ("eighteen seventy" -> 1870)
  *  - digit-suffix ordinals ("22nd" -> 22, "4th" -> 4)
  * Word ordinals ("fourth", "second") are intentionally NOT mapped to digits.
  * Input is expected to already be `normalizeText`-ed (lowercase, no punctuation,
  * hyphens already split to spaces). Non-number tokens are left untouched.
  */
-export function normalizeNumbers(text: string): string {
+function normalizeNumbers(text: string): string {
   const tokens = text
     .split(' ')
     .filter((t) => t.length > 0)
@@ -177,7 +195,7 @@ export function normalizeNumbers(text: string): string {
  * "(Thomas) Jefferson" does not yield "Thomas". The STRIPPED form is always
  * returned first (it is the only form used for lenient matching).
  */
-export function generateCandidates(accepted: string): string[] {
+function generateCandidates(accepted: string): string[] {
   const stripped = accepted.replace(/\([^)]*\)/g, ' ');
   const unwrapped = accepted.replace(/[()]/g, ' ');
 
@@ -268,3 +286,10 @@ export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string
     return matchingWords.length >= Math.ceil(acceptedWords.length * 0.5);
   });
 }
+
+/**
+ * Test-only export of the internal normalization helpers. Production code uses
+ * `checkAnswer` exclusively; these are exposed solely so the unit tests can
+ * exercise each pure helper in isolation without widening the public API.
+ */
+export const __testing__ = { normalizeText, normalizeNumbers, generateCandidates };

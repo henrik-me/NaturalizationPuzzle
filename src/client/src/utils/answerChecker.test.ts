@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { checkAnswer, normalizeNumbers, generateCandidates } from './answerChecker';
+import { checkAnswer, __testing__ } from './answerChecker';
+
+const { normalizeNumbers, generateCandidates } = __testing__;
 
 describe('checkAnswer', () => {
   it('matches exact answer (case-insensitive)', () => {
@@ -158,5 +160,14 @@ describe('number/text normalization helpers', () => {
   it('generateCandidates only emits numeric parenthetical contents', () => {
     expect(generateCandidates('Four (4) years')).toContain('4');
     expect(generateCandidates('(Thomas) Jefferson')).not.toContain('Thomas');
+  });
+
+  it('treats prototype-chain keys as plain words, not number words', () => {
+    // `__proto__`, `constructor`, `toString` are inherited Object keys; they must
+    // not be parsed as numbers (would otherwise corrupt normalization).
+    expect(normalizeNumbers('__proto__')).toBe('__proto__');
+    expect(normalizeNumbers('constructor')).toBe('constructor');
+    expect(normalizeNumbers('toString four')).toBe('toString 4');
+    expect(checkAnswer('__proto__', ['Four (4) years'])).toBe(false);
   });
 });
