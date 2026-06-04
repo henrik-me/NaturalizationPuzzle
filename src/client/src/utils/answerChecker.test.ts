@@ -155,6 +155,13 @@ describe('number/text normalization helpers', () => {
     expect(normalizeNumbers('eighteen seventy')).toBe('1870');
     expect(normalizeNumbers('22nd')).toBe('22');
     expect(normalizeNumbers('fourth')).toBe('fourth');
+    // A lone "hundred" is a plain word, not the number 100.
+    expect(normalizeNumbers('hundred')).toBe('hundred');
+    expect(normalizeNumbers('a hundred')).toBe('a hundred');
+  });
+
+  it('does not accept a lone "hundred" for a hundred-valued answer', () => {
+    expect(checkAnswer('hundred', ['One hundred (100)'])).toBe(false);
   });
 
   it('generateCandidates only emits numeric parenthetical contents', () => {

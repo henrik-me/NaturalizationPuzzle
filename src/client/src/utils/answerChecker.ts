@@ -112,16 +112,27 @@ function splitGroups(tokens: readonly string[]): number[] {
   return groups;
 }
 
+/**
+ * Sums a run of cardinal number words into a value. Returns `NaN` when the run
+ * is not a valid standalone cardinal — specifically when "hundred" appears with
+ * no preceding value (a lone "hundred" is a plain word, not the number 100), so
+ * callers leave such tokens unchanged.
+ */
 function parseCardinal(tokens: readonly string[]): number {
   let current = 0;
+  let sawValue = false;
   for (const w of tokens) {
     if (w === 'and') continue;
     if (w === 'hundred') {
-      current = (current === 0 ? 1 : current) * 100;
+      if (!sawValue) return NaN; // lone "hundred" is not a number
+      current *= 100;
       continue;
     }
     const value = numberValue(ONES, w) ?? numberValue(TEENS, w) ?? numberValue(TENS, w);
-    if (value !== undefined) current += value;
+    if (value !== undefined) {
+      current += value;
+      sawValue = true;
+    }
   }
   return current;
 }
@@ -135,7 +146,9 @@ function convertNumberRun(run: readonly string[]): string {
       return String(groups[0] * 100 + groups[1]);
     }
   }
-  return String(parseCardinal(run));
+  const value = parseCardinal(run);
+  // A lone "hundred" (or any run that is not a valid cardinal) is left as words.
+  return Number.isNaN(value) ? run.join(' ') : String(value);
 }
 
 /**
