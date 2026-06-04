@@ -245,6 +245,55 @@ function normalizeFull(text: string): string {
   return normalizeNumbers(normalizeText(text));
 }
 
+/**
+ * Hand-curated groups of interchangeable WHOLE civics answers. Each group ties
+ * a seed answer to one or more well-known equivalents that are NOT in the seed
+ * data (e.g. "USA"/"America" alongside the seed answer "The United States", and
+ * the Latin "E pluribus unum" alongside the seed motto "Out of many, one"), so
+ * typing any group member is accepted for that answer. Groups are raw,
+ * pre-normalization.
+ *
+ * These are intentionally tiny and conservative. They are matched ONLY as
+ * whole-answer equality against the stripped canonical candidate (see
+ * `sameFullAnswerSynonym`), never fed into the token containment or overlap
+ * heuristics, so they add zero new partial-match surface and cannot, on their
+ * own, accept a wrong answer for a different question.
+ *
+ * NOTE: groups are GLOBAL (not scoped to a question id, which the checker does
+ * not receive). When editing this list, audit that no member normalizes to the
+ * WHOLE of an unrelated question's accepted answer. Today the only whole answer
+ * matching the country group is Q66's "The United States".
+ */
+const SYNONYM_GROUPS_RAW: readonly (readonly string[])[] = [
+  // Country name (e.g. Q66 Pledge of Allegiance, whole answer "The United States").
+  [
+    'the United States',
+    'United States',
+    'United States of America',
+    'America',
+    'USA',
+    'U.S.',
+    'U.S.A.',
+  ],
+  // National motto (Q124, whole answer "Out of many, one"); "E pluribus unum"
+  // is the well-known Latin form not present in the seed data.
+  ['Out of many, one', 'We all become one', 'E pluribus unum'],
+];
+
+const SYNONYM_GROUPS: ReadonlyArray<ReadonlySet<string>> = SYNONYM_GROUPS_RAW.map(
+  (group) => new Set(group.map(normalizeFull).filter((s) => s.length > 0)),
+);
+
+/**
+ * True when two ALREADY-normalized whole answers belong to the same curated
+ * synonym group. Used as an exact-only equivalence alongside literal equality;
+ * deliberately not used by any lenient (containment/overlap) path.
+ */
+function sameFullAnswerSynonym(a: string, b: string): boolean {
+  if (a.length === 0 || b.length === 0) return false;
+  return SYNONYM_GROUPS.some((group) => group.has(a) && group.has(b));
+}
+
 function tokenize(text: string): string[] {
   return text.split(' ').filter((t) => t.length > 0);
 }
@@ -416,6 +465,11 @@ function containsTokens(haystack: readonly string[], needle: readonly string[]):
  * so "presidant" matches "President". To contain false positives it counts
  * unique accepted words matched and never lets a lone fuzzy-only match satisfy
  * a multi-word answer.
+ *
+ * A small curated set of whole-answer synonyms (`sameFullAnswerSynonym`, e.g.
+ * "USA"/"America" for "The United States", "E pluribus unum" for the motto) is
+ * accepted alongside exact equality. These are matched only as whole answers
+ * against the stripped candidate and never feed the lenient paths.
  */
 export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string[]): boolean {
   const user = normalizeFull(userAnswer);
@@ -431,6 +485,13 @@ export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string
     // Lenient matching only against the STRIPPED (canonical) candidate.
     const primary = candidates[0];
     if (primary.length === 0) return false;
+
+    // Curated whole-answer synonym equivalence (e.g. "USA" for "The United
+    // States", "E pluribus unum" for "Out of many, one"). Checked only against
+    // the stripped canonical form so parenthetical fragments (e.g. the "U.S."
+    // inside "(U.S.) Constitution") can never trigger it.
+    if (sameFullAnswerSynonym(user, primary)) return true;
+
     const primaryTokens = tokenize(primary);
 
     // When the canonical answer contains number(s), the user's input must
@@ -501,4 +562,5 @@ export const __testing__ = {
   generateCandidates,
   withinOneEdit,
   fuzzyEqual,
+  sameFullAnswerSynonym,
 };

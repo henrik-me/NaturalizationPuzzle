@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { checkAnswer, __testing__ } from './answerChecker';
 
-const { normalizeNumbers, generateCandidates, withinOneEdit, fuzzyEqual } = __testing__;
+const { normalizeNumbers, generateCandidates, withinOneEdit, fuzzyEqual, sameFullAnswerSynonym } =
+  __testing__;
 
 describe('checkAnswer', () => {
   it('matches exact answer (case-insensitive)', () => {
@@ -320,5 +321,61 @@ describe('checkAnswer - typo tolerance (PR2)', () => {
 
   it('does not fuzzy-match two distinct longer words', () => {
     expect(checkAnswer('Monarchy', ['Democracy'])).toBe(false);
+  });
+});
+
+describe('sameFullAnswerSynonym (whole-answer synonym equivalence)', () => {
+  it('groups country-name variants together (post-normalization)', () => {
+    const us = 'the united states';
+    expect(sameFullAnswerSynonym('united states of america', us)).toBe(true);
+    expect(sameFullAnswerSynonym('america', us)).toBe(true);
+    expect(sameFullAnswerSynonym('usa', us)).toBe(true);
+    // "U.S." and "U.S.A." normalize to "u s" / "u s a".
+    expect(sameFullAnswerSynonym('u s', us)).toBe(true);
+    expect(sameFullAnswerSynonym('u s a', us)).toBe(true);
+  });
+
+  it('groups the national motto with its Latin form (numbers normalized)', () => {
+    // "Out of many, one" normalizes to "out of many 1".
+    expect(sameFullAnswerSynonym('e pluribus unum', 'out of many 1')).toBe(true);
+    expect(sameFullAnswerSynonym('we all become 1', 'out of many 1')).toBe(true);
+  });
+
+  it('does not link members of different groups or unrelated phrases', () => {
+    expect(sameFullAnswerSynonym('america', 'out of many 1')).toBe(false);
+    expect(sameFullAnswerSynonym('usa', 'constitution')).toBe(false);
+    expect(sameFullAnswerSynonym('', 'the united states')).toBe(false);
+    expect(sameFullAnswerSynonym('the united states', '')).toBe(false);
+  });
+});
+
+describe('checkAnswer - whole-answer synonyms (PR3)', () => {
+  it('accepts well-known country-name synonyms for "The United States"', () => {
+    expect(checkAnswer('USA', ['The United States'])).toBe(true);
+    expect(checkAnswer('U.S.A.', ['The United States'])).toBe(true);
+    expect(checkAnswer('U.S.', ['The United States'])).toBe(true);
+    expect(checkAnswer('America', ['The United States'])).toBe(true);
+    expect(checkAnswer('United States of America', ['The United States'])).toBe(true);
+  });
+
+  it('accepts the Latin motto for "Out of many, one"', () => {
+    expect(checkAnswer('E pluribus unum', ['Out of many, one'])).toBe(true);
+  });
+
+  it('does not accept a country synonym for a different question via a parenthetical', () => {
+    // "(U.S.)" inside these answers must NOT make "USA"/"U.S." a correct answer.
+    expect(checkAnswer('USA', ['(U.S.) Constitution'])).toBe(false);
+    expect(checkAnswer('U.S.', ['(U.S.) Congress'])).toBe(false);
+  });
+
+  it('does not accept a country synonym for longer answers that merely contain "United States"', () => {
+    expect(checkAnswer('USA', ['Citizens of the United States'])).toBe(false);
+    expect(checkAnswer('America', ['First president of the United States'])).toBe(false);
+    expect(checkAnswer('United States of America', ['U.S. citizens'])).toBe(false);
+  });
+
+  it('does not let the motto synonym cross to other answers', () => {
+    expect(checkAnswer('E pluribus unum', ['The Star-Spangled Banner'])).toBe(false);
+    expect(checkAnswer('America', ['Out of many, one'])).toBe(false);
   });
 });
