@@ -147,6 +147,26 @@ describe('checkAnswer - numeric false-positive sentinels', () => {
   });
 });
 
+describe('checkAnswer - stopword-only false-positive sentinels', () => {
+  it('does not accept a lone stopword for a multi-word answer', () => {
+    expect(checkAnswer('the', ['the Constitution'])).toBe(false);
+    expect(checkAnswer('the', ['the President'])).toBe(false);
+    expect(checkAnswer('of', ['freedom of speech'])).toBe(false);
+    expect(checkAnswer('and', ['the Senators and the Representatives'])).toBe(false);
+  });
+
+  it('does not accept stopword-only inputs even with multiple stopwords', () => {
+    expect(checkAnswer('the and', ['the Bill of Rights'])).toBe(false);
+    expect(checkAnswer('for the', ['for the people'])).toBe(false);
+  });
+
+  it('still accepts a significant subset of a multi-word answer', () => {
+    expect(checkAnswer('Constitution', ['the Constitution'])).toBe(true);
+    expect(checkAnswer('President', ['the President'])).toBe(true);
+    expect(checkAnswer('speech', ['freedom of speech'])).toBe(true);
+  });
+});
+
 describe('number/text normalization helpers', () => {
   it('normalizeNumbers converts cardinals and ordinals', () => {
     expect(normalizeNumbers('twenty seven')).toBe('27');

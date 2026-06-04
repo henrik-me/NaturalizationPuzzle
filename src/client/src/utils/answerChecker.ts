@@ -235,6 +235,58 @@ function tokenize(text: string): string[] {
 }
 
 /**
+ * Common English function words that carry no civics meaning on their own.
+ * They are excluded from the lenient matching paths so that a stopword-only
+ * input (e.g. "the" or "of") can never satisfy a multi-word answer such as
+ * "the Constitution". Short numbers (e.g. "13") are intentionally NOT stopwords
+ * so a valid numeric subset like "13" still matches "13 original colonies".
+ */
+const STOPWORDS: ReadonlySet<string> = new Set([
+  'a',
+  'an',
+  'as',
+  'at',
+  'be',
+  'by',
+  'do',
+  'he',
+  'in',
+  'is',
+  'it',
+  'of',
+  'on',
+  'or',
+  'to',
+  'we',
+  'and',
+  'are',
+  'for',
+  'her',
+  'his',
+  'its',
+  'our',
+  'the',
+  'was',
+  'that',
+  'them',
+  'they',
+  'this',
+  'were',
+  'with',
+]);
+
+/**
+ * A token is "significant" for the overlap heuristic if it is long enough to be
+ * meaningful (>2 chars, preserving the prior overlap threshold) and is not a
+ * common stopword. Numeric matching never relies on significance — numbers
+ * match by exact whole-token equality in `containsTokens` and the
+ * exact-equality check.
+ */
+function isSignificant(token: string): boolean {
+  return token.length > 2 && !STOPWORDS.has(token);
+}
+
+/**
  * Whole-token contiguous containment: true when `needle` appears as a
  * consecutive run of tokens inside `haystack`. Because matching is per whole
  * token, a numeric token (e.g. "1") can never match a sub-span of a longer
@@ -268,7 +320,9 @@ function containsTokens(haystack: readonly string[], needle: readonly string[]):
  * Exact equality is checked against every candidate; lenient matching
  * (whole-token containment and >=50% significant-word overlap) is applied only
  * against the STRIPPED candidate so a parenthetical clarifier (e.g. "(Thomas)")
- * can never satisfy the answer on its own.
+ * can never satisfy the answer on its own. Stopword-only inputs (e.g. "the")
+ * are rejected: significant-word filtering keeps them from matching multi-word
+ * answers such as "the Constitution" through containment or overlap.
  */
 export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string[]): boolean {
   const user = normalizeFull(userAnswer);
@@ -286,13 +340,22 @@ export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string
     if (primary.length === 0) return false;
     const primaryTokens = tokenize(primary);
 
-    // Whole-token containment in either direction (numeric-safe).
+    // Whole-token containment in either direction (numeric-safe). The reverse
+    // direction (user input is a contiguous subset of the accepted answer) is
+    // only honored when the user typed at least one non-stopword token, so a
+    // lone stopword like "the" cannot match "the Constitution" while a valid
+    // numeric subset like "13" still matches "13 original colonies".
     if (containsTokens(userTokens, primaryTokens)) return true;
-    if (containsTokens(primaryTokens, userTokens)) return true;
+    if (
+      userTokens.some((t) => !STOPWORDS.has(t)) &&
+      containsTokens(primaryTokens, userTokens)
+    ) {
+      return true;
+    }
 
     // Significant-word overlap heuristic (>=50% of accepted words present).
-    const userWords = userTokens.filter((w) => w.length > 2);
-    const acceptedWords = primaryTokens.filter((w) => w.length > 2);
+    const userWords = userTokens.filter(isSignificant);
+    const acceptedWords = primaryTokens.filter(isSignificant);
     if (acceptedWords.length === 0) return false;
 
     const matchingWords = userWords.filter((w) => acceptedWords.includes(w));
