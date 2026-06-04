@@ -259,7 +259,7 @@ function normalizeFull(text: string): string {
  * NOTE: groups are GLOBAL (not scoped to a question id, which the checker does
  * not receive). When editing this list, audit that no member normalizes to the
  * WHOLE of an unrelated question's accepted answer. Today the only whole answer
- * matching the country group is Q66/Q120's "The United States".
+ * matching the country group is Q66's "The United States".
  */
 const SYNONYM_GROUPS_RAW: readonly (readonly string[])[] = [
   // Country name (e.g. Q66 Pledge of Allegiance, whole answer "The United States").
