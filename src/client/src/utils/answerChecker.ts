@@ -137,18 +137,33 @@ function parseCardinal(tokens: readonly string[]): number {
   return current;
 }
 
+/**
+ * Converts a run of number words to its digit string. A run containing
+ * "hundred" is summed as a cardinal (e.g. "four hundred thirty five" -> "435").
+ * A run with no "hundred" is only converted when it forms either (1) a single
+ * value < 100 ("nine" -> "9", "twenty seven" -> "27") or (2) a spoken-year pair
+ * of two 2-digit groups ("eighteen seventy" -> "1870"). Any other no-"hundred"
+ * run (e.g. "four five", "one two three") is NOT a valid cardinal phrase and is
+ * left as words, so unrelated number words can never collapse into a number.
+ */
 function convertNumberRun(run: readonly string[]): string {
-  const hasHundred = run.includes('hundred');
-  if (!hasHundred) {
-    const groups = splitGroups(run.filter((t) => t !== 'and'));
-    // Spoken-year pair: two adjacent 2-digit cardinal groups, no hundred/thousand.
-    if (groups.length === 2 && groups.every((g) => g >= 10 && g <= 99)) {
-      return String(groups[0] * 100 + groups[1]);
-    }
+  if (run.includes('hundred')) {
+    const value = parseCardinal(run);
+    // A lone "hundred" (or any run that is not a valid cardinal) is left as words.
+    return Number.isNaN(value) ? run.join(' ') : String(value);
   }
-  const value = parseCardinal(run);
-  // A lone "hundred" (or any run that is not a valid cardinal) is left as words.
-  return Number.isNaN(value) ? run.join(' ') : String(value);
+
+  const groups = splitGroups(run.filter((t) => t !== 'and'));
+  // Single value < 100: "nine" -> 9, "twenty seven" -> 27.
+  if (groups.length === 1) {
+    return String(groups[0]);
+  }
+  // Spoken-year pair: two adjacent 2-digit groups, e.g. "eighteen seventy" -> 1870.
+  if (groups.length === 2 && groups.every((g) => g >= 10 && g <= 99)) {
+    return String(groups[0] * 100 + groups[1]);
+  }
+  // Not a valid cardinal phrase ("four five", "one two") - leave unchanged.
+  return run.join(' ');
 }
 
 /**

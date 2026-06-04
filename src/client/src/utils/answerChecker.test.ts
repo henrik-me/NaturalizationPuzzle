@@ -184,6 +184,24 @@ describe('number/text normalization helpers', () => {
     expect(checkAnswer('hundred', ['One hundred (100)'])).toBe(false);
   });
 
+  it('does not sum unrelated number words into a single cardinal', () => {
+    // "four five" is not a valid cardinal phrase; it must NOT collapse to 9.
+    expect(normalizeNumbers('four five')).toBe('four five');
+    expect(normalizeNumbers('one two')).toBe('one two');
+    expect(normalizeNumbers('nine nine')).toBe('nine nine');
+    expect(normalizeNumbers('one two three')).toBe('one two three');
+    // Valid single groups and spoken-year pairs are still converted.
+    expect(normalizeNumbers('nine')).toBe('9');
+    expect(normalizeNumbers('twenty seven')).toBe('27');
+    expect(normalizeNumbers('nineteen twenty')).toBe('1920');
+  });
+
+  it('does not let summed number words create a false numeric match', () => {
+    expect(checkAnswer('four five', ['Nine (9)'])).toBe(false);
+    expect(checkAnswer('one two', ['Three (3)'])).toBe(false);
+    expect(checkAnswer('nine nine', ['Eighteen (18)'])).toBe(false);
+  });
+
   it('generateCandidates only emits numeric parenthetical contents', () => {
     expect(generateCandidates('Four (4) years')).toContain('4');
     expect(generateCandidates('(Thomas) Jefferson')).not.toContain('Thomas');
