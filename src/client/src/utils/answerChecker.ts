@@ -246,9 +246,12 @@ function normalizeFull(text: string): string {
 }
 
 /**
- * Hand-curated groups of well-known civics paraphrases that are NOT enumerated
- * in the seed data but mean exactly the same thing as a whole answer. Each
- * group is a set of interchangeable WHOLE answers (raw, pre-normalization).
+ * Hand-curated groups of interchangeable WHOLE civics answers. Each group ties
+ * a seed answer to one or more well-known equivalents that are NOT in the seed
+ * data (e.g. "USA"/"America" alongside the seed answer "The United States", and
+ * the Latin "E pluribus unum" alongside the seed motto "Out of many, one"), so
+ * typing any group member is accepted for that answer. Groups are raw,
+ * pre-normalization.
  *
  * These are intentionally tiny and conservative. They are matched ONLY as
  * whole-answer equality against the stripped canonical candidate (see
