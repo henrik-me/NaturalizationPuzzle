@@ -337,7 +337,10 @@ function containsTokens(haystack: readonly string[], needle: readonly string[]):
  * against the STRIPPED candidate so a parenthetical clarifier (e.g. "(Thomas)")
  * can never satisfy the answer on its own. Stopword-only inputs (e.g. "the")
  * are rejected: significant-word filtering keeps them from matching multi-word
- * answers such as "the Constitution" through containment or overlap.
+ * answers such as "the Constitution" through containment or overlap. For
+ * numeric answers, the lenient paths additionally require the user to supply at
+ * least one of the answer's numeric tokens, so the bare noun ("years",
+ * "states") cannot match "Four (4) years" or "50 states".
  */
 export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string[]): boolean {
   const user = normalizeFull(userAnswer);
@@ -355,20 +358,34 @@ export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string
     if (primary.length === 0) return false;
     const primaryTokens = tokenize(primary);
 
+    // When the canonical answer contains number(s), the user's input must
+    // contain at least one of those exact numeric tokens before the lenient
+    // (reverse-containment / overlap) paths may accept it. This prevents the
+    // non-numeric remainder alone from satisfying a numeric answer, e.g.
+    // "years" must not match "Four (4) years" and "states" must not match
+    // "50 states". (Exact match and forward containment already require the
+    // number to be present, so they are unaffected.)
+    const primaryNumbers = primaryTokens.filter((t) => /^\d+$/.test(t));
+    const userHasRequiredNumber =
+      primaryNumbers.length === 0 || primaryNumbers.some((n) => userTokens.includes(n));
+
     // Whole-token containment in either direction (numeric-safe). The reverse
     // direction (user input is a contiguous subset of the accepted answer) is
-    // only honored when the user typed at least one non-stopword token, so a
-    // lone stopword like "the" cannot match "the Constitution" while a valid
-    // numeric subset like "13" still matches "13 original colonies".
+    // only honored when the user typed at least one non-stopword token (so a
+    // lone stopword like "the" cannot match "the Constitution") and, for
+    // numeric answers, at least one required numeric token.
     if (containsTokens(userTokens, primaryTokens)) return true;
     if (
+      userHasRequiredNumber &&
       userTokens.some((t) => !STOPWORDS.has(t)) &&
       containsTokens(primaryTokens, userTokens)
     ) {
       return true;
     }
 
-    // Significant-word overlap heuristic (>=50% of accepted words present).
+    // Significant-word overlap heuristic (>=50% of accepted words present),
+    // gated on the required numeric token for numeric answers.
+    if (!userHasRequiredNumber) return false;
     const userWords = userTokens.filter(isSignificant);
     const acceptedWords = primaryTokens.filter(isSignificant);
     if (acceptedWords.length === 0) return false;

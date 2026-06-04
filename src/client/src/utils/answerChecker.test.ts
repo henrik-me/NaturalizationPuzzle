@@ -142,6 +142,18 @@ describe('checkAnswer - numeric false-positive sentinels', () => {
     expect(checkAnswer('Battle of', ['(Battle of) Antietam'])).toBe(false);
   });
 
+  it('does not accept the non-numeric remainder of a numeric answer', () => {
+    expect(checkAnswer('years', ['Four (4) years'])).toBe(false);
+    expect(checkAnswer('states', ['50 states'])).toBe(false);
+    expect(checkAnswer('colonies', ['13 original colonies'])).toBe(false);
+    expect(checkAnswer('original colonies', ['13 original colonies'])).toBe(false);
+    // But supplying the required number (alone or with the noun) still matches.
+    expect(checkAnswer('4', ['Four (4) years'])).toBe(true);
+    expect(checkAnswer('4 years', ['Four (4) years'])).toBe(true);
+    expect(checkAnswer('50', ['50 states'])).toBe(true);
+    expect(checkAnswer('13', ['13 original colonies'])).toBe(true);
+  });
+
   it('preserves non-numeric containment matching', () => {
     expect(checkAnswer('freedom of speech', ['freedom of speech (and of the press)'])).toBe(true);
   });
