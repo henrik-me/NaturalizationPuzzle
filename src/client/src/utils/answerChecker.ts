@@ -463,8 +463,8 @@ export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string
     // typo-tolerant via `fuzzyEqual`, but to avoid false positives we count
     // UNIQUE accepted words matched (so a repeated user token cannot inflate
     // the count) and never let a single fuzzy-only match carry a multi-word
-    // answer (so "Federal Courts" cannot satisfy "Supreme Court" via the lone
-    // near-match "courts"~"court").
+    // answer (so "freedon of religion" cannot satisfy "freedom of speech" via
+    // the lone near-match "freedon"~"freedom").
     if (!userHasRequiredNumber) return false;
     const userWords = userTokens.filter(isSignificant);
     const acceptedWords = [...new Set(primaryTokens.filter(isSignificant))];
