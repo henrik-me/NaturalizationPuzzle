@@ -396,8 +396,9 @@ export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string
 }
 
 /**
- * Test-only export of the internal normalization helpers. Production code uses
- * `checkAnswer` exclusively; these are exposed solely so the unit tests can
- * exercise each pure helper in isolation without widening the public API.
+ * Test-only export of the internal normalization helpers, grouped under a
+ * single `__testing__` object rather than exporting each helper individually.
+ * Production code uses `checkAnswer` exclusively; this object exists solely so
+ * the unit tests can exercise each pure helper in isolation.
  */
 export const __testing__ = { normalizeText, normalizeNumbers, generateCandidates };
