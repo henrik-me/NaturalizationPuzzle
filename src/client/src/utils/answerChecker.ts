@@ -302,6 +302,75 @@ function isSignificant(token: string): boolean {
 }
 
 /**
+ * Returns true when `a` and `b` are within a single edit (one insertion,
+ * deletion, or substitution) of each other — i.e. Levenshtein distance <= 1.
+ * Implemented as a length-diff short-circuit plus a single linear scan rather
+ * than a full DP table. Transpositions count as two edits and are NOT within
+ * one edit.
+ */
+function withinOneEdit(a: string, b: string): boolean {
+  if (a === b) return true;
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+
+  let i = 0;
+  let j = 0;
+  let edited = false;
+  while (i < la && j < lb) {
+    if (a[i] === b[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    if (edited) return false; // a second mismatch => distance >= 2
+    edited = true;
+    if (la > lb) {
+      i += 1; // deletion from a
+    } else if (lb > la) {
+      j += 1; // insertion into a
+    } else {
+      i += 1;
+      j += 1; // substitution
+    }
+  }
+  // A leftover trailing character in the longer string is the single edit; if
+  // we already consumed our one edit, that trailing char makes it two.
+  if ((i < la || j < lb) && edited) return false;
+  return true;
+}
+
+/**
+ * Typo-tolerant token equality used ONLY by the overlap heuristic. Two tokens
+ * are fuzzy-equal when they are identical, or both are long enough (>=6 chars),
+ * contain no digit, are NOT a pure singular/plural pair, and are within a single
+ * edit. The length and digit guards keep short words and every numeric token (a
+ * PR1 precision guarantee) on strict exact matching, so "5" never matches "9"
+ * and "1786" never matches "1776". The >=6 threshold avoids loose 5-letter
+ * collisions such as "state"~"states". The plural guard rejects pairs that
+ * differ only by a trailing "s" (e.g. "president"~"presidents",
+ * "freedom"~"freedoms", "amendment"~"amendments") because that single edit
+ * collapses distinct civics terms that belong to different questions; genuine
+ * substitution typos such as "presidant"~"president" are still accepted. The
+ * guard is skipped when the shorter token already ends in "s" so genuine
+ * final-"s" deletion typos like "congres"~"congress" still match.
+ */
+function fuzzyEqual(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length < 6 || b.length < 6) return false;
+  if (/\d/.test(a) || /\d/.test(b)) return false;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  if (
+    !shorter.endsWith('s') &&
+    longer.length === shorter.length + 1 &&
+    longer === `${shorter}s`
+  ) {
+    return false;
+  }
+  return withinOneEdit(a, b);
+}
+
+/**
  * Whole-token contiguous containment: true when `needle` appears as a
  * consecutive run of tokens inside `haystack`. Because matching is per whole
  * token, a numeric token (e.g. "1") can never match a sub-span of a longer
@@ -341,6 +410,12 @@ function containsTokens(haystack: readonly string[], needle: readonly string[]):
  * numeric answers, the lenient paths additionally require the user to supply at
  * least one of the answer's numeric tokens, so the bare noun ("years",
  * "states") cannot match "Four (4) years" or "50 states".
+ *
+ * The overlap heuristic is typo-tolerant (`fuzzyEqual`): a word that is within
+ * one edit of an accepted word (both >=6 chars, no digits) counts as a match,
+ * so "presidant" matches "President". To contain false positives it counts
+ * unique accepted words matched and never lets a lone fuzzy-only match satisfy
+ * a multi-word answer.
  */
 export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string[]): boolean {
   const user = normalizeFull(userAnswer);
@@ -384,14 +459,33 @@ export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string
     }
 
     // Significant-word overlap heuristic (>=50% of accepted words present),
-    // gated on the required numeric token for numeric answers.
+    // gated on the required numeric token for numeric answers. Matching is
+    // typo-tolerant via `fuzzyEqual`, but to avoid false positives we count
+    // UNIQUE accepted words matched (so a repeated user token cannot inflate
+    // the count) and never let a single fuzzy-only match carry a multi-word
+    // answer (so "Federal Courts" cannot satisfy "Supreme Court" via the lone
+    // near-match "courts"~"court").
     if (!userHasRequiredNumber) return false;
     const userWords = userTokens.filter(isSignificant);
-    const acceptedWords = primaryTokens.filter(isSignificant);
+    const acceptedWords = [...new Set(primaryTokens.filter(isSignificant))];
     if (acceptedWords.length === 0) return false;
 
-    const matchingWords = userWords.filter((w) => acceptedWords.includes(w));
-    return matchingWords.length >= Math.ceil(acceptedWords.length * 0.5);
+    let exactMatches = 0;
+    let fuzzyMatches = 0;
+    for (const accepted of acceptedWords) {
+      if (userWords.includes(accepted)) {
+        exactMatches += 1;
+      } else if (userWords.some((w) => fuzzyEqual(w, accepted))) {
+        fuzzyMatches += 1;
+      }
+    }
+    const totalMatches = exactMatches + fuzzyMatches;
+
+    // A lone fuzzy (non-exact) match is too weak to accept a multi-word answer.
+    if (acceptedWords.length >= 2 && totalMatches === 1 && exactMatches === 0) {
+      return false;
+    }
+    return totalMatches >= Math.ceil(acceptedWords.length * 0.5);
   });
 }
 
@@ -401,4 +495,10 @@ export function checkAnswer(userAnswer: string, acceptedAnswers: readonly string
  * Production code uses `checkAnswer` exclusively; this object exists solely so
  * the unit tests can exercise each pure helper in isolation.
  */
-export const __testing__ = { normalizeText, normalizeNumbers, generateCandidates };
+export const __testing__ = {
+  normalizeText,
+  normalizeNumbers,
+  generateCandidates,
+  withinOneEdit,
+  fuzzyEqual,
+};

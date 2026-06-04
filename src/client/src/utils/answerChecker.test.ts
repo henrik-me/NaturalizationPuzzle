@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { checkAnswer, __testing__ } from './answerChecker';
 
-const { normalizeNumbers, generateCandidates } = __testing__;
+const { normalizeNumbers, generateCandidates, withinOneEdit, fuzzyEqual } = __testing__;
 
 describe('checkAnswer', () => {
   it('matches exact answer (case-insensitive)', () => {
@@ -226,5 +226,99 @@ describe('number/text normalization helpers', () => {
     expect(normalizeNumbers('constructor')).toBe('constructor');
     expect(normalizeNumbers('toString four')).toBe('toString 4');
     expect(checkAnswer('__proto__', ['Four (4) years'])).toBe(false);
+  });
+});
+
+describe('withinOneEdit (bounded edit distance)', () => {
+  it('treats identical strings as within one edit', () => {
+    expect(withinOneEdit('president', 'president')).toBe(true);
+  });
+
+  it('accepts a single substitution, insertion, or deletion', () => {
+    expect(withinOneEdit('president', 'presidant')).toBe(true); // substitution
+    expect(withinOneEdit('abc', 'abcd')).toBe(true); // trailing insertion
+    expect(withinOneEdit('abcd', 'abc')).toBe(true); // trailing deletion
+    expect(withinOneEdit('abXc', 'abc')).toBe(true); // interior deletion
+    expect(withinOneEdit('abc', 'abXc')).toBe(true); // interior insertion
+  });
+
+  it('rejects two or more edits and transpositions', () => {
+    expect(withinOneEdit('abc', 'acb')).toBe(false); // transposition = 2 edits
+    expect(withinOneEdit('axc', 'abcd')).toBe(false);
+    expect(withinOneEdit('monarchy', 'democracy')).toBe(false);
+    expect(withinOneEdit('abc', 'abcde')).toBe(false); // length diff 2
+  });
+});
+
+describe('fuzzyEqual (typo-tolerant token equality)', () => {
+  it('is exact for short tokens (<6 chars)', () => {
+    expect(fuzzyEqual('vote', 'vate')).toBe(false);
+    expect(fuzzyEqual('bill', 'hill')).toBe(false);
+    // 5-letter tokens are NOT fuzzed (avoids "state"~"states" style collisions).
+    expect(fuzzyEqual('state', 'stale')).toBe(false);
+    expect(fuzzyEqual('state', 'states')).toBe(false);
+    expect(fuzzyEqual('war', 'war')).toBe(true);
+  });
+
+  it('never fuzzes tokens containing a digit', () => {
+    expect(fuzzyEqual('1776', '1786')).toBe(false);
+    expect(fuzzyEqual('1920s', '1820s')).toBe(false);
+  });
+
+  it('accepts a single edit for longer alphabetic tokens', () => {
+    expect(fuzzyEqual('president', 'presidant')).toBe(true);
+    expect(fuzzyEqual('amendment', 'ammendment')).toBe(true);
+  });
+
+  it('does not treat a pure singular/plural pair as a typo', () => {
+    expect(fuzzyEqual('senators', 'senator')).toBe(false);
+    expect(fuzzyEqual('president', 'presidents')).toBe(false);
+    expect(fuzzyEqual('freedom', 'freedoms')).toBe(false);
+    expect(fuzzyEqual('amendment', 'amendments')).toBe(false);
+  });
+
+  it('still matches a final-"s" deletion typo for words ending in s', () => {
+    expect(fuzzyEqual('congres', 'congress')).toBe(true);
+    expect(checkAnswer('congres', ['(U.S.) Congress'])).toBe(true);
+  });
+});
+
+describe('checkAnswer - typo tolerance (PR2)', () => {
+  it('accepts minor typos in longer words', () => {
+    expect(checkAnswer('presidant', ['the President'])).toBe(true);
+    expect(checkAnswer('freedon of speach', ['freedom of speech'])).toBe(true);
+    expect(checkAnswer('ammendment', ['Amendment'])).toBe(true);
+  });
+
+  it('does not let a lone fuzzy match satisfy a multi-word answer', () => {
+    expect(checkAnswer('Federal Courts', ['Supreme Court'])).toBe(false);
+    expect(checkAnswer('courts', ['Supreme Court'])).toBe(false);
+    expect(checkAnswer('freedon of anything', ['freedom of speech'])).toBe(false);
+  });
+
+  it('does not let a plural-collision fuzzy match cross the overlap bar', () => {
+    // "first" exact + "states"~"state" fuzzy must NOT accept a different answer.
+    expect(
+      checkAnswer('First president of the United States', ['First Secretary of State']),
+    ).toBe(false);
+  });
+
+  it('does not accept a near-plural of a single-word answer from another question', () => {
+    expect(checkAnswer("Presidents Day", ['The President (of the United States)'])).toBe(false);
+    expect(checkAnswer('individual freedoms', ['Freedom'])).toBe(false);
+    expect(checkAnswer('14th Amendment', ['Amendments'])).toBe(false);
+  });
+
+  it('does not inflate matches via repeated user tokens', () => {
+    expect(checkAnswer('presidant presidant', ['President of the United States'])).toBe(false);
+  });
+
+  it('keeps numeric precision: typos never bridge different numbers', () => {
+    expect(checkAnswer('1786', ['1776'])).toBe(false);
+    expect(checkAnswer('5', ['Nine (9)'])).toBe(false);
+  });
+
+  it('does not fuzzy-match two distinct longer words', () => {
+    expect(checkAnswer('Monarchy', ['Democracy'])).toBe(false);
   });
 });
