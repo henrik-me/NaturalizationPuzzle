@@ -49,7 +49,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -108,7 +108,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Detect whether this change touches code paths that warrant a real
       # Playwright run. Docs-only PRs (the explicit doc files listed in
@@ -219,7 +219,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Docs-only PRs skip the Lighthouse run but the job still reports
       # success so the required status check on main is satisfied.
@@ -345,7 +345,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Docs-only PRs skip the bench entirely. The job is advisory (not in
       # any downstream `needs:` and not a required check), so there's no
@@ -506,7 +506,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -613,7 +613,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -702,7 +702,7 @@ jobs:
       deploy: ${{ steps.filter.outputs.deploy }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Filter paths
         id: filter
         uses: dorny/paths-filter@v4
@@ -727,7 +727,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Azure login (OIDC)
         uses: azure/login@v3
@@ -768,7 +768,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Azure login (OIDC)
         uses: azure/login@v3
