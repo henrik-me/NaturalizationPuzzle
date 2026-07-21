@@ -58,7 +58,7 @@ jobs:
           dotnet-quality: "preview"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: "npm"
@@ -160,7 +160,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.filter.outputs.code == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: "npm"
@@ -234,7 +234,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.filter.outputs.code == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: "npm"
@@ -374,7 +374,7 @@ jobs:
         # surprises if the ubuntu-latest runner's preinstalled Node
         # ever diverges from what summarize.mjs is tested against.
         if: steps.filter.outputs.code == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -616,7 +616,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: "npm"
