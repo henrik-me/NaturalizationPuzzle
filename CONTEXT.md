@@ -441,6 +441,6 @@ npx playwright test --reporter=list
 
 1. Read this section + the relevant Next Steps entry.
 2. If it's a Story-Mode item: also read the Story Mode — Authoring Guide.
-3. For non-trivial work, do a GPT-5.5 plan review **before** writing code (see Code Review section in `.github/copilot-instructions.md`).
+3. For non-trivial work, do a GPT-5.6 Sol plan review **before** writing code (see Code Review section in `.github/copilot-instructions.md`).
 4. Open a feature branch, commit, push, open PR, run the Copilot PR review loop until clean, then merge.
 5. After merging, sync `main` and update the Next Steps entry to `~~strikethrough ✅ complete~~` with a one-line summary of what shipped.
