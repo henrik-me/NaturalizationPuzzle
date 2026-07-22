@@ -63,6 +63,8 @@
   "overrides": {
     "@rollup/plugin-terser": {
       "serialize-javascript": "7.0.5"
-    }
+    },
+    "tmp": "0.2.7",
+    "uuid": "11.1.1"
   }
 }
