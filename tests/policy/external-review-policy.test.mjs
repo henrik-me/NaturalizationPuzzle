@@ -309,10 +309,12 @@ test("fatal error rendering redacts secrets and control characters", async () =>
 
   assert.equal(
     safeError(
-      new Error(`failed for ${secret}\r\nforged annotation`),
+      new Error(
+        `failed for ${secret}\r\nforged\u0000\u001b[31m\u0085next\u2028line`,
+      ),
       [secret],
     ),
-    "Error: failed for [REDACTED]  forged annotation",
+    "Error: failed for [REDACTED] forged[31m next line",
   );
 });
 

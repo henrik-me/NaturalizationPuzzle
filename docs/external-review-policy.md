@@ -38,9 +38,11 @@ Trusted default-branch runs occur for:
 - pushes to `main`;
 - reconciliation at minutes 7, 22, 37, and 52 each hour.
 
-Every surviving run reconciles every open PR. This makes GitHub concurrency's
-replacement of a pending run safe: the next run re-fetches the complete
-authoritative set.
+Every surviving run reconciles every open PR. With
+`cancel-in-progress: false`, GitHub preserves the running workflow, but the
+default single pending run can still be canceled and replaced by a newer run.
+That replacement is safe because the survivor re-fetches the complete
+authoritative set, as documented by GitHub's [concurrency semantics][concurrency].
 
 There is intentionally no direct `pull_request_review` trigger. GitHub assigns
 that event the PR merge ref and merge commit, so a same-repository PR can
@@ -164,6 +166,7 @@ See the local [threat model](external-review-policy-threat-model.md).
 - [Checks API and App-only writes][checks-api]
 - [Create a pull request review][create-review]
 - [Fine-grained token permissions][fine-grained]
+- [Workflow concurrency and pending-run replacement][concurrency]
 
 [secure-use]: https://docs.github.com/en/actions/reference/security/secure-use#mitigating-the-risks-of-untrusted-code-checkout
 [events]: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
@@ -173,3 +176,4 @@ See the local [threat model](external-review-policy-threat-model.md).
 [checks-api]: https://docs.github.com/en/rest/checks/runs
 [create-review]: https://docs.github.com/en/rest/pulls/reviews#create-a-review-for-a-pull-request
 [fine-grained]: https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens
+[concurrency]: https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
