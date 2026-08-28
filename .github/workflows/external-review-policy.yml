@@ -468,17 +468,36 @@ jobs:
                   );
                 }
 
+                const readResponseText = async () => {
+                  try {
+                    return {
+                      retry: false,
+                      text: await response.text(),
+                    };
+                  } catch (cause) {
+                    if (method !== "POST" && attempt < 3) {
+                      return { retry: true, text: "" };
+                    }
+                    throw new Error(
+                      `GitHub API response body failure for ${method} ${path}`,
+                      { cause },
+                    );
+                  } finally {
+                    clearTimeout(timeout);
+                  }
+                };
+
                 if (expectedStatuses.includes(response.status)) {
                   if (response.status === 204) {
                     clearTimeout(timeout);
                     return null;
                   }
-                  let text;
-                  try {
-                    text = await response.text();
-                  } finally {
-                    clearTimeout(timeout);
+                  const result = await readResponseText();
+                  if (result.retry) {
+                    await this.sleep(250 * 2 ** (attempt - 1));
+                    continue;
                   }
+                  const { text } = result;
                   if (text.length > 10_000_000) {
                     throw new Error("GitHub API response exceeded 10 MB");
                   }
@@ -501,12 +520,12 @@ jobs:
                   await this.sleep(250 * 2 ** (attempt - 1));
                   continue;
                 }
-                let errorText;
-                try {
-                  errorText = (await response.text()).slice(0, 16_384);
-                } finally {
-                  clearTimeout(timeout);
+                const result = await readResponseText();
+                if (result.retry) {
+                  await this.sleep(250 * 2 ** (attempt - 1));
+                  continue;
                 }
+                const errorText = result.text.slice(0, 16_384);
                 throw new Error(
                   `GitHub API ${method} ${path} failed (${response.status}): ${redact(errorText, [token, ...this.secrets])}`,
                 );
