@@ -1,0 +1,86 @@
+name: Dispatch external review policy
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, closed, ready_for_review]
+  workflow_run:
+    workflows: ["External review policy signal"]
+    types: [completed]
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    if: >-
+      github.event_name != 'workflow_run'
+      || github.event.workflow_run.actor.login == 'henrik-me'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Send identifier-only policy request
+        env:
+          DISPATCH_TOKEN: ${{ secrets.EXTERNAL_REVIEW_POLICY_DISPATCH_TOKEN }}
+          DISPATCH_KIND: ${{ (github.event_name == 'push' || github.event_name == 'workflow_run') && 'reconcile' || 'pull-request' }}
+          TARGET_OWNER: ${{ github.event.repository.owner.login }}
+          TARGET_REPO: ${{ github.event.repository.name }}
+          TARGET_PR: ${{ github.event.pull_request.number }}
+        run: |
+          node --input-type=module <<'NODE'
+          const kind = process.env.DISPATCH_KIND;
+          const token = process.env.DISPATCH_TOKEN;
+
+          if (typeof token !== "string" || token.length < 1) {
+            throw new Error("Dispatch credential is unavailable");
+          }
+          let body;
+          if (kind === "reconcile") {
+            body = { event_type: "external-review-policy-reconcile-v1" };
+          } else if (kind === "pull-request") {
+            const owner = process.env.TARGET_OWNER;
+            const repo = process.env.TARGET_REPO;
+            const pullNumber = Number(process.env.TARGET_PR);
+            const ownerPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+            const repoPattern = /^[A-Za-z0-9._-]{1,100}$/;
+            if (!ownerPattern.test(owner) || !repoPattern.test(repo)) {
+              throw new Error("Invalid target repository identifier");
+            }
+            if (!Number.isSafeInteger(pullNumber) || pullNumber < 1) {
+              throw new Error("Invalid pull request number");
+            }
+            body = {
+              event_type: "external-review-policy-v1",
+              client_payload: {
+                version: 1,
+                target: {
+                  owner,
+                  repo,
+                  pull_number: pullNumber,
+                },
+              },
+            };
+          } else {
+            throw new Error("Invalid dispatch kind");
+          }
+
+          const response = await fetch(
+            "https://api.github.com/repos/henrik-me/github-pr-policy/dispatches",
+            {
+              method: "POST",
+              redirect: "error",
+              signal: AbortSignal.timeout(15_000),
+              headers: {
+                Accept: "application/vnd.github+json",
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "User-Agent": "external-review-policy-dispatcher/1.0",
+                "X-GitHub-Api-Version": "2026-03-10",
+              },
+              body: JSON.stringify(body),
+            },
+          );
+          if (response.status !== 204) {
+            throw new Error(`Policy dispatch failed with HTTP ${response.status}`);
+          }
+          NODE
