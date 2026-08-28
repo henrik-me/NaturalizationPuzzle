@@ -583,6 +583,16 @@ Both scripts require `docker` and Node.js 22+ (`node` / `npm` / `npx`) on `PATH`
 
 ### CI/CD Pipeline
 
+The repository includes a manual, fail-closed target integration for the
+private external review policy. It is not harness-managed and is not enforcing
+until its user-owned App, policy allowlist, dispatch secret, canary, and
+App-bound ruleset prerequisites are complete. See the
+[operations guide](docs/external-review-policy.md).
+
+```bash
+node --test tests/policy/external-review-policy.test.mjs
+```
+
 The pipeline is implemented in `.github/workflows/ci-cd.yml`:
 
 ```
@@ -592,8 +602,9 @@ The pipeline is implemented in `.github/workflows/ci-cd.yml`:
   ┌─────────────────┐          ┌─────────────────┐
   │ Build & Test     │          │ Build & Test     │  ← PR validation only
   │                  │          │                  │
-  │ • dotnet build   │          │ (same steps)     │
-  │ • dotnet test    │          └─────────────────┘
+  │ • policy contract│          │ (same steps)     │
+  │ • dotnet build   │          └─────────────────┘
+  │ • dotnet test    │
   │ • npm run lint   │
   │ • npm run build  │
   │ • npm run size   │

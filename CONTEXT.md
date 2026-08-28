@@ -19,6 +19,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - `container-start.bat` — builds/starts container with running detection, health check, smoke test
 - `container-stop.bat` — stops container and verifies port is free
 - `.github/workflows/ci-cd.yml` — GitHub Actions CI/CD (build, test, docker build, push to GHCR)
+- `.github/workflows/external-review-policy-{dispatch,signal}.yml` — manually maintained target integration pinned to reviewed private-policy templates; contract tests are active, but enforcement remains pending user-owned App, allowlist, secret, canary, and ruleset steps documented in `docs/external-review-policy.md`
 
 ### Backend (`src/api/`)
 - .NET 10 Minimal API project with EF Core + SQLite
