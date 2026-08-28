@@ -310,11 +310,29 @@ test("fatal error rendering redacts secrets and control characters", async () =>
   assert.equal(
     safeError(
       new Error(
-        `failed for ${secret}\r\nforged\u0000\u001b[31m\u0085next\u2028line`,
+        `failed for ${secret}\r\nforged\u0000\u001b[31m\t\u0085next\u2028line`,
       ),
       [secret],
     ),
     "Error: failed for [REDACTED] forged[31m next line",
+  );
+});
+
+test("review API wrapper rejects a non-numeric pull request identifier", async () => {
+  const { GitHubService } = await loadPolicy();
+  const service = new GitHubService({
+    api: {
+      request: async () => {
+        throw new Error("API must not be called");
+      },
+    },
+    clientId: "Iv1.example",
+    privateKeyPem: "unused",
+  });
+
+  await assert.rejects(
+    service.listReviews(session, "../../app"),
+    /pullNumber: expected a positive integer/,
   );
 });
 

@@ -370,7 +370,7 @@ jobs:
             return result
               .replace(/[\r\n\u0085\u2028\u2029]+/g, " ")
               .replace(
-                /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,
+                /[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,
                 "",
               )
               .slice(0, 2_000);
@@ -671,6 +671,7 @@ jobs:
 
             async listReviews(session, pullNumber) {
               validateSession(session);
+              requirePositiveInteger(pullNumber, "pullNumber");
               const reviews = await this.api.request(
                 "GET",
                 `/repos/${OWNER}/${REPOSITORY}/pulls/${pullNumber}/reviews?per_page=100`,
