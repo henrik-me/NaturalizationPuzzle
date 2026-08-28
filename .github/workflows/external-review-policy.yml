@@ -13,14 +13,16 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: external-review-policy
-  cancel-in-progress: false
-
 jobs:
   evaluate:
+    if: >-
+      github.event_name != 'workflow_run'
+      || github.event.workflow_run.actor.login == 'henrik-me'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    concurrency:
+      group: external-review-policy
+      cancel-in-progress: false
     steps:
       - name: Evaluate authoritative pull request state
         env:

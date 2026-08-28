@@ -126,7 +126,14 @@ test("trusted workflow reconciles after local review signals and backstop trigge
   );
   assert.match(workflow, /schedule:\s*\n\s+- cron: "7,22,37,52 \* \* \* \*"/);
   assert.match(workflow, /permissions: \{\}/);
-  assert.match(workflow, /cancel-in-progress: false/);
+  assert.match(
+    workflow,
+    /jobs:\s*\n\s+evaluate:\s*\n\s+if: >-\s*\n\s+github\.event_name != 'workflow_run'\s*\n\s+\|\| github\.event\.workflow_run\.actor\.login == 'henrik-me'\s*\n\s+runs-on:[\s\S]*?\n\s+concurrency:\s*\n\s+group: external-review-policy\s*\n\s+cancel-in-progress: false/,
+  );
+  assert.equal(
+    workflow.match(/workflow_run\.actor\.login ==/g)?.length,
+    1,
+  );
   assert.match(workflow, /APP_CLIENT_ID: \$\{\{ secrets\.APP_CLIENT_ID \}\}/);
   assert.match(workflow, /APP_PRIVATE_KEY: \$\{\{ secrets\.APP_PRIVATE_KEY \}\}/);
   assert.doesNotMatch(

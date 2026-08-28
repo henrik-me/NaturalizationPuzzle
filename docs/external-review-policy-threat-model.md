@@ -37,7 +37,7 @@ Untrusted:
 | Threat | Control | Failure behavior |
 | --- | --- | --- |
 | PR executes with App key | Policy uses `pull_request_target` default-branch code and performs no checkout, action, artifact, cache, package, or repository-code execution | No PR-controlled execution path exists |
-| Review event reaches untrusted workflow context | Reviewed signal has empty permissions and a literal no-op; only owner/bootstrap App may write workflows; its completion wakes default-branch `workflow_run` policy code | Forks receive no secrets; an untrusted same-repo principal must not receive Workflows write; trusted run re-fetches all state |
+| Review event reaches untrusted workflow context | Reviewed signal has empty permissions and a literal no-op; only owner/bootstrap App may write workflows; trusted evaluation accepts signal completions only when GitHub reports `henrik-me` as actor | Forks receive no secrets; other reviewers cannot spend App API capacity; trusted run re-fetches all state |
 | PR claims trusted author, approval, or SHA | Event data is not used for decisions; App API re-fetches every open PR and review | Invalid/missing API state stops evaluation |
 | Policy PR changes its own evaluator | Until merge, PR events and schedules use old `main` policy; external authors need current-head owner approval | Proposed policy cannot approve itself |
 | Copilot modifies policy or protection | Its fine-grained credential has no Workflows, Actions secrets, Administration, or ruleset write | API refuses the operation |
@@ -82,9 +82,11 @@ not be converted into a bypass or zero-approval rule.
    monitor failed and missing scheduled runs.
 2. **Review signal delivery.** The local secretless signal and trusted
    `workflow_run` normally propagate review changes immediately after Actions
-   scheduling, but a PR can modify/remove its merge-ref signal and delivery or
-   queueing can fail or lag. Scheduled reconciliation remains the independent
-   roughly 15-minute timing guarantee and backstop.
+   scheduling for reviews acted on by `henrik-me`, but a PR can modify/remove
+   its merge-ref signal and delivery or queueing can fail or lag. Other review
+   actors are deliberately ignored to prevent reconciliation amplification.
+   Scheduled reconciliation remains the independent roughly 15-minute timing
+   guarantee and backstop.
 3. **Reopening check support.** The Checks API accepts status updates, but the
    staged canary must prove that a completed check can return to
    `in_progress`. Stop rollout if GitHub rejects that transition.

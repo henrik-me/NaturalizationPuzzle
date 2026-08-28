@@ -59,9 +59,11 @@ definition, so preventing an untrusted same-repository author from changing
 that definition is load-bearing: only the owner and the temporary bootstrap
 App may have Workflows write, and the Copilot CLI credential must not.
 Fork-authored definitions receive no repository secrets. When the signal job
-completes, `workflow_run` wakes the trusted default-branch policy workflow,
-which ignores predecessor claims, authenticates the App, and authoritatively
-re-fetches every open PR, head, and review before making any App decision.
+completes, `workflow_run` wakes the trusted default-branch policy workflow only
+when GitHub reports `henrik-me` as the signal run actor. Other reviewers cannot
+spend App API capacity. The trusted job ignores predecessor claims,
+authenticates the App, and authoritatively re-fetches every open PR, head, and
+review before making any App decision.
 This normally propagates approval, revocation, or dismissal immediately after
 Actions schedules the two runs; the quarter-hour schedule remains the
 delivery/outage backstop. A PR can alter or remove its merge-ref signal and
