@@ -9,13 +9,18 @@ const read = (path) =>
 
 async function loadPolicy() {
   const workflow = await read(workflowPath);
-  const block = workflow.match(
-    /node --input-type=module <<'POLICY'\r?\n([\s\S]*?)^          POLICY\r?$/m,
-  )?.[1];
+  const match = workflow.match(
+    /^([ \t]*)node --input-type=module <<'POLICY'\r?\n([\s\S]*?)^\1POLICY\r?$/m,
+  );
+  const indent = match?.[1];
+  const block = match?.[2];
+  assert.notEqual(indent, undefined);
   assert.ok(block, "embedded policy script must be present");
   const source = block
     .split(/\r?\n/)
-    .map((line) => (line.startsWith("          ") ? line.slice(10) : line))
+    .map((line) =>
+      line.startsWith(indent) ? line.slice(indent.length) : line,
+    )
     .join("\n");
   assert.match(source, /\nawait runMain\(\);\s*$/);
   const testableSource = source.replace(/\nawait runMain\(\);\s*$/, "");

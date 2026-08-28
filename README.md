@@ -603,7 +603,7 @@ The pipeline is implemented in `.github/workflows/ci-cd.yml`:
   ┌─────────────────┐          ┌─────────────────┐
   │ Build & Test     │          │ Build & Test     │  ← PR validation only
   │                  │          │                  │
-  │ • policy contract│          │ (same steps)     │
+  │ • policy test    │          │ (same steps)     │
   │ • dotnet build   │          └─────────────────┘
   │ • dotnet test    │
   │ • npm run lint   │

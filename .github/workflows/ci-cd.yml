@@ -67,7 +67,7 @@ jobs:
           cache: "npm"
           cache-dependency-path: src/client/package-lock.json
 
-      - name: Test external review policy
+      - name: Policy test
         run: node --test tests/policy/external-review-policy.test.mjs
 
       - name: Restore .NET dependencies
