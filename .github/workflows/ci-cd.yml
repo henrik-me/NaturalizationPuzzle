@@ -23,6 +23,9 @@ on:
       - 'LastSession.md'
       - 'src/client/README.md'
       - 'tests/perf/README.md'
+      - 'docs/external-review-policy.md'
+      - 'docs/external-review-policy-threat-model.md'
+      - 'docs/ruleset-15368163-migration.md'
       - 'LICENSE'
       - '.github/copilot-instructions.md'
       - '.github/instructions/**'
@@ -31,7 +34,7 @@ on:
       - '.gitignore'
       - '.editorconfig'
   pull_request:
-    branches: [main, master]
+    branches: [main, master, policy-canary]
   workflow_dispatch:
 
 env:
@@ -63,6 +66,9 @@ jobs:
           node-version: "22"
           cache: "npm"
           cache-dependency-path: src/client/package-lock.json
+
+      - name: Test external review policy
+        run: node --test tests/policy/external-review-policy.test.mjs
 
       - name: Restore .NET dependencies
         run: dotnet restore
@@ -143,6 +149,9 @@ jobs:
               - '!LastSession.md'
               - '!src/client/README.md'
               - '!tests/perf/README.md'
+              - '!docs/external-review-policy.md'
+              - '!docs/external-review-policy-threat-model.md'
+              - '!docs/ruleset-15368163-migration.md'
               - '!LICENSE'
               - '!.github/copilot-instructions.md'
               - '!.github/instructions/**'
