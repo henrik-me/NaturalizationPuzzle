@@ -139,21 +139,30 @@ test("review signal is unprivileged and executes no pull request content", async
   const workflow = await read(signalWorkflowPath);
   const trustedWorkflow = await read(workflowPath);
 
-  assert.match(workflow, /^name: External review policy signal$/m);
+  assert.equal(
+    workflow.replace(/\r\n/g, "\n").trim(),
+    [
+      "name: External review policy signal",
+      "",
+      "on:",
+      "  pull_request_review:",
+      "    types: [submitted, edited, dismissed]",
+      "",
+      "permissions: {}",
+      "",
+      "jobs:",
+      "  signal:",
+      "    runs-on: ubuntu-24.04",
+      "    timeout-minutes: 1",
+      "    steps:",
+      "      - name: Signal trusted policy reconciliation",
+      '        run: echo "Review change observed; trusted reconciliation runs separately."',
+    ].join("\n"),
+  );
   assert.match(
     trustedWorkflow,
     /workflows: \["External review policy signal"\]/,
   );
-  assert.match(
-    workflow,
-    /pull_request_review:\s*\n\s+types: \[submitted, edited, dismissed\]/,
-  );
-  assert.match(workflow, /permissions: \{\}/);
-  assert.doesNotMatch(
-    workflow,
-    /secrets\.|github\.token|secrets\.GITHUB_TOKEN|actions\/checkout|^\s*uses:|github\.event|github\.head_ref|github\.sha|curl\s|wget\s|npm\s|npx\s/im,
-  );
-  assert.equal(workflow.match(/^\s+run: /gm)?.length, 1);
 });
 
 test("workflow never loads pull request code or external executable content", async () => {
