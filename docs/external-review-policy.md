@@ -21,6 +21,11 @@ re-fetches open pull requests and reviews from GitHub's API.
 - Every other PR succeeds only when the latest decisive review from the
   allowlisted human `henrik-me`/`34380746` is `APPROVED` for the authoritative
   current head. The App never approves an external-author PR.
+- Dependabot is an external Bot author. Its PRs require the allowlisted owner's
+  approval of the authoritative current head; green dependency checks do not
+  substitute for that approval. A Dependabot rebase or other branch update
+  changes the head, so strict branch protection dismisses the old approval and
+  policy requires a new current-head approval.
 - Missing secrets, invalid API data, API errors, pagination bounds, permission
   drift, suspended or broad installation state, and check-write failures stop
   the workflow. There is no success fallback.
@@ -36,6 +41,7 @@ Trusted default-branch runs occur for:
 - `pull_request_target` open, reopen, synchronize, edit, close, and
   ready-for-review events;
 - pushes to `main`;
+- completion of the repository-local `External review policy signal` workflow;
 - reconciliation at minutes 7, 22, 37, and 52 each hour.
 
 Every surviving run reconciles every open PR. With
@@ -44,16 +50,22 @@ default single pending run can still be canceled and replaced by a newer run.
 That replacement is safe because the survivor re-fetches the complete
 authoritative set, as documented by GitHub's [concurrency semantics][concurrency].
 
-There is intentionally no direct `pull_request_review` trigger. GitHub assigns
-that event the PR merge ref and merge commit, so a same-repository PR can
-change the workflow definition that receives repository secrets. Fork-triggered
-workflows, conversely, do not receive repository secrets. Running App secrets
-on that event would therefore either expose them to proposed workflow code or
-fail to evaluate forks. A separate secretless signal plus trusted
-`workflow_run` could provide immediate review wake-up, but the approved local
-architecture explicitly removes that dependency. Human review changes are
-therefore reflected by the next scheduled reconciliation, within roughly 15
-minutes under normal GitHub availability.
+`.github/workflows/external-review-policy-signal.yml` receives
+`pull_request_review` submit, edit, and dismiss events with `permissions: {}`.
+It has no secrets, checkout, action, event interpolation, artifact, cache,
+package, network request, or PR-controlled execution. Its literal signal job
+cannot make a policy decision. When that job completes, `workflow_run` wakes
+the trusted default-branch policy workflow, which ignores predecessor claims,
+authenticates the App, and authoritatively re-fetches every open PR, head, and
+review before making any App decision. This normally propagates approval,
+revocation, or dismissal immediately after Actions schedules the two runs;
+the quarter-hour schedule remains the delivery/outage backstop.
+
+The split is required because placing App secrets directly in a
+`pull_request_review` workflow would cross the untrusted PR/merge-ref boundary.
+It is entirely local to NaturalizationPuzzle: no repository dispatch, central
+or private repository, external token, artifact handoff, or runtime dependency
+participates.
 
 `workflow_dispatch` is also omitted because it can select a non-default ref.
 Only event classes that execute the protected base/default-branch workflow may
@@ -118,12 +130,17 @@ workflow changes; fork PRs do not receive repository secrets.
 
 1. Register the App, install it only on NaturalizationPuzzle, and create
    `APP_CLIENT_ID` and `APP_PRIVATE_KEY` in repository Actions secrets.
-2. Have a distinct external human author the initial bootstrap PR containing
-   this workflow and its tests. The current owner-authored branch cannot be
-   approved by its own author, and the App policy is not active before merge.
-3. `henrik-me` reviews the bootstrap PR's current head. The existing one
-   approval and code-owner rules can then be satisfied without self-approval,
-   RepositoryRole bypass, admin merge, or settings weakening.
+2. Before the policy executes on `main`, temporarily grant this dedicated App
+   only the additional Contents and Workflows write permissions needed to
+   create a branch containing the reviewed bootstrap commit and author the
+   bootstrap PR. Pull requests write is already part of its eventual runtime
+   grant. This is an owner-operated provisioning step, not implemented here.
+3. `henrik-me` reviews and approves the App-authored bootstrap PR's frozen
+   current head. Immediately revoke Contents and Workflows access, verify the
+   App is back to exactly Metadata read, Pull requests write, and Checks write,
+   and only then merge normally. Any head update invalidates the approval and
+   must repeat current-head review; never use RepositoryRole bypass, admin
+   merge, self-approval, or settings weakening.
 4. After normal merge, the `main` push runs the protected local policy. Open an
    ordinary owner-authored PR and observe the App-owned current-head check and
    App approval. Inspect logs for credential disclosure.
@@ -155,6 +172,14 @@ required approvals to zero and do not add a bypass.
 - On every reevaluation after successful App authentication and authoritative
   head lookup, the workflow reopens matching App checks as `in_progress`
   before fetching reviews.
+- Review lists deliberately fail closed at 100 returned records. Observed
+  growth is append-only at this API boundary: each new owner-authored head
+  normally adds one App approval, each newly approved external head adds an
+  owner review, and review tools can add further records on the same push.
+  Do not redesign pagination or widen the bound here. Preserve the old PR as
+  evidence and replace it before record 100; replacement resets the review
+  list but costs a new PR, complete CI/review reruns, resolved-thread handling,
+  and a fresh owner approval of the replacement's current head.
 - Alert on failed or missing scheduled runs and App approvals on PRs not
   authored by `henrik-me`/`34380746`.
 - On suspected compromise, disable the App installation and rotate its key.

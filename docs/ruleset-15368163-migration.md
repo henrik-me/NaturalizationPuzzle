@@ -34,6 +34,8 @@ The live active ruleset snapshot was re-read on 2026-08-28.
 Do not edit ruleset 15368163 until all are true:
 
 - Repository-local policy workflow is on trusted `main`.
+- Secretless review-signal workflow is on trusted `main`; a review change
+  completes it and wakes the default-branch `workflow_run` reconciliation.
 - Dedicated App is installed only on NaturalizationPuzzle with exact
   Metadata read, Pull requests write, and Checks write.
 - `APP_CLIENT_ID` and `APP_PRIVATE_KEY` exist only as this repository's Actions
@@ -49,6 +51,9 @@ Do not edit ruleset 15368163 until all are true:
 - An owner-authored canary PR actually merges with only the App approval.
 - An external canary PR without current-head owner approval is blocked and
   succeeds only after current-head approval.
+- A Dependabot canary is treated as external, and any Dependabot rebase or
+  other strict branch update invalidates approval until the owner approves the
+  new authoritative head.
 - Reconciliation reopens a completed policy check as `in_progress`; an induced
   review API failure leaves it non-successful.
 
@@ -118,9 +123,14 @@ ruleset.
 5. Verify an external PR requires the same checks plus the owner's
    current-head human approval. The App must not approve it.
 6. Verify new commits dismiss the native approval and the next policy
-   reconciliation fails the new head until reapproval.
-7. Verify direct updates, force pushes, and deletion remain blocked.
-8. Only after production verification, remove temporary `policy-canary`
+   reconciliation fails the new head until reapproval. Verify review submit,
+   edit, and dismiss complete the secretless signal, wake the trusted
+   `workflow_run`, and propagate authoritative state without waiting for the
+   scheduled backstop.
+7. Verify a Dependabot PR requires owner approval of its current head and a
+   Dependabot rebase re-requires approval.
+8. Verify direct updates, force pushes, and deletion remain blocked.
+9. Only after production verification, remove temporary `policy-canary`
    workflow/CI configuration through a normal protected PR and delete the
    temporary branch/ruleset.
 

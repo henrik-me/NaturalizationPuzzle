@@ -585,8 +585,10 @@ Both scripts require `docker` and Node.js 22+ (`node` / `npm` / `npx`) on `PATH`
 
 The App-owned external review gate runs entirely from trusted local workflow
 code and authoritative GitHub API state; it has no runtime central-dispatch
-dependency. Rollout remains blocked on the documented App, bootstrap, canary,
-and ruleset prerequisites. See the
+dependency. A secretless, empty-permission review signal wakes trusted
+default-branch reconciliation for immediate authoritative propagation, while
+the schedule remains a backstop. Rollout remains blocked on the documented
+App, bootstrap, canary, and ruleset prerequisites. See the
 [operations guide](docs/external-review-policy.md) and
 [threat model](docs/external-review-policy-threat-model.md).
 

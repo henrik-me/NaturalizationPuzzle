@@ -37,15 +37,17 @@ Untrusted:
 | Threat | Control | Failure behavior |
 | --- | --- | --- |
 | PR executes with App key | Policy uses `pull_request_target` default-branch code and performs no checkout, action, artifact, cache, package, or repository-code execution | No PR-controlled execution path exists |
+| Review event reaches untrusted workflow context | Secretless signal has empty permissions and only a literal no-op; its completion wakes default-branch `workflow_run` policy code | Signal cannot decide policy or access App material; trusted run re-fetches all state |
 | PR claims trusted author, approval, or SHA | Event data is not used for decisions; App API re-fetches every open PR and review | Invalid/missing API state stops evaluation |
 | Policy PR changes its own evaluator | Until merge, PR events and schedules use old `main` policy; external authors need current-head owner approval | Proposed policy cannot approve itself |
 | Copilot modifies policy or protection | Its fine-grained credential has no Workflows, Actions secrets, Administration, or ruleset write | API refuses the operation |
 | App is installed broadly | Runtime requires selected-repository installation and mints a token explicitly scoped to NaturalizationPuzzle | Authentication fails before target API calls |
 | App permission drift | Runtime requires exactly Metadata read, Pull requests write, and Checks write on App, installation, and token | Authentication fails |
-| Fork review withholds secrets | Direct `pull_request_review` execution is not used; scheduled trusted reconciliation observes the review through API | Approval propagation is delayed, not weakened |
-| Same-repo review event executes proposed YAML | Direct review triggers and ref-selectable manual dispatch are absent | App secrets are not exposed to merge-ref policy code |
+| Fork review withholds secrets | Review signal needs no secrets; completed signal wakes trusted reconciliation | Fork and same-repository review changes follow the same authoritative path |
+| Same-repo review event executes proposed YAML | Review event runs only the empty-permission, secretless signal; App work occurs in default-branch `workflow_run` code | App secrets are not exposed to merge-ref policy code |
 | Owner approval predates a push | Effective review `commit_id` must equal authoritative current `head.sha` | New head fails until approved |
-| Approval is later changed or dismissed | Latest decisive review per allowlisted identity wins; scheduled reconciliation reopens and updates the check | Check returns to failure after reconciliation |
+| Approval is later changed or dismissed | Latest decisive review per allowlisted identity wins; signal completion wakes reconciliation and schedule backs it up | Check returns to failure after authoritative reconciliation |
+| Dependabot or another Bot is treated as owner | Generic Bot identities validate, but trusted authors and approvers must have exact immutable owner User identity | Bot PR requires current-head owner approval; Bot reviews are ignored |
 | External PR receives App approval | Evaluator calls App approval only for immutable trusted author whose identity owns the head repository | External path never invokes approval |
 | Another publisher forges the name | Ruleset binds the required context to the observed dedicated App source | Name-only result does not satisfy protection |
 | Duplicate or racing runs | Global concurrency plus full reconciliation on every surviving run; PR/head-keyed App check IDs | Final authoritative state is re-fetched |
@@ -57,10 +59,13 @@ Untrusted:
 
 The current ruleset requires one approval and code-owner review by the sole
 owner. The App policy is not active before its workflow reaches `main`, while
-GitHub forbids self-approval. Therefore the initial bootstrap must be authored
-by a distinct external human and approved by `henrik-me`. Using the current
-RepositoryRole bypass, admin merge, temporarily reducing approvals, or
-disabling code-owner review for bootstrap is outside the approved design.
+GitHub forbids self-approval. Therefore the dedicated App temporarily receives
+Contents and Workflows write solely to author the reviewed bootstrap PR.
+`henrik-me` approves its frozen current head, then immediately revokes those
+two permissions and verifies the App's exact runtime grant before normal
+merge. This document does not implement or provision that step. Using the
+current RepositoryRole bypass, admin merge, temporarily reducing approvals,
+or disabling code-owner review remains outside the approved design.
 
 The App's review counting toward a native approval is not guaranteed by
 GitHub's public documentation. A disposable branch covered by an identical
@@ -75,9 +80,10 @@ not be converted into a bypass or zero-approval rule.
    reopen an existing same-head check, so an earlier success may remain. The
    native PR-specific approval still blocks external PRs after dismissal;
    monitor failed and missing scheduled runs.
-2. **Review propagation delay.** Without an unsafe direct review event or the
-   prohibited signal/workflow-run split, approval/revocation reaches the App
-   check on the next scheduled run, normally within about 15 minutes.
+2. **Review signal delivery.** The local secretless signal and trusted
+   `workflow_run` normally propagate review changes immediately after Actions
+   scheduling, but delivery or queueing can fail or lag. Scheduled
+   reconciliation remains the roughly 15-minute backstop.
 3. **Reopening check support.** The Checks API accepts status updates, but the
    staged canary must prove that a completed check can return to
    `in_progress`. Stop rollout if GitHub rejects that transition.
@@ -94,8 +100,12 @@ not be converted into a bypass or zero-approval rule.
 7. **GitHub availability.** Actions or API outages deny policy freshness and
    may deny merges. This is intentional fail-closed behavior except for the
    bounded stale-success condition above.
-8. **Review flooding.** A PR with 100 reviews fails closed. Preserve evidence
-   and replace the PR rather than widening the bound without review.
+8. **Review flooding.** A PR with 100 reviews fails closed. Each pushed owner
+   head normally appends an App approval; each approved external head appends
+   an owner review; automated reviewers can add more per push. Preserve the
+   old PR as evidence and replace it rather than widening the bound. The
+   replacement must repeat CI, reviews/thread handling, and current-head owner
+   approval.
 9. **Unproven platform semantics.** App approval counting and reopening a
    completed check are rollout gates, not assumptions.
 10. **Account-level attribution.** GitHub does not distinguish an interactive
