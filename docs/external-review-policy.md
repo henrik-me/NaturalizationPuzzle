@@ -64,7 +64,9 @@ which ignores predecessor claims, authenticates the App, and authoritatively
 re-fetches every open PR, head, and review before making any App decision.
 This normally propagates approval, revocation, or dismissal immediately after
 Actions schedules the two runs; the quarter-hour schedule remains the
-delivery/outage backstop.
+delivery/outage backstop. A PR can alter or remove its merge-ref signal and
+delay its own update, but cannot affect the independent schedule or the
+authoritative decision made when trusted reconciliation runs.
 
 The split is required because placing App secrets directly in a
 `pull_request_review` workflow would cross the untrusted PR/merge-ref boundary.
@@ -181,10 +183,12 @@ required approvals to zero and do not add a bypass.
   growth is append-only at this API boundary: each new owner-authored head
   normally adds one App approval, each newly approved external head adds an
   owner review, and review tools can add further records on the same push.
-  Do not redesign pagination or widen the bound here. Preserve the old PR as
-  evidence and replace it before record 100; replacement resets the review
-  list but costs a new PR, complete CI/review reruns, resolved-thread handling,
-  and a fresh owner approval of the replacement's current head.
+  At 99 records without a current-head App approval, the workflow refuses to
+  create record 100. Do not redesign pagination or widen the bound here.
+  Preserve the old PR as evidence and replace it before record 100;
+  replacement resets the review list but costs a new PR, complete CI/review
+  reruns, resolved-thread handling, and a fresh owner approval of the
+  replacement's current head.
 - Alert on failed or missing scheduled runs and App approvals on PRs not
   authored by `henrik-me`/`34380746`.
 - On suspected compromise, disable the App installation and rotate its key.

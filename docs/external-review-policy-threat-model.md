@@ -43,7 +43,7 @@ Untrusted:
 | Copilot modifies policy or protection | Its fine-grained credential has no Workflows, Actions secrets, Administration, or ruleset write | API refuses the operation |
 | App is installed broadly | Runtime requires selected-repository installation and mints a token explicitly scoped to NaturalizationPuzzle | Authentication fails before target API calls |
 | App permission drift | Runtime requires exactly Metadata read, Pull requests write, and Checks write on App, installation, and token | Authentication fails |
-| Fork review withholds secrets | Review signal needs no secrets; completed signal wakes trusted reconciliation | Fork and same-repository review changes follow the same authoritative path |
+| Fork review withholds secrets | Review signal needs no secrets; completed signal wakes trusted reconciliation; schedule remains independent | A PR can suppress or break its merge-ref signal and delay its own update, but cannot influence the eventual authoritative decision |
 | Same-repo review event executes proposed YAML | GitHub uses the merge-ref signal definition, so Workflows write is denied to untrusted principals; the committed signal requests no secrets, while App work occurs only in default-branch `workflow_run` code | Safety depends on the documented workflow-write restriction; proposed ordinary code never reaches App execution |
 | Owner approval predates a push | Effective review `commit_id` must equal authoritative current `head.sha` | New head fails until approved |
 | Approval is later changed or dismissed | Latest decisive review per allowlisted identity wins; signal completion wakes reconciliation and schedule backs it up | Check returns to failure after authoritative reconciliation |
@@ -82,8 +82,9 @@ not be converted into a bypass or zero-approval rule.
    monitor failed and missing scheduled runs.
 2. **Review signal delivery.** The local secretless signal and trusted
    `workflow_run` normally propagate review changes immediately after Actions
-   scheduling, but delivery or queueing can fail or lag. Scheduled
-   reconciliation remains the roughly 15-minute backstop.
+   scheduling, but a PR can modify/remove its merge-ref signal and delivery or
+   queueing can fail or lag. Scheduled reconciliation remains the independent
+   roughly 15-minute timing guarantee and backstop.
 3. **Reopening check support.** The Checks API accepts status updates, but the
    staged canary must prove that a completed check can return to
    `in_progress`. Stop rollout if GitHub rejects that transition.
@@ -102,10 +103,11 @@ not be converted into a bypass or zero-approval rule.
    bounded stale-success condition above.
 8. **Review flooding.** A PR with 100 reviews fails closed. Each pushed owner
    head normally appends an App approval; each approved external head appends
-   an owner review; automated reviewers can add more per push. Preserve the
-   old PR as evidence and replace it rather than widening the bound. The
-   replacement must repeat CI, reviews/thread handling, and current-head owner
-   approval.
+   an owner review; automated reviewers can add more per push. With 99 records
+   and no current-head App approval, policy refuses to create record 100.
+   Preserve the old PR as evidence and replace it rather than widening the
+   bound. The replacement must repeat CI, reviews/thread handling, and
+   current-head owner approval.
 9. **Unproven platform semantics.** App approval counting and reopening a
    completed check are rollout gates, not assumptions.
 10. **Account-level attribution.** GitHub does not distinguish an interactive

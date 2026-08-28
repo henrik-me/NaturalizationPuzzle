@@ -730,8 +730,9 @@ jobs:
                 throw new TypeError("Approval reviews are invalid");
               }
               const appLogin = `${session.appSlug}[bot]`;
+              const validatedReviews = validateReviews(reviews);
               let latestDecisive;
-              for (const review of validateReviews(reviews)) {
+              for (const review of validatedReviews) {
                 if (
                   review.type === "Bot" &&
                   review.login === appLogin &&
@@ -747,6 +748,11 @@ jobs:
                 latestDecisive.commitId === headSha
               ) {
                 return;
+              }
+              if (validatedReviews.length >= 99) {
+                throw new Error(
+                  "Review limit would be reached; refusing to create the 100th review",
+                );
               }
               await this.api.request(
                 "POST",

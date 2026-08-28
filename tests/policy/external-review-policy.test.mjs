@@ -259,7 +259,9 @@ test("Copilot Bot accounts are valid but never satisfy author or reviewer policy
     id: 198982749,
     type: "Bot",
   };
-  copilotAuthor.head.repo.owner.id = 198982749;
+  copilotAuthor.head.repo.owner.id = 34380746;
+  copilotAuthor.head.repo.full_name =
+    "henrik-me/NaturalizationPuzzle";
 
   assert.equal(decidePolicy(copilotAuthor, [], POLICY).conclusion, "failure");
   assert.equal(
@@ -569,6 +571,36 @@ test("trusted approval matches only the exact App bot login", async () => {
       type: "Bot",
     }),
   ]);
+  assert.equal(requests.length, 0);
+});
+
+test("trusted approval refuses to create the 100th review", async () => {
+  const { GitHubService } = await loadPolicy();
+  const requests = [];
+  const service = new GitHubService({
+    api: {
+      request: async (...request) => {
+        requests.push(request);
+        return {};
+      },
+    },
+    clientId: "Iv1.example",
+    privateKeyPem: "unused",
+  });
+  const reviews = Array.from({ length: 99 }, (_, index) =>
+    review({
+      login: "Copilot",
+      id: 198982749,
+      type: "Bot",
+      state: "COMMENTED",
+      reviewId: index + 1,
+    }),
+  );
+
+  await assert.rejects(
+    service.ensureTrustedAuthorApproval(session, 42, HEAD, reviews),
+    /Review limit would be reached/,
+  );
   assert.equal(requests.length, 0);
 });
 
