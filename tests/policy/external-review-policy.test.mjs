@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const workflowPath = ".github/workflows/external-review-policy.yml";
+const signalWorkflowPath =
+  ".github/workflows/external-review-policy-signal.yml";
 const read = (path) =>
   readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 
@@ -110,7 +112,7 @@ const session = {
   token: "installation-token",
 };
 
-test("workflow uses only trusted reconciliation triggers and local secrets", async () => {
+test("trusted workflow reconciles after local review signals and backstop triggers", async () => {
   const workflow = await read(workflowPath);
 
   assert.match(
@@ -118,6 +120,10 @@ test("workflow uses only trusted reconciliation triggers and local secrets", asy
     /pull_request_target:\s*\n\s+types: \[opened, reopened, synchronize, edited, closed, ready_for_review\]/,
   );
   assert.match(workflow, /push:\s*\n\s+branches: \[main\]/);
+  assert.match(
+    workflow,
+    /workflow_run:\s*\n\s+workflows: \["External review policy signal"\]\s*\n\s+types: \[completed\]/,
+  );
   assert.match(workflow, /schedule:\s*\n\s+- cron: "7,22,37,52 \* \* \* \*"/);
   assert.match(workflow, /permissions: \{\}/);
   assert.match(workflow, /cancel-in-progress: false/);
@@ -125,8 +131,23 @@ test("workflow uses only trusted reconciliation triggers and local secrets", asy
   assert.match(workflow, /APP_PRIVATE_KEY: \$\{\{ secrets\.APP_PRIVATE_KEY \}\}/);
   assert.doesNotMatch(
     workflow,
-    /pull_request_review:|workflow_run:|workflow_dispatch:|repository_dispatch:|EXTERNAL_REVIEW_POLICY_DISPATCH_TOKEN|github-pr-policy|secrets\.GITHUB_TOKEN|github\.token/i,
+    /pull_request_review:|workflow_dispatch:|repository_dispatch:|EXTERNAL_REVIEW_POLICY_DISPATCH_TOKEN|github-pr-policy|secrets\.GITHUB_TOKEN|github\.token/i,
   );
+});
+
+test("review signal is unprivileged and executes no pull request content", async () => {
+  const workflow = await read(signalWorkflowPath);
+
+  assert.match(
+    workflow,
+    /pull_request_review:\s*\n\s+types: \[submitted, edited, dismissed\]/,
+  );
+  assert.match(workflow, /permissions: \{\}/);
+  assert.doesNotMatch(
+    workflow,
+    /secrets\.|github\.token|secrets\.GITHUB_TOKEN|actions\/checkout|^\s*uses:|github\.event|github\.head_ref|github\.sha|curl\s|wget\s|npm\s|npx\s/im,
+  );
+  assert.equal(workflow.match(/^\s+run: /gm)?.length, 1);
 });
 
 test("workflow never loads pull request code or external executable content", async () => {
@@ -224,6 +245,33 @@ test("external policy requires the allowlisted human's current-head approval", a
   );
 });
 
+test("Copilot Bot accounts are valid but never satisfy author or reviewer policy", async () => {
+  const { POLICY, decidePolicy } = await loadPolicy();
+  const copilotAuthor = pull("Copilot");
+  copilotAuthor.user = {
+    login: "Copilot",
+    id: 198982749,
+    type: "Bot",
+  };
+  copilotAuthor.head.repo.owner.id = 198982749;
+
+  assert.equal(decidePolicy(copilotAuthor, [], POLICY).conclusion, "failure");
+  assert.equal(
+    decidePolicy(
+      pull(),
+      [
+        review({
+          login: "Copilot",
+          id: 198982749,
+          type: "Bot",
+        }),
+      ],
+      POLICY,
+    ).conclusion,
+    "failure",
+  );
+});
+
 test("evaluator re-fetches authoritative state and approves only trusted owners", async () => {
   const { POLICY, PolicyEvaluator } = await loadPolicy();
   const ownerGitHub = new FakeGitHub({
@@ -277,6 +325,42 @@ test("review API failure leaves the current-head check in progress", async () =>
   assert.deepEqual(
     github.checks.map(({ status, conclusion }) => ({ status, conclusion })),
     [{ status: "in_progress", conclusion: undefined }],
+  );
+});
+
+test("reconciliation retains bounded redacted diagnostics with PR identifiers", async () => {
+  const { reconcile, safeError } = await loadPolicy();
+  const secret = "sensitive-installation-token";
+  const github = {
+    listOpenPulls: async () =>
+      Array.from({ length: 12 }, (_, index) => ({ number: index + 1 })),
+  };
+  const evaluator = {
+    evaluate: async (pullNumber) => {
+      throw new Error(
+        pullNumber === 1
+          ? `failure ${secret}\r\nforged`
+          : `failure ${pullNumber}`,
+      );
+    },
+  };
+
+  await assert.rejects(
+    reconcile(github, evaluator, session, [secret]),
+    (error) => {
+      assert.ok(error instanceof AggregateError);
+      assert.match(error.message, /12 pull request\(s\)/);
+      assert.equal(error.errors.length, 10);
+      assert.match(error.errors[0].message, /^PR #1: Error: failure/);
+      assert.doesNotMatch(error.errors[0].message, /sensitive|[\r\n]/);
+      assert.match(error.errors.at(-1).message, /^PR #10:/);
+
+      const rendered = safeError(error, [secret]);
+      assert.match(rendered, /PR #1: Error: failure \[REDACTED\] forged/);
+      assert.doesNotMatch(rendered, /sensitive|[\r\n]/);
+      assert.ok(rendered.length <= 2_000);
+      return true;
+    },
   );
 });
 
@@ -443,6 +527,41 @@ test("App authentication is repository-scoped and exact least privilege", async 
       pull_requests: "write",
     },
   });
+});
+
+test("trusted approval matches only the exact App bot login", async () => {
+  const { GitHubService } = await loadPolicy();
+  const requests = [];
+  const service = new GitHubService({
+    api: {
+      request: async (method, path, options) => {
+        requests.push({ method, path, options });
+        return {};
+      },
+    },
+    clientId: "Iv1.example",
+    privateKeyPem: "unused",
+  });
+
+  await service.ensureTrustedAuthorApproval(session, 42, HEAD, [
+    review({
+      login: "Copilot",
+      id: 198982749,
+      type: "Bot",
+    }),
+  ]);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].method, "POST");
+
+  requests.length = 0;
+  await service.ensureTrustedAuthorApproval(session, 42, HEAD, [
+    review({
+      login: "external-review-policy[bot]",
+      id: 987654,
+      type: "Bot",
+    }),
+  ]);
+  assert.equal(requests.length, 0);
 });
 
 test("reevaluation reopens an existing successful App check", async () => {

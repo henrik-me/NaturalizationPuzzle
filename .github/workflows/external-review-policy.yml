@@ -5,6 +5,9 @@ on:
     types: [opened, reopened, synchronize, edited, closed, ready_for_review]
   push:
     branches: [main]
+  workflow_run:
+    workflows: ["External review policy signal"]
+    types: [completed]
   schedule:
     - cron: "7,22,37,52 * * * *"
 
@@ -65,6 +68,7 @@ jobs:
             "DISMISSED",
           ]);
           const TRANSIENT_STATUSES = new Set([502, 503, 504]);
+          const MAX_RECONCILIATION_DIAGNOSTICS = 10;
 
           function requireObject(value, path) {
             if (
@@ -89,11 +93,13 @@ jobs:
             if (!["User", "Bot"].includes(account.type)) {
               throw new TypeError(`${path}.type: invalid value`);
             }
-            const pattern =
-              account.type === "Bot" ? BOT_LOGIN_PATTERN : LOGIN_PATTERN;
             if (
               typeof account.login !== "string" ||
-              !pattern.test(account.login)
+              !(
+                LOGIN_PATTERN.test(account.login) ||
+                (account.type === "Bot" &&
+                  BOT_LOGIN_PATTERN.test(account.login))
+              )
             ) {
               throw new TypeError(`${path}.login: invalid value`);
             }
@@ -374,6 +380,12 @@ jobs:
                 "",
               )
               .slice(0, 2_000);
+          }
+
+          function errorDescription(error) {
+            return error instanceof Error
+              ? `${error.name}: ${error.message}`
+              : "Unknown error";
           }
 
           export class GitHubApi {
@@ -951,30 +963,57 @@ jobs:
             }
           }
 
-          export async function reconcile(github, evaluator, session) {
+          export async function reconcile(
+            github,
+            evaluator,
+            session,
+            secrets = [],
+          ) {
             const pulls = await github.listOpenPulls(session);
             const errors = [];
+            let failureCount = 0;
             for (let offset = 0; offset < pulls.length; offset += 5) {
               const batch = pulls.slice(offset, offset + 5);
-              await Promise.all(
+              const outcomes = await Promise.all(
                 batch.map(async (pull, batchIndex) => {
                   const index = offset + batchIndex;
+                  let identifier = `openPulls[${index}]`;
                   try {
                     const pullNumber = requirePositiveInteger(
                       pull?.number,
                       `openPulls[${index}].number`,
                     );
+                    identifier = `PR #${pullNumber}`;
                     await evaluator.evaluate(pullNumber, session);
+                    return null;
                   } catch (error) {
-                    errors.push(error);
+                    return { error, identifier };
                   }
                 }),
               );
+              for (const outcome of outcomes) {
+                if (outcome !== null) {
+                  failureCount += 1;
+                  if (
+                    errors.length <
+                    MAX_RECONCILIATION_DIAGNOSTICS
+                  ) {
+                    errors.push(
+                      new Error(
+                        redact(
+                          `${outcome.identifier}: ${errorDescription(outcome.error)}`,
+                          secrets,
+                        ),
+                      ),
+                    );
+                  }
+                }
+              }
             }
-            if (errors.length > 0) {
+            if (failureCount > 0) {
               throw new AggregateError(
                 errors,
-                `Reconciliation failed for ${errors.length} pull request(s)`,
+                `Reconciliation failed for ${failureCount} pull request(s); retained ${errors.length} diagnostic(s)`,
               );
             }
             return { evaluated: pulls.length };
@@ -993,10 +1032,19 @@ jobs:
           }
 
           export function safeError(error, secrets) {
-            const message =
-              error instanceof Error
-                ? `${error.name}: ${error.message}`
-                : "Unknown fatal error";
+            let message = errorDescription(error);
+            if (
+              error instanceof AggregateError &&
+              Array.isArray(error.errors)
+            ) {
+              const diagnostics = error.errors
+                .slice(0, MAX_RECONCILIATION_DIAGNOSTICS)
+                .map(errorDescription);
+              if (diagnostics.length > 0) {
+                message =
+                  `${message}; diagnostics: ${diagnostics.join(" | ")}`;
+              }
+            }
             return redact(message, secrets);
           }
 
@@ -1018,6 +1066,7 @@ jobs:
                 "pull_request_target",
                 "push",
                 "schedule",
+                "workflow_run",
               ].includes(eventName)
             ) {
               throw new TypeError(`Unsupported event: ${eventName}`);
@@ -1041,7 +1090,7 @@ jobs:
               github,
               policy: POLICY,
             });
-            return reconcile(github, evaluator, session);
+            return reconcile(github, evaluator, session, secrets);
           }
 
           export async function runMain() {
