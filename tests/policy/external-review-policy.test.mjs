@@ -369,6 +369,27 @@ test("API wrappers reject tokens containing any line or control character", asyn
   }
 });
 
+test("GitHub API retries a timed-out idempotent request", async () => {
+  const { GitHubApi } = await loadPolicy();
+  let calls = 0;
+  const api = new GitHubApi({
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new DOMException("request timed out", "AbortError");
+      }
+      return new Response('{"id":123}', { status: 200 });
+    },
+    sleep: async () => {},
+  });
+
+  assert.deepEqual(
+    await api.request("GET", "/app", { token: "test-token" }),
+    { id: 123 },
+  );
+  assert.equal(calls, 2);
+});
+
 test("App authentication is repository-scoped and exact least privilege", async () => {
   const { GitHubService } = await loadPolicy();
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });

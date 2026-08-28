@@ -457,8 +457,7 @@ jobs:
                   clearTimeout(timeout);
                   if (
                     method !== "POST" &&
-                    attempt < 3 &&
-                    cause?.name !== "AbortError"
+                    attempt < 3
                   ) {
                     await this.sleep(250 * 2 ** (attempt - 1));
                     continue;
