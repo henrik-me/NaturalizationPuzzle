@@ -38,7 +38,7 @@ Do not edit ruleset 15368163 until all are true:
   completes it and wakes the default-branch `workflow_run` reconciliation.
 - Dedicated App is installed only on NaturalizationPuzzle with exact
   Metadata read, Pull requests write, and Checks write.
-- `APP_CLIENT_ID` and `APP_PRIVATE_KEY` exist only as this repository's Actions
+- `APP_ID` and `APP_PRIVATE_KEY` exist only as this repository's Actions
   secrets.
 - An owner-authored ordinary PR shows an App-owned current-head
   `external-review-policy` check and App approval.

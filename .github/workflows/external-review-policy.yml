@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Evaluate authoritative pull request state
         env:
-          APP_CLIENT_ID: ${{ secrets.APP_CLIENT_ID }}
+          APP_ID: ${{ secrets.APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
         run: |
           node --input-type=module <<'POLICY'
@@ -319,12 +319,9 @@ jobs:
             };
           }
 
-          export function createAppJwt(clientId, privateKeyPem, nowSeconds) {
-            if (
-              typeof clientId !== "string" ||
-              !/^[A-Za-z0-9._-]{1,100}$/.test(clientId)
-            ) {
-              throw new TypeError("APP_CLIENT_ID is invalid");
+          export function createAppJwt(appId, privateKeyPem, nowSeconds) {
+            if (!Number.isSafeInteger(appId) || appId < 1) {
+              throw new TypeError("APP_ID is invalid");
             }
             if (
               typeof privateKeyPem !== "string" ||
@@ -343,7 +340,7 @@ jobs:
             const payload = encode({
               iat: nowSeconds - 60,
               exp: nowSeconds + 540,
-              iss: clientId,
+              iss: appId,
             });
             const signingInput = `${header}.${payload}`;
             const key = createPrivateKey(privateKeyPem);
@@ -544,13 +541,13 @@ jobs:
           export class GitHubService {
             constructor({
               api,
-              clientId,
+              appId,
               privateKeyPem,
               now = () => new Date(),
               maskSecret = () => {},
             }) {
               this.api = requireObject(api, "api");
-              this.clientId = clientId;
+              this.appId = requirePositiveInteger(appId, "appId");
               this.privateKeyPem = privateKeyPem;
               this.now = now;
               this.maskSecret = maskSecret;
@@ -565,7 +562,7 @@ jobs:
                 throw new TypeError("Clock returned an invalid date");
               }
               const jwt = createAppJwt(
-                this.clientId,
+                this.appId,
                 this.privateKeyPem,
                 Math.floor(now.getTime() / 1_000),
               );
@@ -579,8 +576,8 @@ jobs:
                 token: jwt,
               });
               const appId = requirePositiveInteger(app?.id, "app.id");
-              if (app.client_id !== this.clientId) {
-                throw new Error("Authenticated App client ID mismatch");
+              if (appId !== this.appId) {
+                throw new Error("Authenticated App ID mismatch");
               }
               if (!Array.isArray(app.events) || app.events.length !== 0) {
                 throw new Error("GitHub App must have no webhook events");
@@ -1076,9 +1073,13 @@ jobs:
           }
 
           export async function main() {
-            const clientId = requireEnvironment(
-              "APP_CLIENT_ID",
-              100,
+            const appIdText = requireEnvironment("APP_ID", 20);
+            if (!/^[1-9][0-9]{0,15}$/.test(appIdText)) {
+              throw new TypeError("APP_ID is invalid");
+            }
+            const appId = requirePositiveInteger(
+              Number(appIdText),
+              "APP_ID",
             );
             const privateKeyPem = requireEnvironment(
               "APP_PRIVATE_KEY",
@@ -1108,7 +1109,7 @@ jobs:
             const api = new GitHubApi({ secrets });
             const github = new GitHubService({
               api,
-              clientId,
+              appId,
               privateKeyPem,
               maskSecret,
             });

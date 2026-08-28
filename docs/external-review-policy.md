@@ -94,7 +94,7 @@ only `henrik-me/NaturalizationPuzzle` selected.
 
 Store only these repository Actions secrets in NaturalizationPuzzle:
 
-- `APP_CLIENT_ID` — the App client ID, not a client secret;
+- `APP_ID` — the numeric App ID shown on the App settings page;
 - `APP_PRIVATE_KEY` — the complete generated private-key PEM.
 
 Do not put either value in source, issues, logs, artifacts, caches, chat, or an
@@ -136,7 +136,7 @@ workflow changes; fork PRs do not receive repository secrets.
 ## No-bypass bootstrap and rollout
 
 1. Register the App, install it only on NaturalizationPuzzle, and create
-   `APP_CLIENT_ID` and `APP_PRIVATE_KEY` in repository Actions secrets.
+   `APP_ID` and `APP_PRIVATE_KEY` in repository Actions secrets.
 2. Before the policy executes on `main`, temporarily grant this dedicated App
    only the additional Contents and Workflows write permissions needed to
    create a branch containing the reviewed bootstrap commit and author the

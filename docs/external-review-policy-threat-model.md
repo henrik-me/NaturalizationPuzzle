@@ -14,7 +14,7 @@ Trusted:
 - reviewed `.github/workflows/external-review-policy.yml` on `main`;
 - GitHub's authenticated API responses after strict validation;
 - immutable owner identity `henrik-me`/`34380746`;
-- `APP_CLIENT_ID` and `APP_PRIVATE_KEY` in repository Actions secrets;
+- `APP_ID` and `APP_PRIVATE_KEY` in repository Actions secrets;
 - the App identity attached to Checks API results;
 - GitHub's authoritative owner attribution for ordinary-content PRs, including
   owner-attributed PRs created with the deliberately constrained Copilot CLI

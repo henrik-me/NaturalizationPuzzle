@@ -127,7 +127,7 @@ test("trusted workflow reconciles after local review signals and backstop trigge
   assert.match(workflow, /schedule:\s*\n\s+- cron: "7,22,37,52 \* \* \* \*"/);
   assert.match(workflow, /permissions: \{\}/);
   assert.match(workflow, /cancel-in-progress: false/);
-  assert.match(workflow, /APP_CLIENT_ID: \$\{\{ secrets\.APP_CLIENT_ID \}\}/);
+  assert.match(workflow, /APP_ID: \$\{\{ secrets\.APP_ID \}\}/);
   assert.match(workflow, /APP_PRIVATE_KEY: \$\{\{ secrets\.APP_PRIVATE_KEY \}\}/);
   assert.doesNotMatch(
     workflow,
@@ -383,14 +383,18 @@ test("reconciliation retains bounded redacted diagnostics with PR identifiers", 
   );
 });
 
-test("JWT is short-lived RS256 and uses the client ID issuer", async () => {
+test("JWT is short-lived RS256 and uses a numeric App ID issuer", async () => {
   const { createAppJwt } = await loadPolicy();
   const { privateKey, publicKey } = generateKeyPairSync("rsa", {
     modulusLength: 2048,
   });
   const pem = privateKey.export({ format: "pem", type: "pkcs8" });
 
-  const jwt = createAppJwt("Iv1.example", pem, 2_000_000_000);
+  const jwt = createAppJwt(123, pem, 2_000_000_000);
+  assert.throws(
+    () => createAppJwt("123", pem, 2_000_000_000),
+    /APP_ID is invalid/,
+  );
   const [header, payload, signature] = jwt.split(".");
   const decode = (part) =>
     JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
@@ -399,7 +403,7 @@ test("JWT is short-lived RS256 and uses the client ID issuer", async () => {
   assert.deepEqual(decode(payload), {
     iat: 1_999_999_940,
     exp: 2_000_000_540,
-    iss: "Iv1.example",
+    iss: 123,
   });
   assert.equal(
     verify(
@@ -435,7 +439,7 @@ test("review API wrapper rejects a non-numeric pull request identifier", async (
         throw new Error("API must not be called");
       },
     },
-    clientId: "Iv1.example",
+    appId: 123,
     privateKeyPem: "unused",
   });
 
@@ -453,7 +457,7 @@ test("API wrappers reject tokens containing any line or control character", asyn
         throw new Error("API must not be called");
       },
     },
-    clientId: "Iv1.example",
+    appId: 123,
     privateKeyPem: "unused",
   });
 
@@ -524,7 +528,7 @@ test("App authentication is repository-scoped and exact least privilege", async 
   };
   const service = new GitHubService({
     api,
-    clientId: "Iv1.example",
+    appId: 123,
     privateKeyPem,
     now: () => new Date("2033-05-18T03:33:20Z"),
   });
@@ -567,7 +571,7 @@ test("trusted approval matches only the exact App bot login", async () => {
         return {};
       },
     },
-    clientId: "Iv1.example",
+    appId: 123,
     privateKeyPem: "unused",
   });
 
@@ -612,7 +616,7 @@ test("trusted approval rechecks review capacity immediately before posting", asy
         return refreshedReviews;
       },
     },
-    clientId: "Iv1.example",
+    appId: 123,
     privateKeyPem: "unused",
   });
 
@@ -638,7 +642,7 @@ test("trusted approval refuses to create the 100th review", async () => {
         return {};
       },
     },
-    clientId: "Iv1.example",
+    appId: 123,
     privateKeyPem: "unused",
   });
   const reviews = Array.from({ length: 99 }, (_, index) =>
@@ -683,7 +687,7 @@ test("reevaluation reopens an existing successful App check", async () => {
   };
   const service = new GitHubService({
     api,
-    clientId: "Iv1.example",
+    appId: 123,
     privateKeyPem: "unused",
     now: () => new Date("2026-08-28T16:00:00Z"),
   });
