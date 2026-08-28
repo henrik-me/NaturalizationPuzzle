@@ -322,6 +322,19 @@ test("fatal error rendering redacts secrets and control characters", async () =>
     ),
     "Error: failed for [REDACTED] forged[31m next line",
   );
+  assert.equal(
+    safeError(
+      new AggregateError(
+        [
+          new Error("GitHub API returned 403"),
+          new Error(`credential ${secret} rejected`),
+        ],
+        "Reconciliation failed",
+      ),
+      [secret],
+    ),
+    "AggregateError: Reconciliation failed; causes: Error: GitHub API returned 403 | Error: credential [REDACTED] rejected",
+  );
 });
 
 test("review API wrapper rejects a non-numeric pull request identifier", async () => {
@@ -575,4 +588,10 @@ test("Build & Test enforces the local policy suite", async () => {
     assert.equal(pushPathsIgnore.split(`- '${path}'`).length - 1, 1);
     assert.equal(docsPathsFilter.split(`- '!${path}'`).length - 1, 1);
   }
+
+  const instructions = await read(".github/copilot-instructions.md");
+  assert.match(
+    instructions,
+    /admin-merge exception never applies to external-review-policy bootstrap, workflow, App, secret, CODEOWNERS, protection, or ruleset changes/i,
+  );
 });

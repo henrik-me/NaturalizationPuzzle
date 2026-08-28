@@ -1011,10 +1011,25 @@ jobs:
           }
 
           export function safeError(error, secrets) {
-            const message =
+            let message =
               error instanceof Error
                 ? `${error.name}: ${error.message}`
                 : "Unknown fatal error";
+            if (error instanceof AggregateError) {
+              const causes = error.errors
+                .slice(0, 20)
+                .map((cause) =>
+                  cause instanceof Error
+                    ? `${cause.name}: ${cause.message}`
+                    : "Unknown error",
+                );
+              if (causes.length > 0) {
+                message += `; causes: ${causes.join(" | ")}`;
+              }
+              if (error.errors.length > causes.length) {
+                message += ` | ${error.errors.length - causes.length} more`;
+              }
+            }
             return redact(message, secrets);
           }
 
