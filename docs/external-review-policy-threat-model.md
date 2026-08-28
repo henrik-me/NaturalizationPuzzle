@@ -40,7 +40,7 @@ Untrusted:
 | PR claims trusted author, approval, or SHA | Event data is not used for decisions; App API re-fetches every open PR and review | Invalid/missing API state stops evaluation |
 | Policy PR changes its own evaluator | Until merge, PR events and schedules use old `main` policy; external authors need current-head owner approval | Proposed policy cannot approve itself |
 | Copilot modifies policy or protection | Its fine-grained credential has no Workflows, Actions secrets, Administration, or ruleset write | API refuses the operation |
-| App is installed broadly | Runtime requires selected-repository installation and mints a token explicitly scoped to NaturalizationPuzzle | Authentication fails before target API calls |
+| App is installed broadly | Runtime uses a metadata-only inspection token to enumerate the complete installation, requires exactly NaturalizationPuzzle, then mints a separately scoped operational token | Authentication fails before target API calls |
 | App permission drift | Runtime requires exactly Metadata read, Pull requests write, and Checks write on App, installation, and token | Authentication fails |
 | Fork review withholds secrets | Direct `pull_request_review` execution is not used; scheduled trusted reconciliation observes the review through API | Approval propagation is delayed, not weakened |
 | Same-repo review event executes proposed YAML | Direct review triggers and ref-selectable manual dispatch are absent | App secrets are not exposed to merge-ref policy code |
@@ -105,6 +105,12 @@ not be converted into a bypass or zero-approval rule.
     the Copilot credential having no Workflows, Actions secrets,
     Administration, or ruleset write permission, and on retaining those
     denials.
+11. **Branch-pusher attribution.** The PR API proves the owner account owns the
+    head repository, not which credential or collaborator pushed each commit.
+    Automatic trusted-author approval therefore requires an operational
+    invariant that no other collaborator, App, deploy key, or automation can
+    update owner-repository branches. Audit access before rollout and
+    periodically; otherwise require a distinct human approval for owner PRs.
 
 Official GitHub references are collected in
 [`external-review-policy.md`](external-review-policy.md#official-references).

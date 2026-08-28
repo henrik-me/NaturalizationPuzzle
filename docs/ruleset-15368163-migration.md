@@ -38,6 +38,9 @@ Do not edit ruleset 15368163 until all are true:
   Metadata read, Pull requests write, and Checks write.
 - `APP_CLIENT_ID` and `APP_PRIVATE_KEY` exist only as this repository's Actions
   secrets.
+- No collaborator, App, deploy key, or automation other than `henrik-me` and
+  the deliberately constrained owner credential can update owner-repository
+  branches.
 - An owner-authored ordinary PR shows an App-owned current-head
   `external-review-policy` check and App approval.
 - Logs reveal no PEM, JWT, installation token, or authorization header.

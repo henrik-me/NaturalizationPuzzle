@@ -462,6 +462,22 @@ test("App authentication is repository-scoped and exact least privilege", async 
       },
     },
     {
+      token: "ghs_inspection_token",
+      expires_at: "2033-05-18T03:34:00Z",
+      permissions: {
+        metadata: "read",
+      },
+    },
+    {
+      total_count: 1,
+      repositories: [
+        {
+          name: "NaturalizationPuzzle",
+          full_name: "henrik-me/NaturalizationPuzzle",
+        },
+      ],
+    },
+    {
       token: "ghs_installation_token",
       expires_at: "2033-05-18T03:34:00Z",
       permissions: {
@@ -499,7 +515,16 @@ test("App authentication is repository-scoped and exact least privilege", async 
     requests[1].path,
     "/repos/henrik-me/NaturalizationPuzzle/installation",
   );
+  assert.equal(
+    requests[3].path,
+    "/installation/repositories?per_page=100",
+  );
   assert.deepEqual(requests[2].options.body, {
+    permissions: {
+      metadata: "read",
+    },
+  });
+  assert.deepEqual(requests[4].options.body, {
     repositories: ["NaturalizationPuzzle"],
     permissions: {
       checks: "write",

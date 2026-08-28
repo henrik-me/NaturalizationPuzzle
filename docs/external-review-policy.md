@@ -87,9 +87,11 @@ environment accessible to other workflows. This change records the names
 only; it does not create or handle either secret.
 
 The workflow mints a short-lived RS256 JWT, verifies the App and installation
-permissions at runtime, and requests an installation token explicitly scoped
-to NaturalizationPuzzle and the same three permissions. Derived credentials
-are masked before further use.
+permissions at runtime, then mints a metadata-only inspection token to verify
+the installation contains exactly NaturalizationPuzzle. It separately requests
+the operational installation token explicitly scoped to NaturalizationPuzzle
+and the same three permissions. Derived credentials are masked before further
+use.
 
 ## Credential trust boundary
 
@@ -118,30 +120,41 @@ Do not grant workflow-write permission to other automation or collaborators.
 A same-repository branch author with that permission could propose or execute
 workflow changes; fork PRs do not receive repository secrets.
 
+The trusted-author path also assumes only `henrik-me` and the deliberately
+constrained owner credential can update branches in the owner repository.
+GitHub's PR API identifies the head repository owner, not the actor behind each
+push. Audit collaborators and installed Apps before rollout and periodically;
+remove every other identity or integration with push access. If that invariant
+cannot be maintained, owner-attributed PRs require a distinct human approval
+instead of the automatic trusted-author path.
+
 ## No-bypass bootstrap and rollout
 
 1. Register the App, install it only on NaturalizationPuzzle, and create
    `APP_CLIENT_ID` and `APP_PRIVATE_KEY` in repository Actions secrets.
-2. Have a distinct external human author the initial bootstrap PR containing
+2. Confirm no collaborator, deploy key, App, or automation other than the
+   owner and constrained owner credential can update branches in the owner
+   repository.
+3. Have a distinct external human author the initial bootstrap PR containing
    this workflow and its tests. The current owner-authored branch cannot be
    approved by its own author, and the App policy is not active before merge.
-3. `henrik-me` reviews the bootstrap PR's current head. The existing one
+4. `henrik-me` reviews the bootstrap PR's current head. The existing one
    approval and code-owner rules can then be satisfied without self-approval,
    RepositoryRole bypass, admin merge, or settings weakening.
-4. After normal merge, the `main` push runs the protected local policy. Open an
+5. After normal merge, the `main` push runs the protected local policy. Open an
    ordinary owner-authored PR and observe the App-owned current-head check and
    App approval. Inspect logs for credential disclosure.
-5. Create a disposable `policy-canary` branch and an identical temporary
+6. Create a disposable `policy-canary` branch and an identical temporary
    no-bypass ruleset targeting only that branch. Require the four existing CI
    contexts, one approval with stale dismissal, resolved threads, and the
    observed App-bound `external-review-policy` check.
-6. Merge an owner-authored canary PR using only the App approval and green
+7. Merge an owner-authored canary PR using only the App approval and green
    checks. Confirm the App approval counts in the review summary. Confirm an
    external canary PR without current-head human approval remains blocked,
    then approve its current head and verify the policy changes to success.
-7. If and only if the canary passes, apply the reviewed
+8. If and only if the canary passes, apply the reviewed
    [ruleset 15368163 migration](ruleset-15368163-migration.md).
-8. After production migration, remove `policy-canary` from the policy workflow
+9. After production migration, remove `policy-canary` from the policy workflow
    and CI/CodeQL PR filters in a normally evaluated owner-authored PR. The
    canary has already proved the App approval counts, and production no longer
    requires a code-owner review. Then delete the temporary branch and ruleset.

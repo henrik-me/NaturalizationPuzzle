@@ -45,6 +45,9 @@ jobs:
             metadata: "read",
             pull_requests: "write",
           });
+          const METADATA_PERMISSION = Object.freeze({
+            metadata: "read",
+          });
 
           const API_VERSION = "2026-03-10";
           const SHA_PATTERN = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/;
@@ -104,20 +107,24 @@ jobs:
             };
           }
 
-          function assertExactPermissions(value, path) {
+          function assertExactPermissions(
+            value,
+            path,
+            expected = REQUIRED_PERMISSIONS,
+          ) {
             const permissions = requireObject(value, path);
             const granted = Object.entries(permissions).filter(
               ([, access]) => access !== "none",
             );
             if (
-              granted.length !== 3 ||
-              Object.entries(REQUIRED_PERMISSIONS).some(
+              granted.length !== Object.keys(expected).length ||
+              Object.entries(expected).some(
                 ([permission, access]) =>
                   permissions[permission] !== access,
               )
             ) {
               throw new Error(
-                `${path}: expected exactly checks:write, metadata:read, pull_requests:write`,
+                `${path}: permissions do not match the exact expected grant`,
               );
             }
           }
@@ -628,6 +635,60 @@ jobs:
                 installation.permissions,
                 "installation.permissions",
               );
+
+              const inspectionTokenResponse = await this.api.request(
+                "POST",
+                `/app/installations/${installationId}/access_tokens`,
+                {
+                  token: jwt,
+                  body: {
+                    permissions: METADATA_PERMISSION,
+                  },
+                  expectedStatuses: [201],
+                },
+              );
+              validateToken(inspectionTokenResponse?.token);
+              if (
+                typeof inspectionTokenResponse.expires_at !== "string" ||
+                !Number.isFinite(
+                  Date.parse(inspectionTokenResponse.expires_at),
+                ) ||
+                Date.parse(inspectionTokenResponse.expires_at) <=
+                  this.now().getTime()
+              ) {
+                throw new TypeError(
+                  "Inspection token expiry is invalid",
+                );
+              }
+              assertExactPermissions(
+                inspectionTokenResponse.permissions,
+                "inspection token permissions",
+                METADATA_PERMISSION,
+              );
+              this.maskSecret(inspectionTokenResponse.token);
+              const installationRepositories = await this.api.request(
+                "GET",
+                "/installation/repositories?per_page=100",
+                { token: inspectionTokenResponse.token },
+              );
+              if (
+                !Number.isSafeInteger(
+                  installationRepositories?.total_count,
+                ) ||
+                installationRepositories.total_count !== 1 ||
+                !Array.isArray(
+                  installationRepositories.repositories,
+                ) ||
+                installationRepositories.repositories.length !== 1 ||
+                installationRepositories.repositories[0]?.name !==
+                  REPOSITORY ||
+                installationRepositories.repositories[0]?.full_name !==
+                  `${OWNER}/${REPOSITORY}`
+              ) {
+                throw new Error(
+                  "App installation must contain only NaturalizationPuzzle",
+                );
+              }
 
               const tokenResponse = await this.api.request(
                 "POST",
