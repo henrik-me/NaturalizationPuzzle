@@ -50,16 +50,21 @@ default single pending run can still be canceled and replaced by a newer run.
 That replacement is safe because the survivor re-fetches the complete
 authoritative set, as documented by GitHub's [concurrency semantics][concurrency].
 
-`.github/workflows/external-review-policy-signal.yml` receives
+The reviewed `.github/workflows/external-review-policy-signal.yml` receives
 `pull_request_review` submit, edit, and dismiss events with `permissions: {}`.
-It has no secrets, checkout, action, event interpolation, artifact, cache,
-package, network request, or PR-controlled execution. Its literal signal job
-cannot make a policy decision. When that job completes, `workflow_run` wakes
-the trusted default-branch policy workflow, which ignores predecessor claims,
-authenticates the App, and authoritatively re-fetches every open PR, head, and
-review before making any App decision. This normally propagates approval,
-revocation, or dismissal immediately after Actions schedules the two runs;
-the quarter-hour schedule remains the delivery/outage backstop.
+Its committed job has no secrets, checkout, action, event interpolation,
+artifact, cache, package, network request, or PR-code execution, and cannot
+make a policy decision. GitHub executes the event's merge-ref workflow
+definition, so preventing an untrusted same-repository author from changing
+that definition is load-bearing: only the owner and the temporary bootstrap
+App may have Workflows write, and the Copilot CLI credential must not.
+Fork-authored definitions receive no repository secrets. When the signal job
+completes, `workflow_run` wakes the trusted default-branch policy workflow,
+which ignores predecessor claims, authenticates the App, and authoritatively
+re-fetches every open PR, head, and review before making any App decision.
+This normally propagates approval, revocation, or dismissal immediately after
+Actions schedules the two runs; the quarter-hour schedule remains the
+delivery/outage backstop.
 
 The split is required because placing App secrets directly in a
 `pull_request_review` workflow would cross the untrusted PR/merge-ref boundary.

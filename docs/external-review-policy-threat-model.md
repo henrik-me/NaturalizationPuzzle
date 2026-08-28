@@ -37,14 +37,14 @@ Untrusted:
 | Threat | Control | Failure behavior |
 | --- | --- | --- |
 | PR executes with App key | Policy uses `pull_request_target` default-branch code and performs no checkout, action, artifact, cache, package, or repository-code execution | No PR-controlled execution path exists |
-| Review event reaches untrusted workflow context | Secretless signal has empty permissions and only a literal no-op; its completion wakes default-branch `workflow_run` policy code | Signal cannot decide policy or access App material; trusted run re-fetches all state |
+| Review event reaches untrusted workflow context | Reviewed signal has empty permissions and a literal no-op; only owner/bootstrap App may write workflows; its completion wakes default-branch `workflow_run` policy code | Forks receive no secrets; an untrusted same-repo principal must not receive Workflows write; trusted run re-fetches all state |
 | PR claims trusted author, approval, or SHA | Event data is not used for decisions; App API re-fetches every open PR and review | Invalid/missing API state stops evaluation |
 | Policy PR changes its own evaluator | Until merge, PR events and schedules use old `main` policy; external authors need current-head owner approval | Proposed policy cannot approve itself |
 | Copilot modifies policy or protection | Its fine-grained credential has no Workflows, Actions secrets, Administration, or ruleset write | API refuses the operation |
 | App is installed broadly | Runtime requires selected-repository installation and mints a token explicitly scoped to NaturalizationPuzzle | Authentication fails before target API calls |
 | App permission drift | Runtime requires exactly Metadata read, Pull requests write, and Checks write on App, installation, and token | Authentication fails |
 | Fork review withholds secrets | Review signal needs no secrets; completed signal wakes trusted reconciliation | Fork and same-repository review changes follow the same authoritative path |
-| Same-repo review event executes proposed YAML | Review event runs only the empty-permission, secretless signal; App work occurs in default-branch `workflow_run` code | App secrets are not exposed to merge-ref policy code |
+| Same-repo review event executes proposed YAML | GitHub uses the merge-ref signal definition, so Workflows write is denied to untrusted principals; the committed signal requests no secrets, while App work occurs only in default-branch `workflow_run` code | Safety depends on the documented workflow-write restriction; proposed ordinary code never reaches App execution |
 | Owner approval predates a push | Effective review `commit_id` must equal authoritative current `head.sha` | New head fails until approved |
 | Approval is later changed or dismissed | Latest decisive review per allowlisted identity wins; signal completion wakes reconciliation and schedule backs it up | Check returns to failure after authoritative reconciliation |
 | Dependabot or another Bot is treated as owner | Generic Bot identities validate, but trusted authors and approvers must have exact immutable owner User identity | Bot PR requires current-head owner approval; Bot reviews are ignored |

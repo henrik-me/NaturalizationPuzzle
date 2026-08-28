@@ -366,7 +366,7 @@ jobs:
             }
           }
 
-          function redact(value, secrets) {
+          function redact(value, secrets, maximumLength = 2_000) {
             let result = String(value);
             for (const secret of secrets) {
               if (typeof secret === "string" && secret.length >= 4) {
@@ -379,7 +379,7 @@ jobs:
                 /[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,
                 "",
               )
-              .slice(0, 2_000);
+              .slice(0, maximumLength);
           }
 
           function errorDescription(error) {
@@ -1003,6 +1003,7 @@ jobs:
                         redact(
                           `${outcome.identifier}: ${errorDescription(outcome.error)}`,
                           secrets,
+                          160,
                         ),
                       ),
                     );

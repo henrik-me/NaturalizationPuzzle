@@ -137,7 +137,13 @@ test("trusted workflow reconciles after local review signals and backstop trigge
 
 test("review signal is unprivileged and executes no pull request content", async () => {
   const workflow = await read(signalWorkflowPath);
+  const trustedWorkflow = await read(workflowPath);
 
+  assert.match(workflow, /^name: External review policy signal$/m);
+  assert.match(
+    trustedWorkflow,
+    /workflows: \["External review policy signal"\]/,
+  );
   assert.match(
     workflow,
     /pull_request_review:\s*\n\s+types: \[submitted, edited, dismissed\]/,
@@ -339,7 +345,7 @@ test("reconciliation retains bounded redacted diagnostics with PR identifiers", 
     evaluate: async (pullNumber) => {
       throw new Error(
         pullNumber === 1
-          ? `failure ${secret}\r\nforged`
+          ? `failure ${secret}\r\nforged ${"x".repeat(1_900)}`
           : `failure ${pullNumber}`,
       );
     },
@@ -354,9 +360,11 @@ test("reconciliation retains bounded redacted diagnostics with PR identifiers", 
       assert.match(error.errors[0].message, /^PR #1: Error: failure/);
       assert.doesNotMatch(error.errors[0].message, /sensitive|[\r\n]/);
       assert.match(error.errors.at(-1).message, /^PR #10:/);
+      assert.ok(error.errors.every(({ message }) => message.length <= 160));
 
       const rendered = safeError(error, [secret]);
       assert.match(rendered, /PR #1: Error: failure \[REDACTED\] forged/);
+      assert.match(rendered, /PR #10: Error: failure 10/);
       assert.doesNotMatch(rendered, /sensitive|[\r\n]/);
       assert.ok(rendered.length <= 2_000);
       return true;
