@@ -354,7 +354,7 @@ jobs:
               typeof token !== "string" ||
               token.length < 1 ||
               token.length > 4_096 ||
-              /[\u0000-\u001f\u007f]/.test(token)
+              /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(token)
             ) {
               throw new TypeError("Authentication token is invalid");
             }

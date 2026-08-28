@@ -336,6 +336,33 @@ test("review API wrapper rejects a non-numeric pull request identifier", async (
   );
 });
 
+test("API wrappers reject tokens containing any line or control character", async () => {
+  const { GitHubService } = await loadPolicy();
+  const service = new GitHubService({
+    api: {
+      request: async () => {
+        throw new Error("API must not be called");
+      },
+    },
+    clientId: "Iv1.example",
+    privateKeyPem: "unused",
+  });
+
+  for (const character of ["\t", "\u0085", "\u2028", "\u2029"]) {
+    await assert.rejects(
+      service.listReviews(
+        {
+          appId: 123,
+          appSlug: "external-review-policy",
+          token: `installation${character}token`,
+        },
+        42,
+      ),
+      /Authentication token is invalid/,
+    );
+  }
+});
+
 test("App authentication is repository-scoped and exact least privilege", async () => {
   const { GitHubService } = await loadPolicy();
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
