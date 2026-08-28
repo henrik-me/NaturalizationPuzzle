@@ -156,6 +156,10 @@ test("policy accepts only the immutable owner on an owner-controlled head", asyn
   const thirdPartyHead = pull("henrik-me");
   thirdPartyHead.head.repo.owner.id = 999999;
   assert.equal(decidePolicy(thirdPartyHead, [], POLICY).conclusion, "failure");
+  assert.equal(
+    decidePolicy(thirdPartyHead, [review()], POLICY).conclusion,
+    "failure",
+  );
 
   const deletedHead = pull("henrik-me");
   deletedHead.head.repo = null;

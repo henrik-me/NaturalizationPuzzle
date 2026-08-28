@@ -47,6 +47,7 @@ Untrusted:
 | Owner approval predates a push | Effective review `commit_id` must equal authoritative current `head.sha` | New head fails until approved |
 | Approval is later changed or dismissed | Latest decisive review per allowlisted identity wins; scheduled reconciliation reopens and updates the check | Check returns to failure after reconciliation |
 | External PR receives App approval | Evaluator calls App approval only for immutable trusted author whose identity owns the head repository | External path never invokes approval |
+| Owner authors from another identity's head repository | Trusted-author path rejects the head owner mismatch and self-review cannot satisfy the human path | PR remains blocked; recreate from an owner-controlled branch or add a distinct approved human |
 | Another publisher forges the name | Ruleset binds the required context to the observed dedicated App source | Name-only result does not satisfy protection |
 | Duplicate or racing runs | Global concurrency plus full reconciliation on every surviving run; PR/head-keyed App check IDs | Final authoritative state is re-fetched |
 | Reviews/open PRs/checks are truncated | Bounds fail at 100 records rather than consume a partial page | Workflow fails; no new success |

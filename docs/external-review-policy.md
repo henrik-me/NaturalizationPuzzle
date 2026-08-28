@@ -20,7 +20,11 @@ re-fetches open pull requests and reviews from GitHub's API.
   idempotently approves the authoritative current head.
 - Every other PR succeeds only when the latest decisive review from the
   allowlisted human `henrik-me`/`34380746` is `APPROVED` for the authoritative
-  current head. The App never approves an external-author PR.
+  current head and that human is not the PR author. The App never approves an
+  external-author PR. An owner-authored PR whose head repository is controlled
+  by another identity deliberately remains blocked because GitHub does not
+  permit the owner to approve their own PR; recreate it from an owner-controlled
+  branch or use a separately approved human reviewer.
 - Missing secrets, invalid API data, API errors, pagination bounds, permission
   drift, suspended or broad installation state, and check-write failures stop
   the workflow. There is no success fallback.
