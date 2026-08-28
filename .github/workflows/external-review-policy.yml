@@ -954,7 +954,6 @@ jobs:
           export async function reconcile(github, evaluator, session) {
             const pulls = await github.listOpenPulls(session);
             const errors = [];
-            let evaluated = 0;
             for (let offset = 0; offset < pulls.length; offset += 5) {
               const batch = pulls.slice(offset, offset + 5);
               await Promise.all(
@@ -966,7 +965,6 @@ jobs:
                       `openPulls[${index}].number`,
                     );
                     await evaluator.evaluate(pullNumber, session);
-                    evaluated += 1;
                   } catch (error) {
                     errors.push(error);
                   }
@@ -979,7 +977,7 @@ jobs:
                 `Reconciliation failed for ${errors.length} pull request(s)`,
               );
             }
-            return { evaluated };
+            return { evaluated: pulls.length };
           }
 
           function requireEnvironment(name, maximumLength) {

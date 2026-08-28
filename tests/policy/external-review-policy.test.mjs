@@ -136,6 +136,7 @@ test("workflow never loads pull request code or external executable content", as
   assert.match(workflow, /const REPOSITORY = "NaturalizationPuzzle";/);
   assert.match(workflow, /const OWNER_ID = 34380746;/);
   assert.match(workflow, /const CHECK_NAME = "external-review-policy";/);
+  assert.doesNotMatch(workflow, /evaluated\s*\+=/);
 });
 
 test("policy accepts only the immutable owner on an owner-controlled head", async () => {
