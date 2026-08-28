@@ -104,10 +104,12 @@ not be converted into a bypass or zero-approval rule.
 8. **Review flooding.** A PR with 100 reviews fails closed. Each pushed owner
    head normally appends an App approval; each approved external head appends
    an owner review; automated reviewers can add more per push. With 99 records
-   and no current-head App approval, policy refuses to create record 100.
-   Preserve the old PR as evidence and replace it rather than widening the
-   bound. The replacement must repeat CI, reviews/thread handling, and
-   current-head owner approval.
+   and no current-head App approval, policy re-fetches and refuses to create
+   record 100. GitHub has no atomic count-and-create review API, so a
+   concurrent review can still race that last check; subsequent reconciliation
+   fails closed. Preserve the old PR as evidence and replace it rather than
+   widening the bound. The replacement must repeat CI, reviews/thread
+   handling, and current-head owner approval.
 9. **Unproven platform semantics.** App approval counting and reopening a
    completed check are rollout gates, not assumptions.
 10. **Account-level attribution.** GitHub does not distinguish an interactive

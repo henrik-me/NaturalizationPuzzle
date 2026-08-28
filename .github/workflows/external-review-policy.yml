@@ -730,19 +730,39 @@ jobs:
                 throw new TypeError("Approval reviews are invalid");
               }
               const appLogin = `${session.appSlug}[bot]`;
-              const validatedReviews = validateReviews(reviews);
-              let latestDecisive;
-              for (const review of validatedReviews) {
-                if (
-                  review.type === "Bot" &&
-                  review.login === appLogin &&
-                  DECISIVE_REVIEW_STATES.has(review.state)
-                ) {
-                  if (isLaterReview(review, latestDecisive)) {
-                    latestDecisive = review;
+              const latestAppDecision = (candidateReviews) => {
+                let latest;
+                for (const review of candidateReviews) {
+                  if (
+                    review.type === "Bot" &&
+                    review.login === appLogin &&
+                    DECISIVE_REVIEW_STATES.has(review.state) &&
+                    isLaterReview(review, latest)
+                  ) {
+                    latest = review;
                   }
                 }
+                return latest;
+              };
+              let validatedReviews = validateReviews(reviews);
+              let latestDecisive =
+                latestAppDecision(validatedReviews);
+              if (
+                latestDecisive?.state === "APPROVED" &&
+                latestDecisive.commitId === headSha
+              ) {
+                return;
               }
+              if (validatedReviews.length >= 99) {
+                throw new Error(
+                  "Review limit would be reached; refusing to create the 100th review",
+                );
+              }
+              validatedReviews = validateReviews(
+                await this.listReviews(session, pullNumber),
+              );
+              latestDecisive =
+                latestAppDecision(validatedReviews);
               if (
                 latestDecisive?.state === "APPROVED" &&
                 latestDecisive.commitId === headSha

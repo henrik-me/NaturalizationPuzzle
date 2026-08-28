@@ -546,6 +546,15 @@ test("trusted approval matches only the exact App bot login", async () => {
     api: {
       request: async (method, path, options) => {
         requests.push({ method, path, options });
+        if (method === "GET") {
+          return [
+            review({
+              login: "Copilot",
+              id: 198982749,
+              type: "Bot",
+            }),
+          ];
+        }
         return {};
       },
     },
@@ -560,8 +569,9 @@ test("trusted approval matches only the exact App bot login", async () => {
       type: "Bot",
     }),
   ]);
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].method, "POST");
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].method, "GET");
+  assert.equal(requests[1].method, "POST");
 
   requests.length = 0;
   await service.ensureTrustedAuthorApproval(session, 42, HEAD, [
@@ -572,6 +582,41 @@ test("trusted approval matches only the exact App bot login", async () => {
     }),
   ]);
   assert.equal(requests.length, 0);
+});
+
+test("trusted approval rechecks review capacity immediately before posting", async () => {
+  const { GitHubService } = await loadPolicy();
+  const refreshedReviews = Array.from({ length: 99 }, (_, index) =>
+    review({
+      login: "Copilot",
+      id: 198982749,
+      type: "Bot",
+      state: "COMMENTED",
+      reviewId: index + 1,
+    }),
+  );
+  const requests = [];
+  const service = new GitHubService({
+    api: {
+      request: async (method) => {
+        requests.push(method);
+        return refreshedReviews;
+      },
+    },
+    clientId: "Iv1.example",
+    privateKeyPem: "unused",
+  });
+
+  await assert.rejects(
+    service.ensureTrustedAuthorApproval(
+      session,
+      42,
+      HEAD,
+      refreshedReviews.slice(0, 98),
+    ),
+    /Review limit would be reached/,
+  );
+  assert.deepEqual(requests, ["GET"]);
 });
 
 test("trusted approval refuses to create the 100th review", async () => {

@@ -183,12 +183,14 @@ required approvals to zero and do not add a bypass.
   growth is append-only at this API boundary: each new owner-authored head
   normally adds one App approval, each newly approved external head adds an
   owner review, and review tools can add further records on the same push.
-  At 99 records without a current-head App approval, the workflow refuses to
-  create record 100. Do not redesign pagination or widen the bound here.
-  Preserve the old PR as evidence and replace it before record 100;
-  replacement resets the review list but costs a new PR, complete CI/review
-  reruns, resolved-thread handling, and a fresh owner approval of the
-  replacement's current head.
+  Immediately before creating an App approval, the workflow re-fetches reviews
+  and refuses the write at 99 records. GitHub offers no atomic
+  create-if-below-limit operation, so a concurrent review can still win the
+  narrow check/write race; the next reconciliation then fails closed at 100.
+  Do not redesign pagination or widen the bound here. Preserve the old PR as
+  evidence and replace it before record 100; replacement resets the review
+  list but costs a new PR, complete CI/review reruns, resolved-thread handling,
+  and a fresh owner approval of the replacement's current head.
 - Alert on failed or missing scheduled runs and App approvals on PRs not
   authored by `henrik-me`/`34380746`.
 - On suspected compromise, disable the App installation and rotate its key.
