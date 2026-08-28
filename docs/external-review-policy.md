@@ -103,6 +103,13 @@ contents only within its separately approved repository scope, but cannot
 change this policy, expose its secrets, install the App, or alter the required
 check/ruleset.
 
+GitHub identifies a PR by account, not by whether `henrik-me` acted
+interactively or through a fine-grained token. Owner-attributed ordinary-code
+PRs created by Copilot CLI therefore intentionally use the trusted-author
+path. The security boundary is the credential's inability to modify workflows,
+read Actions secrets, administer the repository, or write rulesets—not an
+attempt to distinguish sessions belonging to the same account.
+
 Do not grant workflow-write permission to other automation or collaborators.
 A same-repository branch author with that permission could propose or execute
 workflow changes; fork PRs do not receive repository secrets.

@@ -16,6 +16,9 @@ Trusted:
 - immutable owner identity `henrik-me`/`34380746`;
 - `APP_CLIENT_ID` and `APP_PRIVATE_KEY` in repository Actions secrets;
 - the App identity attached to Checks API results;
+- GitHub's authoritative owner attribution for ordinary-content PRs, including
+  owner-attributed PRs created with the deliberately constrained Copilot CLI
+  credential;
 - GitHub-hosted runner and Actions control plane.
 
 Untrusted:
@@ -25,7 +28,9 @@ Untrusted:
 - artifacts, caches, packages, actions, and repository code;
 - API response shapes until validated;
 - error bodies, rate limits, network availability, and event delivery;
-- all credentials other than the two App secrets, including Copilot CLI.
+- Copilot CLI for policy, workflow, secret, administration, and ruleset
+  operations; its ordinary-content PR authorship is intentionally
+  owner-attributed and follows the trusted-author path.
 
 ## Controls
 
@@ -93,6 +98,12 @@ not be converted into a bypass or zero-approval rule.
    and replace the PR rather than widening the bound without review.
 9. **Unproven platform semantics.** App approval counting and reopening a
    completed check are rollout gates, not assumptions.
+10. **Account-level attribution.** GitHub does not distinguish an interactive
+    owner action from a fine-grained token acting as that owner. The policy
+    intentionally trusts both for ordinary-content PRs. Its safety depends on
+    the Copilot credential having no Workflows, Actions secrets,
+    Administration, or ruleset write permission, and on retaining those
+    denials.
 
 Official GitHub references are collected in
 [`external-review-policy.md`](external-review-policy.md#official-references).
