@@ -1,0 +1,15 @@
+name: External review policy signal
+
+on:
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions: {}
+
+jobs:
+  signal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: Signal trusted policy reconciliation
+        run: echo "Review change observed; trusted reconciliation runs separately."
