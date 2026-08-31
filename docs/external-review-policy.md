@@ -14,25 +14,31 @@ re-fetches open pull requests and reviews from GitHub's API.
 
 ## Policy
 
-- An open PR to `main` or temporary `policy-canary` succeeds when its
-  authoritative author is the human account `henrik-me` with immutable user ID
-  `34380746` and that same identity owns the head repository. The App
-  idempotently approves the authoritative current head.
-- Every other PR succeeds only when the latest decisive review from the
-  allowlisted human `henrik-me`/`34380746` is `APPROVED` for the authoritative
-  current head. The App never approves an external-author PR.
+- An open PR to `main` or the temporary `policy-canary` branch is a
+  trusted-author PR when its authoritative author is the human account
+  `henrik-me` with immutable user ID `34380746` and that same identity owns the
+  head repository. The App writes a passing `external-review-policy` check on
+  the authoritative current head and idempotently posts an informational
+  approval. That App approval does not count toward any native required-review
+  count and is not an enforcement layer; GitHub does not tally it. Owner PRs
+  therefore merge on green CI plus the App-bound check, with no human approval
+  required.
+- Every other PR passes the App-bound check only when the latest decisive
+  review from the allowlisted human `henrik-me`/`34380746` is `APPROVED` for
+  the authoritative current head. The App never approves an external-author PR.
 - Dependabot is an external Bot author. Its PRs require the allowlisted owner's
-  approval of the authoritative current head; green dependency checks do not
-  substitute for that approval. A Dependabot rebase or other branch update
-  changes the head, so strict branch protection dismisses the old approval and
-  policy requires a new current-head approval.
+  approval of the authoritative current head, because otherwise the App-bound
+  check is a failure; green dependency checks do not substitute for that
+  approval. A Dependabot rebase or other branch update changes the head, so
+  strict branch protection dismisses the old approval and policy requires a new
+  current-head approval.
 - Missing secrets, invalid API data, API errors, pagination bounds, permission
   drift, suspended or broad installation state, and check-write failures stop
   the workflow. There is no success fallback.
 
 The App writes `external-review-policy` on the authoritative current head.
-Ruleset 15368163 must eventually bind that required context to the observed
-dedicated App source, not merely to the check name.
+Ruleset 15368163 binds that required context to the observed dedicated App
+source (NP-APP integration ID `4755833`), not merely to the check name.
 
 ## Event model
 
@@ -58,7 +64,11 @@ make a policy decision. GitHub executes the event's merge-ref workflow
 definition, so preventing an untrusted same-repository author from changing
 that definition is load-bearing: only the owner and the temporary bootstrap
 App may have Workflows write, and the Copilot CLI credential must not.
-Fork-authored definitions receive no repository secrets. When the signal job
+Fork-authored definitions receive no repository secrets. Because
+NaturalizationPuzzle is a personal repository, a review submitted by an
+external reviewer such as Copilot can require a one-time Actions approval
+before its signal run starts; after that approval the signal job remains
+no-permission, no-secret, and no-checkout. When the signal job
 completes, `workflow_run` wakes the trusted default-branch policy workflow,
 which ignores predecessor claims, authenticates the App, and authoritatively
 re-fetches every open PR, head, and review before making any App decision.
@@ -94,8 +104,8 @@ only `henrik-me/NaturalizationPuzzle` selected.
 
 Store only these repository Actions secrets in NaturalizationPuzzle:
 
-- `APP_ID` — the numeric App ID shown on the App settings page;
-- `APP_PRIVATE_KEY` — the complete generated private-key PEM.
+- `APP_ID` -- the numeric App ID shown on the App settings page;
+- `APP_PRIVATE_KEY` -- the complete generated private-key PEM.
 
 Do not put either value in source, issues, logs, artifacts, caches, chat, or an
 environment accessible to other workflows. This change records the names
@@ -126,49 +136,51 @@ GitHub identifies a PR by account, not by whether `henrik-me` acted
 interactively or through a fine-grained token. Owner-attributed ordinary-code
 PRs created by Copilot CLI therefore intentionally use the trusted-author
 path. The security boundary is the credential's inability to modify workflows,
-read Actions secrets, administer the repository, or write rulesets—not an
+read Actions secrets, administer the repository, or write rulesets -- not an
 attempt to distinguish sessions belonging to the same account.
 
 Do not grant workflow-write permission to other automation or collaborators.
 A same-repository branch author with that permission could propose or execute
 workflow changes; fork PRs do not receive repository secrets.
 
-## No-bypass bootstrap and rollout
+## Completed no-bypass bootstrap and rollout
 
-1. Register the App, install it only on NaturalizationPuzzle, and create
-   `APP_ID` and `APP_PRIVATE_KEY` in repository Actions secrets.
-2. Before the policy executes on `main`, temporarily grant this dedicated App
-   only the additional Contents and Workflows write permissions needed to
+This rollout is complete. Every step was executed without a `RepositoryRole`
+bypass, admin merge, self-approval, or settings weakening.
+
+1. The dedicated App was registered, installed only on NaturalizationPuzzle,
+   and `APP_ID` and `APP_PRIVATE_KEY` were created as repository Actions
+   secrets.
+2. Before the policy executed on `main`, the dedicated App was temporarily
+   granted the additional Contents and Workflows write permissions needed to
    create a branch containing the reviewed bootstrap commit and author the
-   bootstrap PR. Pull requests write is already part of its eventual runtime
-   grant. This is an owner-operated provisioning step, not implemented here.
-3. `henrik-me` reviews and approves the App-authored bootstrap PR's frozen
-   current head. Immediately revoke Contents and Workflows access, verify the
-   App is back to exactly Metadata read, Pull requests write, and Checks write,
-   and only then merge normally. Any head update invalidates the approval and
-   must repeat current-head review; never use RepositoryRole bypass, admin
-   merge, self-approval, or settings weakening.
-4. After normal merge, the `main` push runs the protected local policy. Open an
-   ordinary owner-authored PR and observe the App-owned current-head check and
-   App approval. Inspect logs for credential disclosure.
-5. Create a disposable `policy-canary` branch and an identical temporary
-   no-bypass ruleset targeting only that branch. Require the four existing CI
-   contexts, one approval with stale dismissal, resolved threads, and the
-   observed App-bound `external-review-policy` check.
-6. Merge an owner-authored canary PR using only the App approval and green
-   checks. Confirm the App approval counts in the review summary. Confirm an
-   external canary PR without current-head human approval remains blocked,
-   then approve its current head and verify the policy changes to success.
-7. If and only if the canary passes, apply the reviewed
-   [ruleset 15368163 migration](ruleset-15368163-migration.md).
-8. After production migration, remove `policy-canary` from the policy workflow
-   and CI/CodeQL PR filters in a normally evaluated owner-authored PR. The
-   canary has already proved the App approval counts, and production no longer
-   requires a code-owner review. Then delete the temporary branch and ruleset.
+   bootstrap PR. Pull requests write was already part of its runtime grant.
+3. `henrik-me` reviewed and approved the App-authored bootstrap PR #173 at its
+   frozen current head. Contents and Workflows access was immediately revoked,
+   the App was verified back to exactly Metadata read, Pull requests write, and
+   Checks write, and the PR merged normally as `d1de384`.
+4. The `main` push then ran the protected local policy. An owner-authored PR
+   showed the App-owned current-head check and the informational App approval;
+   logs revealed no credential disclosure.
+5. A disposable `policy-canary` branch and an identical temporary no-bypass
+   ruleset targeting only that branch required the four existing CI contexts,
+   resolved threads, and the observed App-bound `external-review-policy` check.
+6. Owner canary PR #174 merged normally as `900f406` on green CI plus the
+   App-bound check, proving that zero native approvals suffice for owner PRs
+   and that the App approval does not count natively. External App canary
+   PR #175 was blocked before the owner approved its current head, then merged
+   normally as `60139a9` after that approval.
+7. The reviewed [ruleset 15368163 migration](ruleset-15368163-migration.md)
+   was applied: `bypass_actors` empty, `required_approving_review_count` 0,
+   `require_code_owner_review` false, and the App-source-bound
+   `external-review-policy` check appended.
+8. Production proofs followed: owner security PR #168 merged as `85481ad`, and
+   Dependabot PR #153 merged as `dd7905f` after an owner approval of its
+   current head. NaturalizationPuzzle now has zero open Dependabot alerts.
 
-If the App approval does not count toward one native approval, stop. The
-owner-required fallback is a distinct write/admin human approver; do not set
-required approvals to zero and do not add a bypass.
+The temporary `policy-canary` branch, its ruleset, and the workflow/CI filters
+referencing it still exist and are pending removal in a separate
+workflow-capable owner-authored PR.
 
 ## Maintenance and incidents
 

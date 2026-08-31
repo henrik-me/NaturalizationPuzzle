@@ -55,39 +55,40 @@ Untrusted:
 | API/log error leaks credentials | Private key is never printed; derived credentials are masked; error bodies are bounded and redacted | Sanitized failure only |
 | Policy disappears or workflow fails | No other component can publish the App-bound check | New heads remain blocked |
 
-## Bootstrap boundary
+## Bootstrap boundary (completed)
 
-The current ruleset requires one approval and code-owner review by the sole
-owner. The App policy is not active before its workflow reaches `main`, while
-GitHub forbids self-approval. Therefore the dedicated App temporarily receives
-Contents and Workflows write solely to author the reviewed bootstrap PR.
-`henrik-me` approves its frozen current head, then immediately revokes those
-two permissions and verifies the App's exact runtime grant before normal
-merge. This document does not implement or provision that step. Using the
-current RepositoryRole bypass, admin merge, temporarily reducing approvals,
-or disabling code-owner review remains outside the approved design.
+Before the policy workflow reached `main`, GitHub forbade self-approval, so the
+dedicated App temporarily received Contents and Workflows write solely to
+author the reviewed bootstrap PR #173. `henrik-me` approved its frozen current
+head, then immediately revoked those two permissions and verified the App's
+exact runtime grant before the normal merge as `d1de384`. No `RepositoryRole`
+bypass, admin merge, approval reduction, or code-owner-review disabling was
+used.
 
-The App's review counting toward a native approval is not guaranteed by
-GitHub's public documentation. A disposable branch covered by an identical
-temporary no-bypass ruleset must prove an actual owner-authored merge using
-only the App review. Failure requires a distinct second human approver; it must
-not be converted into a bypass or zero-approval rule.
+A canary on a disposable branch under an identical temporary no-bypass ruleset
+proved the observed platform semantics: a GitHub App approval does not count
+toward a native required-review count. The production ruleset therefore sets
+`required_approving_review_count` to 0 and enforces owner review of external
+PRs through the App-bound `external-review-policy` check rather than a native
+approval. Owner canary PR #174 merged as `900f406` on CI plus the App-bound
+check; external App canary PR #175 was blocked until the owner approved its
+current head, then merged as `60139a9`.
 
 ## Residual risks
 
 1. **Pre-authentication stale success.** An App/API outage before
    authentication or authoritative head lookup cannot safely identify and
    reopen an existing same-head check, so an earlier success may remain. The
-   native PR-specific approval still blocks external PRs after dismissal;
-   monitor failed and missing scheduled runs.
+   App-bound `external-review-policy` check still fails an external PR on any
+   new head after dismissal; monitor failed and missing scheduled runs.
 2. **Review signal delivery.** The local secretless signal and trusted
    `workflow_run` normally propagate review changes immediately after Actions
    scheduling, but a PR can modify/remove its merge-ref signal and delivery or
    queueing can fail or lag. Scheduled reconciliation remains the independent
    roughly 15-minute timing guarantee and backstop.
-3. **Reopening check support.** The Checks API accepts status updates, but the
-   staged canary must prove that a completed check can return to
-   `in_progress`. Stop rollout if GitHub rejects that transition.
+3. **Reopening check support.** The canary confirmed the Checks API returns a
+   completed check to `in_progress` on reconciliation; an induced review API
+   failure leaves it non-successful.
 4. **App-key concentration.** The same App key creates both the trusted-owner
    review and check. Compromise defeats both layers. Restrict installation,
    use hardware-backed owner MFA, rotate keys, and audit every App review.
@@ -96,8 +97,8 @@ not be converted into a bypass or zero-approval rule.
    secrets. Keep that permission limited to the owner and exclude automation.
 6. **Same-head checks.** Checks are commit-scoped. Two PRs sharing one head can
    influence the visible name result, while deterministic external IDs keep
-   writes separate. Native PR-specific approval remains mandatory; investigate
-   duplicate-head cases and never bypass.
+   writes separate. The App-bound check remains the authoritative external-PR
+   gate; investigate duplicate-head cases and never bypass.
 7. **GitHub availability.** Actions or API outages deny policy freshness and
    may deny merges. This is intentional fail-closed behavior except for the
    bounded stale-success condition above.
@@ -110,8 +111,10 @@ not be converted into a bypass or zero-approval rule.
    fails closed. Preserve the old PR as evidence and replace it rather than
    widening the bound. The replacement must repeat CI, reviews/thread
    handling, and current-head owner approval.
-9. **Unproven platform semantics.** App approval counting and reopening a
-   completed check are rollout gates, not assumptions.
+9. **Proven platform semantics.** The canary proved that a GitHub App approval
+   does not count toward a native required-review count and that a completed
+   check can reopen. Production enforcement relies on the App-bound check with
+   `required_approving_review_count` 0, not on native App-approval counting.
 10. **Account-level attribution.** GitHub does not distinguish an interactive
     owner action from a fine-grained token acting as that owner. The policy
     intentionally trusts both for ordinary-content PRs. Its safety depends on

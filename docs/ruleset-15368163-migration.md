@@ -1,69 +1,55 @@
-# Ruleset 15368163 migration artifact
+# Ruleset 15368163 applied-state record
 
-This document is a reviewed replacement plan, not an applied settings change.
-The live active ruleset snapshot was re-read on 2026-08-28.
+This document records the applied state of ruleset 15368163, the verification
+that accompanied it, and the rollback procedure. The migration is complete: the
+reviewed target state has been applied to the live active ruleset, and the
+owner, external, and Dependabot proofs have all passed.
 
-## Current complete state
+## Current complete state (applied)
 
 - Name: `main-protection`
 - Target: branch
 - Condition: include `~DEFAULT_BRANCH`; no exclusions
 - Enforcement: active
-- Bypass: `RepositoryRole` actor ID 5, mode `always`
+- Bypass: none (`bypass_actors` empty)
 - Rules:
   1. deletion protection;
   2. non-fast-forward protection;
   3. required linear history;
   4. pull request:
-     - one approving review;
+     - `required_approving_review_count` 0 (no native approval required);
      - dismiss stale reviews on push;
-     - require code-owner review;
+     - do not require code-owner review;
      - resolve all review threads;
      - do not require last-push approval;
-     - require extra approval for unattributed changes;
+     - require extra approval for unattributed Copilot changes;
      - no named required reviewers;
      - allow merge, squash, and rebase;
   5. strict required status checks, enforced on branch creation:
      - `Build & Test`;
      - `Analyze (csharp)`;
      - `Analyze (javascript-typescript)`;
-     - `E2E (Playwright)`.
+     - `E2E (Playwright)`;
+     - `external-review-policy`, bound to the observed dedicated App source
+       (NP-APP integration ID `4755833`).
 
-## Preconditions
+A GitHub App approval does not count toward the native required-review count;
+the canary proved this. Enforcement of owner review on external PRs is carried
+by the App-bound `external-review-policy` check, not by a native approval, so
+`required_approving_review_count` is 0.
 
-Do not edit ruleset 15368163 until all are true:
+## Applied change set
 
-- Repository-local policy workflow is on trusted `main`.
-- Secretless review-signal workflow is on trusted `main`; a review change
-  completes it and wakes the default-branch `workflow_run` reconciliation.
-- Dedicated App is installed only on NaturalizationPuzzle with exact
-  Metadata read, Pull requests write, and Checks write.
-- `APP_ID` and `APP_PRIVATE_KEY` exist only as this repository's Actions
-  secrets.
-- An owner-authored ordinary PR shows an App-owned current-head
-  `external-review-policy` check and App approval.
-- Logs reveal no PEM, JWT, installation token, or authorization header.
-- A disposable `policy-canary` branch has a separate active, identical,
-  no-bypass ruleset requiring the four existing checks, one native approval,
-  stale dismissal, resolved threads, and the App-source-bound policy check.
-- CI/CD and CodeQL emit all four existing contexts for PRs targeting
-  `policy-canary`.
-- An owner-authored canary PR actually merges with only the App approval.
-- An external canary PR without current-head owner approval is blocked and
-  succeeds only after current-head approval.
-- A Dependabot canary is treated as external, and any Dependabot rebase or
-  other strict branch update invalidates approval until the owner approves the
-  new authoritative head.
-- Reconciliation reopens a completed policy check as `in_progress`; an induced
-  review API failure leaves it non-successful.
+The following fields changed from the pre-migration ruleset; everything else
+remained byte-for-field equivalent to the exported live ruleset:
 
-If the App approval does not count or check reopening fails, stop. Do not
-change production rules.
+1. removed the `RepositoryRole` bypass actor with no replacement
+   (`bypass_actors` now empty);
+2. set `required_approving_review_count` from 1 to 0;
+3. set `require_code_owner_review` from `true` to `false`;
+4. appended the App-source-bound `external-review-policy` required check.
 
-## Exact target state
-
-Replace the active ruleset with the same name, target, condition, enforcement,
-and complete rule set, changing only the explicitly identified fields below.
+## Exact target state (as applied)
 
 ```text
 name: main-protection
@@ -78,7 +64,7 @@ rules:
   - non_fast_forward
   - required_linear_history
   - pull_request:
-      required_approving_review_count: 1
+      required_approving_review_count: 0
       dismiss_stale_reviews_on_push: true
       required_reviewers: []
       require_code_owner_review: false
@@ -95,49 +81,59 @@ rules:
         - context: Analyze (javascript-typescript)
         - context: E2E (Playwright)
         - context: external-review-policy
-          expected_source: observed dedicated External Review Policy App
+          integration_id: 4755833
 ```
 
-The API representation of expected source uses the observed App integration
-identifier. Select the App-produced check in the settings UI after it exists;
-never create a name-only requirement or guess the identifier.
+The API representation binds the `external-review-policy` context to the
+observed App integration ID `4755833` (NP-APP). The App-produced check was
+selected in the settings UI after it existed; the requirement is never a
+name-only requirement.
 
-The approved changes are therefore only:
+## Completed verification
 
-1. remove the RepositoryRole bypass actor with no replacement;
-2. set `require_code_owner_review` from `true` to `false`;
-3. append the App-source-bound `external-review-policy` required check.
+The following were verified after applying the target state:
 
-Everything else remains byte-for-field equivalent to the exported live
-ruleset.
+1. The live ruleset was exported immediately before editing, applied in
+   repository settings (not via an API token held by Copilot CLI), then
+   re-fetched and compared field by field: condition, empty bypass actors, each
+   rule, every pull request parameter, merge methods, strictness flag, and each
+   required context matched the target state.
+2. Owner PRs merged on the four existing checks plus the App-bound policy
+   check, with zero native approvals and resolved threads. The workflow still
+   posts an informational App approval on owner PRs; that review is not an
+   enforcement layer and GitHub does not count it. Owner security PR #168
+   merged as `85481ad`.
+3. External PRs required the owner's current-head APPROVED human review,
+   surfaced through the App-bound check; the App never approved them. External
+   App canary PR #175 was blocked before owner approval, then merged as
+   `60139a9` after current-head approval.
+4. New commits dismissed the stale approval and the next reconciliation failed
+   the new head until reapproval. Review submit, edit, and dismiss completed
+   the secretless signal, woke the trusted `workflow_run`, and propagated
+   authoritative state without waiting for the scheduled backstop.
+5. A Dependabot PR required owner approval of its current head, and a
+   Dependabot rebase re-required approval. Dependabot PR #153 merged as
+   `dd7905f` after a current-head owner approval. NaturalizationPuzzle now has
+   zero open Dependabot alerts.
+6. Direct updates, force pushes, and deletion remained blocked.
+7. Owner canary PR #174 merged as `900f406`, and the App-authored bootstrap
+   PR #173 merged as `d1de384`, both without any bypass.
 
-## Apply and verify
+## Remaining cleanup
 
-1. Export ruleset 15368163 immediately before editing.
-2. Apply the exact target state in repository settings. Do not use an API token
-   held by Copilot CLI.
-3. Re-fetch the ruleset and compare every condition, bypass actor, rule, pull
-   request parameter, merge method, strictness flag, and required context.
-4. Verify an owner PR requires the four existing checks, the App-bound policy
-   check, one App approval, and resolved threads.
-5. Verify an external PR requires the same checks plus the owner's
-   current-head human approval. The App must not approve it.
-6. Verify new commits dismiss the native approval and the next policy
-   reconciliation fails the new head until reapproval. Verify review submit,
-   edit, and dismiss complete the secretless signal, wake the trusted
-   `workflow_run`, and propagate authoritative state without waiting for the
-   scheduled backstop.
-7. Verify a Dependabot PR requires owner approval of its current head and a
-   Dependabot rebase re-requires approval.
-8. Verify direct updates, force pushes, and deletion remain blocked.
-9. Only after production verification, remove temporary `policy-canary`
-   workflow/CI configuration through a normal protected PR and delete the
-   temporary branch/ruleset.
+The temporary `policy-canary` branch, its separate no-bypass ruleset, and the
+policy-workflow / CI / CodeQL PR filters that reference `policy-canary` still
+exist and are pending removal in a separate workflow-capable owner-authored PR.
+Delete the temporary branch and its ruleset only after that PR merges normally.
 
-If validation fails, stop without bypass or admin merge. Preserve the four
-existing checks, one approval, stale dismissal, resolved threads, deletion,
-non-fast-forward and linear-history rules. Re-enable code-owner review if the
-App-bound requirement must be removed during repair.
+## Rollback
+
+If a defect requires reverting, stop without bypass or admin merge. Preserve
+the four existing checks, stale dismissal, resolved threads, deletion,
+non-fast-forward, and linear-history rules. If the App-bound
+`external-review-policy` requirement must be removed during repair, re-enable
+code-owner review and restore a native approval requirement in the same edit so
+that no window exists without an owner-review gate.
 
 GitHub documents [required status checks and expected App sources][checks] and
 [pull request review rules][reviews].
