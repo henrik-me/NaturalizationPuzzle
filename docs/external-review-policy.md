@@ -165,11 +165,14 @@ bypass, admin merge, self-approval, or settings weakening.
 5. A disposable `policy-canary` branch and an identical temporary no-bypass
    ruleset targeting only that branch required the four existing CI contexts,
    resolved threads, and the observed App-bound `external-review-policy` check.
-6. Owner canary PR #174 merged normally as `900f406` on green CI plus the
-   App-bound check, proving that zero native approvals suffice for owner PRs
-   and that the App approval does not count natively. External App canary
-   PR #175 was blocked before the owner approved its current head, then merged
-   normally as `60139a9` after that approval.
+6. On the canary ruleset an owner-authored PR was first tested with
+   `required_approving_review_count` 1. Owner canary PR #174, carrying only the
+   App's approval, remained `REVIEW_REQUIRED` and could not merge -- directly
+   proving that the App approval does not count toward a native required-review
+   count. The count was then switched to 0 under the same no-bypass ruleset,
+   and PR #174 merged normally as `900f406` on green CI plus the App-bound
+   check. External App canary PR #175 was blocked before the owner approved its
+   current head, then merged normally as `60139a9` after that approval.
 7. The reviewed [ruleset 15368163 migration](ruleset-15368163-migration.md)
    was applied: `bypass_actors` empty, `required_approving_review_count` 0,
    `require_code_owner_review` false, and the App-source-bound

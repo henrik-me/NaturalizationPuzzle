@@ -107,14 +107,18 @@ The following were verified after applying the target state:
    surfaced through the App-bound check; the App never approved them. External
    App canary PR #175 was blocked before owner approval, then merged as
    `60139a9` after current-head approval.
-4. New commits dismissed the stale approval and the next reconciliation failed
-   the new head until reapproval. Review submit, edit, and dismiss completed
-   the secretless signal, woke the trusted `workflow_run`, and propagated
-   authoritative state without waiting for the scheduled backstop.
-5. A Dependabot PR required owner approval of its current head, and a
-   Dependabot rebase re-required approval. Dependabot PR #153 merged as
-   `dd7905f` after a current-head owner approval. NaturalizationPuzzle now has
-   zero open Dependabot alerts.
+4. Live-observed: a review submission completed the secretless signal, woke the
+   trusted `workflow_run`, and propagated authoritative state immediately
+   without waiting for the scheduled backstop; a new commit left the new head
+   ungated until re-approval.
+5. Configured and unit-tested but not live-proven (pending): review edit and
+   review dismissal completing the signal and driving reconciliation, and a
+   post-approval Dependabot rebase invalidating a prior approval. These follow
+   the same code path but were not exercised end-to-end in production. The
+   actual Dependabot PR #153 rebase occurred before any owner approval, so it
+   did not test post-approval invalidation; PR #153 required and received a
+   current-head owner approval and merged as `dd7905f`. NaturalizationPuzzle
+   now has zero open Dependabot alerts.
 6. Direct updates, force pushes, and deletion remained blocked.
 7. Owner canary PR #174 merged as `900f406`, and the App-authored bootstrap
    PR #173 merged as `d1de384`, both without any bypass.
@@ -126,14 +130,52 @@ policy-workflow / CI / CodeQL PR filters that reference `policy-canary` still
 exist and are pending removal in a separate workflow-capable owner-authored PR.
 Delete the temporary branch and its ruleset only after that PR merges normally.
 
-## Rollback
+## Remaining issues
 
-If a defect requires reverting, stop without bypass or admin merge. Preserve
-the four existing checks, stale dismissal, resolved threads, deletion,
-non-fast-forward, and linear-history rules. If the App-bound
-`external-review-policy` requirement must be removed during repair, re-enable
-code-owner review and restore a native approval requirement in the same edit so
-that no window exists without an owner-review gate.
+- **Duplicate-head cross-PR bypass (code hardening required).** Required status
+  checks are commit-scoped, and the ruleset matches the `external-review-policy`
+  context by name and App source on the head commit, ignoring the App's
+  PR-specific `external_id`. Two open PRs that share one head SHA see the same
+  commit-scoped check, so a success written for the approved PR can satisfy an
+  unapproved duplicate-head PR -- a potential bypass. The workflow does not yet
+  fail closed across duplicate-head PRs. A code hardening change is a required
+  follow-up before POL-001 is considered complete or the design is reused.
+  Until then, detect and close duplicate-head PRs and disable the App-bound
+  requirement or App installation while investigating. See threat model
+  residual risk 6.
+- **Zero-approval stale-success window.** With `required_approving_review_count`
+  0, an owner dismissal during an App/API outage can leave a still-successful
+  same-head check as the only gate. See threat model residual risk 1 for
+  monitoring and incident response.
+
+## Rollback (no-bypass repair)
+
+Repairs never use a `RepositoryRole` bypass, admin merge, or self-approval.
+Because `required_approving_review_count` is 0 and the sole owner cannot
+self-approve, removing the App-bound `external-review-policy` requirement and
+relying only on a restored native owner approval would deadlock this
+single-owner repository: the owner could neither satisfy a check that is being
+repaired nor approve their own repair PR. The rollback therefore retains the
+App-bound check and routes the fix through a non-owner author so that a valid
+owner current-head approval can merge it:
+
+1. Keep the `external-review-policy` requirement in place. Preserve the four
+   existing checks, stale dismissal, resolved threads, deletion,
+   non-fast-forward, and linear-history rules.
+2. Author the repair PR from an external identity, or temporarily grant the
+   dedicated App Contents/Workflows write to author it (the bootstrap
+   mechanism), so the change is not owner-authored and the owner's review is a
+   valid, counted external approval.
+3. The owner submits an APPROVED review at the repair PR's current head. The
+   functioning App writes a passing `external-review-policy` check for that
+   approved head and the PR merges normally. Immediately revoke any temporary
+   App permissions afterward.
+4. If the App itself is the failed component, first restore the reviewed
+   App/workflow through this same non-owner-authored, owner-approved path before
+   any further ruleset change; do not remove the App-bound requirement to force
+   a merge, which would strand the single owner without a mergeable gate.
+
+If validation still fails, stop and investigate; never bypass or admin-merge.
 
 GitHub documents [required status checks and expected App sources][checks] and
 [pull request review rules][reviews].
