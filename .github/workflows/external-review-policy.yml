@@ -538,6 +538,50 @@ jobs:
             validateToken(session?.token);
           }
 
+          // Shared check-run list validation keeps normal upsert and duplicate
+          // failure matching identical, so the two paths cannot diverge and
+          // both fail closed on truncated pagination or malformed items.
+          function validateCheckRunList(list) {
+            if (
+              list === null ||
+              typeof list !== "object" ||
+              !Number.isSafeInteger(list.total_count) ||
+              list.total_count < 0 ||
+              !Array.isArray(list.check_runs) ||
+              list.check_runs.length >= 100 ||
+              list.total_count > list.check_runs.length
+            ) {
+              throw new Error(
+                "Check-run pagination or response is invalid",
+              );
+            }
+            return list.check_runs.map((check, index) => {
+              // app is null for checks whose GitHub App has been deleted or
+              // that were not created by an App; such foreign runs are valid
+              // and simply never match the dedicated App by id.
+              const app = check?.app;
+              if (
+                check === null ||
+                typeof check !== "object" ||
+                !Number.isSafeInteger(check.id) ||
+                check.id < 1 ||
+                typeof check.name !== "string" ||
+                typeof check.head_sha !== "string" ||
+                (check.external_id !== null &&
+                  typeof check.external_id !== "string") ||
+                (app !== null &&
+                  (typeof app !== "object" ||
+                    !Number.isSafeInteger(app.id) ||
+                    app.id < 1))
+              ) {
+                throw new Error(
+                  `Check-run list item ${index} is invalid`,
+                );
+              }
+              return check;
+            });
+          }
+
           export class GitHubService {
             constructor({
               api,
@@ -696,93 +740,163 @@ jobs:
 
             async listOpenPulls(session) {
               validateSession(session);
-              const pulls = await this.api.request(
-                "GET",
-                `/repos/${OWNER}/${REPOSITORY}/pulls?state=open&sort=created&direction=asc&per_page=100`,
-                { token: session.token },
-              );
-              if (!Array.isArray(pulls) || pulls.length >= 100) {
-                throw new Error(
-                  "Pull request pagination limit reached; refusing partial data",
+              // Explicit full pagination with hard bounds. Fetch per_page=100
+              // pages until a page is short (the last page), and fail closed if
+              // the final allowed page is still full (there may be more) or any
+              // page is malformed. Cross-page duplicate PR numbers are rejected
+              // later by the authoritative snapshot before any write.
+              const perPage = 100;
+              const maxPages = 10;
+              const maxRecords = 1_000;
+              const collected = [];
+              for (let page = 1; page <= maxPages; page += 1) {
+                const pageEntries = await this.api.request(
+                  "GET",
+                  `/repos/${OWNER}/${REPOSITORY}/pulls?state=open&sort=created&direction=asc&per_page=${perPage}&page=${page}`,
+                  { token: session.token },
                 );
+                if (
+                  !Array.isArray(pageEntries) ||
+                  pageEntries.length > perPage
+                ) {
+                  throw new Error(
+                    "Pull request page is malformed; refusing partial data",
+                  );
+                }
+                for (const entry of pageEntries) {
+                  collected.push(entry);
+                }
+                if (collected.length > maxRecords) {
+                  throw new Error(
+                    "Pull request record bound exceeded; refusing partial data",
+                  );
+                }
+                if (pageEntries.length < perPage) {
+                  return collected;
+                }
               }
-              return pulls;
+              // The final allowed page was full: more pages may exist, so we
+              // cannot prove we saw every open pull request. Fail closed.
+              throw new Error(
+                "Pull request pagination bound reached; refusing partial data",
+              );
             }
 
-            async ensureTrustedAuthorApproval(
-              session,
-              pullNumber,
-              headSha,
-              reviews,
-            ) {
+            async failDuplicateHeadChecks(session, headSha, detailsUrl) {
               validateSession(session);
-              requirePositiveInteger(pullNumber, "pullNumber");
               if (
                 typeof headSha !== "string" ||
                 !SHA_PATTERN.test(headSha)
               ) {
-                throw new TypeError("Approval head SHA is invalid");
+                throw new TypeError("Duplicate head SHA is invalid");
               }
-              if (!Array.isArray(reviews)) {
-                throw new TypeError("Approval reviews are invalid");
+              if (
+                typeof detailsUrl !== "string" ||
+                !detailsUrl.startsWith(
+                  `https://github.com/${OWNER}/${REPOSITORY}/pull/`,
+                ) ||
+                detailsUrl.length > 500
+              ) {
+                throw new TypeError(
+                  "Duplicate head detailsUrl is invalid",
+                );
               }
-              const appLogin = `${session.appSlug}[bot]`;
-              const latestAppDecision = (candidateReviews) => {
-                let latest;
-                for (const review of candidateReviews) {
-                  if (
-                    review.type === "Bot" &&
-                    review.login === appLogin &&
-                    DECISIVE_REVIEW_STATES.has(review.state) &&
-                    isLaterReview(review, latest)
-                  ) {
-                    latest = review;
+              const repositoryPath = `/repos/${OWNER}/${REPOSITORY}`;
+              const list = await this.api.request(
+                "GET",
+                `${repositoryPath}/commits/${headSha}/check-runs?check_name=${CHECK_NAME}&filter=all&per_page=100`,
+                { token: session.token },
+              );
+              const checks = validateCheckRunList(list);
+              const matching = checks.filter(
+                (check) =>
+                  check.name === CHECK_NAME &&
+                  check.head_sha === headSha &&
+                  check.app !== null &&
+                  check.app.id === session.appId,
+              );
+              const timestamp = this.now().toISOString();
+              // Fail every allowlisted-owner PR that shares this commit head:
+              // commit-scoped required checks cannot tell them apart, so one
+              // PR's success would otherwise satisfy another.
+              const output = {
+                title: "Duplicate protected pull request heads",
+                summary:
+                  "Multiple open protected pull requests share this commit " +
+                  "as their head. Commit-scoped required checks cannot " +
+                  "distinguish them, so every pull request that shares this " +
+                  "head is blocked until the heads are made unique.",
+              };
+              const body = {
+                name: CHECK_NAME,
+                details_url: detailsUrl,
+                status: "completed",
+                conclusion: "failure",
+                completed_at: timestamp,
+                output,
+              };
+              if (matching.length === 0) {
+                await this.api.request(
+                  "POST",
+                  `${repositoryPath}/check-runs`,
+                  {
+                    token: session.token,
+                    body: {
+                      ...body,
+                      head_sha: headSha,
+                      external_id: `v1:duplicate-head:${headSha}`,
+                    },
+                    expectedStatuses: [201],
+                  },
+                );
+                return;
+              }
+              // Omit external_id from PATCH bodies so each run keeps its
+              // original identity regardless of which PR minted it. Attempt
+              // every matching run with bounded all-settled concurrency and
+              // aggregate failures only after all PATCHes have been attempted,
+              // so one failing PATCH never leaves a later stale success intact.
+              const patchFailures = [];
+              for (let offset = 0; offset < matching.length; offset += 5) {
+                const batch = matching.slice(offset, offset + 5);
+                const settled = await Promise.allSettled(
+                  batch.map((check) =>
+                    this.api.request(
+                      "PATCH",
+                      `${repositoryPath}/check-runs/${check.id}`,
+                      { token: session.token, body },
+                    ),
+                  ),
+                );
+                for (const [index, outcome] of settled.entries()) {
+                  if (outcome.status === "rejected") {
+                    const reason = outcome.reason;
+                    patchFailures.push(
+                      reason instanceof Error
+                        ? reason
+                        : new Error(
+                            `Check-run ${batch[index].id} PATCH failed`,
+                          ),
+                    );
                   }
                 }
-                return latest;
-              };
-              let validatedReviews = validateReviews(reviews);
-              let latestDecisive =
-                latestAppDecision(validatedReviews);
-              if (
-                latestDecisive?.state === "APPROVED" &&
-                latestDecisive.commitId === headSha
-              ) {
-                return;
               }
-              if (validatedReviews.length >= 99) {
-                throw new Error(
-                  "Review limit would be reached; refusing to create the 100th review",
+              if (patchFailures.length > 0) {
+                throw new AggregateError(
+                  patchFailures,
+                  `Failed to fail ${patchFailures.length} duplicate-head check run(s)`,
                 );
               }
-              validatedReviews = validateReviews(
-                await this.listReviews(session, pullNumber),
-              );
-              latestDecisive =
-                latestAppDecision(validatedReviews);
-              if (
-                latestDecisive?.state === "APPROVED" &&
-                latestDecisive.commitId === headSha
-              ) {
-                return;
-              }
-              if (validatedReviews.length >= 99) {
-                throw new Error(
-                  "Review limit would be reached; refusing to create the 100th review",
-                );
-              }
-              await this.api.request(
-                "POST",
-                `/repos/${OWNER}/${REPOSITORY}/pulls/${pullNumber}/reviews`,
-                {
-                  token: session.token,
-                  body: { commit_id: headSha, event: "APPROVE" },
-                  expectedStatuses: [200],
-                },
-              );
             }
 
-            async upsertCheck(session, input) {
+            // prepareCheck performs the only read a check mutation needs: the
+            // check-run list lookup that decides POST-vs-PATCH. It returns a
+            // plan that applyCheck can execute with no further reads, so a
+            // caller can take a final authoritative snapshot between the lookup
+            // and the write. Global workflow concurrency guarantees no other
+            // same-App writer races check creation, so the looked-up match set
+            // stays valid across the intervening snapshot read.
+            async prepareCheck(session, input) {
               validateSession(session);
               const pullNumber = requirePositiveInteger(
                 input?.pullNumber,
@@ -803,28 +917,6 @@ jobs:
               ) {
                 throw new TypeError("check.detailsUrl is invalid");
               }
-              if (!["in_progress", "completed"].includes(input.status)) {
-                throw new TypeError("check.status is invalid");
-              }
-              if (
-                input.status === "completed" &&
-                !["success", "failure"].includes(input.conclusion)
-              ) {
-                throw new TypeError("check.conclusion is invalid");
-              }
-              for (const [name, maximum] of [
-                ["title", 255],
-                ["summary", 65_535],
-              ]) {
-                if (
-                  typeof input[name] !== "string" ||
-                  input[name].length < 1 ||
-                  input[name].length > maximum
-                ) {
-                  throw new TypeError(`check.${name} is invalid`);
-                }
-              }
-
               const externalId =
                 `v1:pr${pullNumber}:head:${input.headSha}`;
               const repositoryPath = `/repos/${OWNER}/${REPOSITORY}`;
@@ -833,82 +925,116 @@ jobs:
                 `${repositoryPath}/commits/${input.headSha}/check-runs?check_name=${CHECK_NAME}&filter=all&per_page=100`,
                 { token: session.token },
               );
-              if (
-                list === null ||
-                typeof list !== "object" ||
-                !Number.isSafeInteger(list.total_count) ||
-                list.total_count < 0 ||
-                !Array.isArray(list.check_runs) ||
-                list.check_runs.length >= 100 ||
-                list.total_count > list.check_runs.length
-              ) {
-                throw new Error(
-                  "Check-run pagination or response is invalid",
-                );
-              }
+              const checks = validateCheckRunList(list);
               const matchingIds = [];
-              for (const [index, check] of list.check_runs.entries()) {
-                if (
-                  check === null ||
-                  typeof check !== "object" ||
-                  !Number.isSafeInteger(check.id) ||
-                  check.id < 1 ||
-                  typeof check.name !== "string" ||
-                  typeof check.head_sha !== "string" ||
-                  (check.external_id !== null &&
-                    typeof check.external_id !== "string") ||
-                  !Number.isSafeInteger(check.app?.id)
-                ) {
-                  throw new Error(
-                    `Check-run list item ${index} is invalid`,
-                  );
-                }
+              for (const check of checks) {
                 if (
                   check.name === CHECK_NAME &&
                   check.head_sha === input.headSha &&
                   check.external_id === externalId &&
+                  check.app !== null &&
                   check.app.id === session.appId
                 ) {
                   matchingIds.push(check.id);
                 }
               }
+              return {
+                pullNumber,
+                headSha: input.headSha,
+                detailsUrl: input.detailsUrl,
+                externalId,
+                matchingIds,
+              };
+            }
 
+            // applyCheck executes the prepared mutation with no reads. The
+            // window between prepareCheck's list read and this write, and the
+            // window between any authoritative snapshot the caller takes and
+            // this write, are the only remaining, irreducible races.
+            async applyCheck(session, plan, mutation) {
+              validateSession(session);
+              requireObject(plan, "check.plan");
+              if (
+                typeof plan.headSha !== "string" ||
+                !SHA_PATTERN.test(plan.headSha) ||
+                typeof plan.detailsUrl !== "string" ||
+                typeof plan.externalId !== "string" ||
+                !Array.isArray(plan.matchingIds)
+              ) {
+                throw new TypeError("check.plan is invalid");
+              }
+              if (!["in_progress", "completed"].includes(mutation.status)) {
+                throw new TypeError("check.status is invalid");
+              }
+              if (
+                mutation.status === "completed" &&
+                !["success", "failure"].includes(mutation.conclusion)
+              ) {
+                throw new TypeError("check.conclusion is invalid");
+              }
+              for (const [name, maximum] of [
+                ["title", 255],
+                ["summary", 65_535],
+              ]) {
+                if (
+                  typeof mutation[name] !== "string" ||
+                  mutation[name].length < 1 ||
+                  mutation[name].length > maximum
+                ) {
+                  throw new TypeError(`check.${name} is invalid`);
+                }
+              }
+              const repositoryPath = `/repos/${OWNER}/${REPOSITORY}`;
               const timestamp = this.now().toISOString();
               const body = {
                 name: CHECK_NAME,
-                details_url: input.detailsUrl,
-                external_id: externalId,
-                status: input.status,
+                details_url: plan.detailsUrl,
+                external_id: plan.externalId,
+                status: mutation.status,
                 output: {
-                  title: input.title,
-                  summary: input.summary,
+                  title: mutation.title,
+                  summary: mutation.summary,
                 },
-                ...(input.status === "in_progress"
+                ...(mutation.status === "in_progress"
                   ? { started_at: timestamp }
                   : {
-                      conclusion: input.conclusion,
+                      conclusion: mutation.conclusion,
                       completed_at: timestamp,
                     }),
               };
-              if (matchingIds.length === 0) {
+              if (plan.matchingIds.length === 0) {
                 await this.api.request(
                   "POST",
                   `${repositoryPath}/check-runs`,
                   {
                     token: session.token,
-                    body: { ...body, head_sha: input.headSha },
+                    body: { ...body, head_sha: plan.headSha },
                     expectedStatuses: [201],
                   },
                 );
                 return;
               }
-              for (const id of matchingIds) {
+              for (const id of plan.matchingIds) {
                 await this.api.request(
                   "PATCH",
                   `${repositoryPath}/check-runs/${id}`,
                   { token: session.token, body },
                 );
               }
+            }
+
+            async upsertCheck(session, input) {
+              const plan = await this.prepareCheck(session, {
+                pullNumber: input?.pullNumber,
+                headSha: input?.headSha,
+                detailsUrl: input?.detailsUrl,
+              });
+              await this.applyCheck(session, plan, {
+                status: input?.status,
+                conclusion: input?.conclusion,
+                title: input?.title,
+                summary: input?.summary,
+              });
             }
           }
 
@@ -918,41 +1044,23 @@ jobs:
               this.policy = requireObject(policy, "policy");
             }
 
-            async evaluate(pullNumberInput, session) {
+            // Preparation opens an in-progress check for a singleton PR. It
+            // does not publish any completed conclusion; the success/failure
+            // decision is computed authoritatively at publication time by the
+            // reconciler, after the final snapshot, from the final pull plus
+            // freshly fetched reviews. The provisional decision returned here is
+            // only used to surface early validation failures.
+            async prepare(entry, session) {
               const pullNumber = requirePositiveInteger(
-                pullNumberInput,
-                "pullNumber",
+                entry?.number,
+                "entry.number",
               );
-              const pull = await this.github.getPull(
-                session,
-                pullNumber,
-              );
-              const authoritative = validateAuthoritativePull(pull);
-              if (pull.number !== pullNumber) {
-                throw new Error(
-                  `Authoritative pull number mismatch for ${pullNumber}`,
-                );
-              }
-              if (
-                pull.state !== "open" ||
-                !this.policy.protectedBases.includes(
-                  authoritative.baseRef,
-                )
-              ) {
-                return {
-                  skipped: true,
-                  reason:
-                    "Pull request is not open on a protected base",
-                };
-              }
-
-              const check = {
-                pullNumber,
-                headSha: authoritative.headSha,
-                detailsUrl: pull.html_url,
-              };
+              const detailsUrl = entry?.detailsUrl;
+              const headSha = entry?.headSha;
               await this.github.upsertCheck(session, {
-                ...check,
+                pullNumber,
+                headSha,
+                detailsUrl,
                 status: "in_progress",
                 title: "Evaluating external review policy",
                 summary:
@@ -963,26 +1071,144 @@ jobs:
                 pullNumber,
               );
               const decision = decidePolicy(
-                pull,
+                entry.pull,
                 reviews,
                 this.policy,
               );
-              if (decision.trustedAuthor) {
-                await this.github.ensureTrustedAuthorApproval(
-                  session,
-                  pullNumber,
-                  authoritative.headSha,
-                  reviews,
+              return {
+                pullNumber,
+                headSha,
+                baseRef: entry?.baseRef,
+                detailsUrl,
+                decision,
+              };
+            }
+          }
+
+          // Authoritative snapshot: validate the open pull list using unique
+          // positive numbers only, refetch each pull via getPull in bounded
+          // batches, require a number match, retain only open PRs on protected
+          // bases, and group them by authoritative head SHA. Any malformed or
+          // duplicate entry, or a number mismatch, fails closed before any
+          // check or review write occurs.
+          export async function snapshotOpenPulls(github, policy, session) {
+            const summaries = await github.listOpenPulls(session);
+            if (!Array.isArray(summaries)) {
+              throw new TypeError("Open pull request list is invalid");
+            }
+            const numbers = [];
+            const seen = new Set();
+            for (const [index, entry] of summaries.entries()) {
+              const number = requirePositiveInteger(
+                entry?.number,
+                `openPulls[${index}].number`,
+              );
+              if (seen.has(number)) {
+                throw new Error(
+                  `openPulls[${index}].number: duplicate pull number ${number}`,
                 );
               }
-              await this.github.upsertCheck(session, {
-                ...check,
-                status: "completed",
-                conclusion: decision.conclusion,
-                title: decision.title,
-                summary: decision.summary,
-              });
-              return decision;
+              seen.add(number);
+              numbers.push(number);
+            }
+            const retained = [];
+            for (let offset = 0; offset < numbers.length; offset += 5) {
+              const batch = numbers.slice(offset, offset + 5);
+              const fetched = await Promise.all(
+                batch.map(async (number) => {
+                  const pull = await github.getPull(session, number);
+                  const authoritative =
+                    validateAuthoritativePull(pull);
+                  if (pull.number !== number) {
+                    throw new Error(
+                      `Authoritative pull number mismatch for ${number}`,
+                    );
+                  }
+                  return { number, pull, authoritative };
+                }),
+              );
+              for (const { number, pull, authoritative } of fetched) {
+                if (
+                  pull.state !== "open" ||
+                  !policy.protectedBases.includes(
+                    authoritative.baseRef,
+                  )
+                ) {
+                  continue;
+                }
+                retained.push({
+                  number,
+                  pull,
+                  state: pull.state,
+                  headSha: authoritative.headSha,
+                  baseRef: authoritative.baseRef,
+                  detailsUrl: pull.html_url,
+                });
+              }
+            }
+            const byNumber = new Map();
+            const bySha = new Map();
+            for (const item of retained) {
+              byNumber.set(item.number, item);
+              const group = bySha.get(item.headSha);
+              if (group) {
+                group.push(item);
+              } else {
+                bySha.set(item.headSha, [item]);
+              }
+            }
+            const duplicateShas = new Set();
+            for (const [sha, group] of bySha) {
+              if (group.length > 1) {
+                duplicateShas.add(sha);
+              }
+            }
+            return { retained, byNumber, bySha, duplicateShas };
+          }
+
+          function pickDuplicateDetailsUrl(headSha, snapshots) {
+            for (const snapshot of snapshots) {
+              const group = snapshot.bySha.get(headSha);
+              if (group && group.length > 0) {
+                return group[0].detailsUrl;
+              }
+            }
+            return null;
+          }
+
+          // Fail every observed duplicated head SHA. Each SHA is attempted at
+          // most once per reconciliation (tracked in `attempted`), and every
+          // group is attempted even if an earlier one fails, so a single API
+          // failure never leaves a later observed stale success in place.
+          async function failObservedDuplicates(
+            github,
+            session,
+            duplicateShas,
+            snapshots,
+            attempted,
+            recordError,
+          ) {
+            for (const headSha of duplicateShas) {
+              if (attempted.has(headSha)) {
+                continue;
+              }
+              attempted.add(headSha);
+              const detailsUrl = pickDuplicateDetailsUrl(
+                headSha,
+                snapshots,
+              );
+              if (detailsUrl === null) {
+                continue;
+              }
+              try {
+                await github.failDuplicateHeadChecks(
+                  session,
+                  headSha,
+                  detailsUrl,
+                );
+              } catch (error) {
+                recordError(`duplicate head ${headSha}`, error);
+              }
             }
           }
 
@@ -992,55 +1218,254 @@ jobs:
             session,
             secrets = [],
           ) {
-            const pulls = await github.listOpenPulls(session);
+            const policy = requireObject(evaluator.policy, "policy");
             const errors = [];
             let failureCount = 0;
-            for (let offset = 0; offset < pulls.length; offset += 5) {
-              const batch = pulls.slice(offset, offset + 5);
+            const recordError = (identifier, error) => {
+              failureCount += 1;
+              if (errors.length < MAX_RECONCILIATION_DIAGNOSTICS) {
+                errors.push(
+                  new Error(
+                    redact(
+                      `${identifier}: ${errorDescription(error)}`,
+                      secrets,
+                      160,
+                    ),
+                  ),
+                );
+              }
+            };
+            const attemptedDuplicates = new Set();
+
+            // Phase 1: authoritative snapshot before any writes.
+            const initial = await snapshotOpenPulls(
+              github,
+              policy,
+              session,
+            );
+
+            // Phase 2: fail every head that is already duplicated in the
+            // initial snapshot immediately, before preparing anything or taking
+            // any later snapshot. A subsequent snapshot or API failure can then
+            // no longer leave an already-observed stale success in place. Every
+            // initial group is attempted before errors are aggregated.
+            await failObservedDuplicates(
+              github,
+              session,
+              initial.duplicateShas,
+              [initial],
+              attemptedDuplicates,
+              recordError,
+            );
+
+            // Phase 3: prepare singletons only. Initial duplicate groups are
+            // quarantined and never prepared, so no success can be minted for
+            // a shared head.
+            const prepared = [];
+            for (
+              let offset = 0;
+              offset < initial.retained.length;
+              offset += 5
+            ) {
+              const batch = initial.retained.slice(offset, offset + 5);
               const outcomes = await Promise.all(
-                batch.map(async (pull, batchIndex) => {
-                  const index = offset + batchIndex;
-                  let identifier = `openPulls[${index}]`;
+                batch.map(async (entry) => {
+                  if (initial.duplicateShas.has(entry.headSha)) {
+                    return { quarantined: true };
+                  }
                   try {
-                    const pullNumber = requirePositiveInteger(
-                      pull?.number,
-                      `openPulls[${index}].number`,
-                    );
-                    identifier = `PR #${pullNumber}`;
-                    await evaluator.evaluate(pullNumber, session);
-                    return null;
+                    return {
+                      result: await evaluator.prepare(entry, session),
+                    };
                   } catch (error) {
-                    return { error, identifier };
+                    return {
+                      error,
+                      identifier: `PR #${entry.number}`,
+                    };
                   }
                 }),
               );
               for (const outcome of outcomes) {
-                if (outcome !== null) {
-                  failureCount += 1;
-                  if (
-                    errors.length <
-                    MAX_RECONCILIATION_DIAGNOSTICS
-                  ) {
-                    errors.push(
-                      new Error(
-                        redact(
-                          `${outcome.identifier}: ${errorDescription(outcome.error)}`,
-                          secrets,
-                          160,
-                        ),
-                      ),
-                    );
-                  }
+                if (outcome.result) {
+                  prepared.push(outcome.result);
+                } else if (outcome.error) {
+                  recordError(outcome.identifier, outcome.error);
                 }
               }
             }
+
+            // Phase 4: publish each prepared singleton, taking the final
+            // authoritative snapshot as the genuine last read before the
+            // success check mutation. Per prepared PR, in order:
+            //   1. a preliminary fresh snapshot with duplicate detection and
+            //      remediation, and an early bail if the PR already changed or
+            //      became duplicated;
+            //   2. fetch the latest reviews and prepare/validate the exact
+            //      check-run mutation (the check-run list lookup) — the last
+            //      reads other than the final snapshot;
+            //   3. one final complete authoritative snapshot;
+            //   4. if the PR/head/base/state or uniqueness changed, or a
+            //      duplicate appeared, do not publish success and fail any
+            //      observed duplicates;
+            //   5. otherwise recompute the decision from the final
+            //      authoritative pull plus the already-fetched reviews and
+            //      execute the prepared PATCH/POST immediately, with no reads
+            //      between the final snapshot and the write.
+            //
+            // Two races remain and are irreducible at the API level: the final
+            // snapshot read to the check write, and the reviews read to the
+            // check write. A change landing inside either window is left for
+            // the next reconciliation. Global workflow concurrency ensures no
+            // other same-App writer races check creation between the check-run
+            // list lookup and the write.
+            for (const result of prepared) {
+              // Step 1: preliminary snapshot and duplicate remediation.
+              let prelim;
+              try {
+                prelim = await snapshotOpenPulls(github, policy, session);
+              } catch (error) {
+                recordError(`PR #${result.pullNumber}`, error);
+                continue;
+              }
+              await failObservedDuplicates(
+                github,
+                session,
+                prelim.duplicateShas,
+                [prelim],
+                attemptedDuplicates,
+                recordError,
+              );
+              const prelimEntry = prelim.byNumber.get(result.pullNumber);
+              const prelimChanged =
+                prelimEntry === undefined ||
+                prelimEntry.headSha !== result.headSha ||
+                prelimEntry.baseRef !== result.baseRef ||
+                prelimEntry.state !== "open" ||
+                !policy.protectedBases.includes(prelimEntry.baseRef);
+              if (prelimChanged) {
+                recordError(
+                  `PR #${result.pullNumber}`,
+                  new Error(
+                    "Authoritative reconciliation mismatch between snapshots; leaving check in progress",
+                  ),
+                );
+                continue;
+              }
+              if (
+                prelim.duplicateShas.has(result.headSha) ||
+                (prelim.bySha.get(result.headSha)?.length ?? 0) !== 1
+              ) {
+                continue;
+              }
+
+              // Step 2: fetch reviews and prepare the exact check mutation.
+              // These are the final reads before the final snapshot.
+              let reviews;
+              let plan;
+              try {
+                reviews = await github.listReviews(
+                  session,
+                  result.pullNumber,
+                );
+                plan = await github.prepareCheck(session, {
+                  pullNumber: result.pullNumber,
+                  headSha: prelimEntry.headSha,
+                  detailsUrl: prelimEntry.detailsUrl,
+                });
+              } catch (error) {
+                recordError(`PR #${result.pullNumber}`, error);
+                continue;
+              }
+
+              // Step 3: the final authoritative snapshot — the last read.
+              let finalSnapshot;
+              try {
+                finalSnapshot = await snapshotOpenPulls(
+                  github,
+                  policy,
+                  session,
+                );
+              } catch (error) {
+                recordError(`PR #${result.pullNumber}`, error);
+                continue;
+              }
+              const finalEntry = finalSnapshot.byNumber.get(
+                result.pullNumber,
+              );
+              const changed =
+                finalEntry === undefined ||
+                finalEntry.headSha !== result.headSha ||
+                finalEntry.baseRef !== result.baseRef ||
+                finalEntry.state !== "open" ||
+                !policy.protectedBases.includes(finalEntry.baseRef);
+              // Any duplicate head group anywhere in the final snapshot — not
+              // only this PR's head — blocks publication. A current-unique PR
+              // must not publish a success while an unrelated duplicate pair is
+              // unresolved in the same authoritative view.
+              const anyDuplicate = finalSnapshot.duplicateShas.size > 0;
+
+              // Step 4: on any target change, or ANY duplicate observed in the
+              // final snapshot, publish no success this pass. Remediate every
+              // duplicate observed (all-settled). A global duplicate fails the
+              // whole reconciliation closed and stops all further publication,
+              // so the next reconciliation takes a fresh authoritative snapshot
+              // before any success can be written.
+              if (changed || anyDuplicate) {
+                await failObservedDuplicates(
+                  github,
+                  session,
+                  finalSnapshot.duplicateShas,
+                  [finalSnapshot],
+                  attemptedDuplicates,
+                  recordError,
+                );
+                if (changed) {
+                  recordError(
+                    `PR #${result.pullNumber}`,
+                    new Error(
+                      "Authoritative reconciliation mismatch between snapshots; leaving check in progress",
+                    ),
+                  );
+                }
+                if (anyDuplicate) {
+                  recordError(
+                    `PR #${result.pullNumber}`,
+                    new Error(
+                      "Duplicate protected pull request heads observed in the final authoritative snapshot; deferring all success publication to the next reconciliation",
+                    ),
+                  );
+                  break;
+                }
+                continue;
+              }
+
+              // Step 5: recompute the decision from the final authoritative
+              // pull plus the reviews fetched in step 2, then execute the
+              // prepared mutation immediately with no intervening reads.
+              const decision = decidePolicy(
+                finalEntry.pull,
+                reviews,
+                policy,
+              );
+              try {
+                await github.applyCheck(session, plan, {
+                  status: "completed",
+                  conclusion: decision.conclusion,
+                  title: decision.title,
+                  summary: decision.summary,
+                });
+              } catch (error) {
+                recordError(`PR #${result.pullNumber}`, error);
+              }
+            }
+
             if (failureCount > 0) {
               throw new AggregateError(
                 errors,
                 `Reconciliation failed for ${failureCount} pull request(s); retained ${errors.length} diagnostic(s)`,
               );
             }
-            return { evaluated: pulls.length };
+            return { reconciled: initial.retained.length };
           }
 
           function requireEnvironment(name, maximumLength) {
