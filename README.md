@@ -583,6 +583,19 @@ Both scripts require `docker` and Node.js 22+ (`node` / `npm` / `npx`) on `PATH`
 
 ### CI/CD Pipeline
 
+The App-owned external review gate runs entirely from trusted local workflow
+code and authoritative GitHub API state; it has no runtime central-dispatch
+dependency. A secretless, empty-permission review signal wakes trusted
+default-branch reconciliation for immediate authoritative propagation, while
+the schedule remains a backstop. Rollout remains blocked on the documented
+App, bootstrap, canary, and ruleset prerequisites. See the
+[operations guide](docs/external-review-policy.md) and
+[threat model](docs/external-review-policy-threat-model.md).
+
+```bash
+node --test tests/policy/external-review-policy.test.mjs
+```
+
 The pipeline is implemented in `.github/workflows/ci-cd.yml`:
 
 ```
@@ -592,8 +605,9 @@ The pipeline is implemented in `.github/workflows/ci-cd.yml`:
   ┌─────────────────┐          ┌─────────────────┐
   │ Build & Test     │          │ Build & Test     │  ← PR validation only
   │                  │          │                  │
-  │ • dotnet build   │          │ (same steps)     │
-  │ • dotnet test    │          └─────────────────┘
+  │ • policy test    │          │ (same steps)     │
+  │ • dotnet build   │          └─────────────────┘
+  │ • dotnet test    │
   │ • npm run lint   │
   │ • npm run build  │
   │ • npm run size   │

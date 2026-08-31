@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, policy-canary]
   schedule:
     - cron: "23 4 * * 1"
 

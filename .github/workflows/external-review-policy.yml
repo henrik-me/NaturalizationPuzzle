@@ -1,0 +1,1138 @@
+name: External review policy
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, closed, ready_for_review]
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["External review policy signal"]
+    types: [completed]
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+
+permissions: {}
+
+concurrency:
+  group: external-review-policy
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Evaluate authoritative pull request state
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+        run: |
+          node --input-type=module <<'POLICY'
+          import { createPrivateKey, sign } from "node:crypto";
+
+          export const OWNER = "henrik-me";
+          export const REPOSITORY = "NaturalizationPuzzle";
+          export const OWNER_ID = 34380746;
+          export const CHECK_NAME = "external-review-policy";
+          export const POLICY = Object.freeze({
+            protectedBases: Object.freeze(["main", "policy-canary"]),
+            trustedAuthors: Object.freeze([
+              Object.freeze({ login: OWNER, id: OWNER_ID }),
+            ]),
+            humanApprovers: Object.freeze([
+              Object.freeze({ login: OWNER, id: OWNER_ID }),
+            ]),
+          });
+          export const REQUIRED_PERMISSIONS = Object.freeze({
+            checks: "write",
+            metadata: "read",
+            pull_requests: "write",
+          });
+
+          const API_VERSION = "2026-03-10";
+          const SHA_PATTERN = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/;
+          const LOGIN_PATTERN =
+            /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+          const BOT_LOGIN_PATTERN =
+            /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,98}[A-Za-z0-9])?\[bot\]$/;
+          const REVIEW_STATES = new Set([
+            "APPROVED",
+            "CHANGES_REQUESTED",
+            "COMMENTED",
+            "DISMISSED",
+            "PENDING",
+          ]);
+          const DECISIVE_REVIEW_STATES = new Set([
+            "APPROVED",
+            "CHANGES_REQUESTED",
+            "DISMISSED",
+          ]);
+          const TRANSIENT_STATUSES = new Set([502, 503, 504]);
+          const MAX_RECONCILIATION_DIAGNOSTICS = 10;
+
+          function requireObject(value, path) {
+            if (
+              value === null ||
+              typeof value !== "object" ||
+              Array.isArray(value)
+            ) {
+              throw new TypeError(`${path}: expected an object`);
+            }
+            return value;
+          }
+
+          function requirePositiveInteger(value, path) {
+            if (!Number.isSafeInteger(value) || value < 1) {
+              throw new TypeError(`${path}: expected a positive integer`);
+            }
+            return value;
+          }
+
+          function validateAccount(value, path) {
+            const account = requireObject(value, path);
+            if (!["User", "Bot"].includes(account.type)) {
+              throw new TypeError(`${path}.type: invalid value`);
+            }
+            if (
+              typeof account.login !== "string" ||
+              !(
+                LOGIN_PATTERN.test(account.login) ||
+                (account.type === "Bot" &&
+                  BOT_LOGIN_PATTERN.test(account.login))
+              )
+            ) {
+              throw new TypeError(`${path}.login: invalid value`);
+            }
+            return {
+              id: requirePositiveInteger(account.id, `${path}.id`),
+              login: account.login,
+              type: account.type,
+            };
+          }
+
+          function assertExactPermissions(value, path) {
+            const permissions = requireObject(value, path);
+            const granted = Object.entries(permissions).filter(
+              ([, access]) => access !== "none",
+            );
+            if (
+              granted.length !== 3 ||
+              Object.entries(REQUIRED_PERMISSIONS).some(
+                ([permission, access]) =>
+                  permissions[permission] !== access,
+              )
+            ) {
+              throw new Error(
+                `${path}: expected exactly checks:write, metadata:read, pull_requests:write`,
+              );
+            }
+          }
+
+          export function validateAuthoritativePull(input) {
+            const pull = requireObject(input, "pull");
+            requirePositiveInteger(pull.number, "pull.number");
+            if (!["open", "closed"].includes(pull.state)) {
+              throw new TypeError("pull.state: invalid value");
+            }
+            const author = validateAccount(pull.user, "pull.user");
+            const headSha = pull.head?.sha;
+            if (
+              typeof headSha !== "string" ||
+              !SHA_PATTERN.test(headSha)
+            ) {
+              throw new TypeError("pull.head.sha: invalid value");
+            }
+            let headOwnerId = null;
+            if (pull.head?.repo !== null) {
+              const headRepository = requireObject(
+                pull.head?.repo,
+                "pull.head.repo",
+              );
+              headOwnerId = requirePositiveInteger(
+                headRepository.owner?.id,
+                "pull.head.repo.owner.id",
+              );
+              if (
+                typeof headRepository.full_name !== "string" ||
+                headRepository.full_name.length < 3 ||
+                headRepository.full_name.length > 201 ||
+                !headRepository.full_name.includes("/")
+              ) {
+                throw new TypeError(
+                  "pull.head.repo.full_name: invalid value",
+                );
+              }
+            }
+            const baseRef = pull.base?.ref;
+            if (
+              typeof baseRef !== "string" ||
+              baseRef.length < 1 ||
+              baseRef.length > 255
+            ) {
+              throw new TypeError("pull.base.ref: invalid value");
+            }
+            if (
+              typeof pull.html_url !== "string" ||
+              !pull.html_url.startsWith(
+                `https://github.com/${OWNER}/${REPOSITORY}/pull/`,
+              ) ||
+              pull.html_url.length > 500
+            ) {
+              throw new TypeError("pull.html_url: invalid value");
+            }
+            return {
+              authorId: author.id,
+              authorLogin: author.login,
+              authorType: author.type,
+              baseRef,
+              headOwnerId,
+              headSha,
+            };
+          }
+
+          function validateReviews(input) {
+            if (!Array.isArray(input) || input.length > 99) {
+              throw new TypeError("reviews: expected at most 99 entries");
+            }
+            return input.map((entry, index) => {
+              const path = `reviews[${index}]`;
+              const review = requireObject(entry, path);
+              requirePositiveInteger(review.id, `${path}.id`);
+              if (!REVIEW_STATES.has(review.state)) {
+                throw new TypeError(`${path}.state: invalid value`);
+              }
+              const account =
+                review.user === null
+                  ? { id: null, login: null, type: null }
+                  : validateAccount(review.user, `${path}.user`);
+              if (
+                review.commit_id !== null &&
+                (typeof review.commit_id !== "string" ||
+                  !SHA_PATTERN.test(review.commit_id))
+              ) {
+                throw new TypeError(`${path}.commit_id: invalid value`);
+              }
+              if (
+                review.submitted_at !== null &&
+                review.submitted_at !== undefined &&
+                (typeof review.submitted_at !== "string" ||
+                  !Number.isFinite(Date.parse(review.submitted_at)))
+              ) {
+                throw new TypeError(
+                  `${path}.submitted_at: invalid value`,
+                );
+              }
+              const submittedAt =
+                review.submitted_at === null ||
+                review.submitted_at === undefined
+                  ? null
+                  : Date.parse(review.submitted_at);
+              if (
+                DECISIVE_REVIEW_STATES.has(review.state) &&
+                submittedAt === null
+              ) {
+                throw new TypeError(
+                  `${path}.submitted_at: required for a decisive review`,
+                );
+              }
+              return {
+                commitId: review.commit_id,
+                id: account.id,
+                login: account.login,
+                reviewId: review.id,
+                state: review.state,
+                submittedAt,
+                type: account.type,
+              };
+            });
+          }
+
+          function isLaterReview(candidate, current) {
+            return (
+              current === undefined ||
+              candidate.submittedAt > current.submittedAt ||
+              (candidate.submittedAt === current.submittedAt &&
+                candidate.reviewId > current.reviewId)
+            );
+          }
+
+          export function decidePolicy(pullInput, reviewInput, policy) {
+            const pull = validateAuthoritativePull(pullInput);
+            const reviews = validateReviews(reviewInput);
+            const trusted = policy.trustedAuthors.some(
+              ({ login, id }) =>
+                pull.authorType === "User" &&
+                pull.authorLogin === login &&
+                pull.authorId === id &&
+                pull.headOwnerId === id,
+            );
+            if (trusted) {
+              return {
+                conclusion: "success",
+                title: "Trusted author",
+                summary:
+                  "The immutable trusted owner controls this pull request head.",
+                trustedAuthor: true,
+              };
+            }
+
+            const latestDecisive = new Map();
+            for (const review of reviews) {
+              const approver = policy.humanApprovers.find(
+                ({ login, id }) =>
+                  review.login === login && review.id === id,
+              );
+              if (
+                approver &&
+                review.type === "User" &&
+                review.login !== pull.authorLogin &&
+                review.id !== pull.authorId &&
+                DECISIVE_REVIEW_STATES.has(review.state)
+              ) {
+                const current = latestDecisive.get(review.id);
+                if (isLaterReview(review, current)) {
+                  latestDecisive.set(review.id, review);
+                }
+              }
+            }
+            for (const approver of policy.humanApprovers) {
+              const review = latestDecisive.get(approver.id);
+              if (
+                review?.state === "APPROVED" &&
+                review.commitId === pull.headSha
+              ) {
+                return {
+                  conclusion: "success",
+                  title: "Current-head approval verified",
+                  summary:
+                    "The allowlisted human owner approved the authoritative current head.",
+                  trustedAuthor: false,
+                };
+              }
+            }
+            return {
+              conclusion: "failure",
+              title: "Current-head approval required",
+              summary:
+                "No effective allowlisted human approval exists for the authoritative current head.",
+              trustedAuthor: false,
+            };
+          }
+
+          export function createAppJwt(appId, privateKeyPem, nowSeconds) {
+            if (!Number.isSafeInteger(appId) || appId < 1) {
+              throw new TypeError("APP_ID is invalid");
+            }
+            if (
+              typeof privateKeyPem !== "string" ||
+              privateKeyPem.length < 100 ||
+              privateKeyPem.length > 32_768 ||
+              !privateKeyPem.includes("PRIVATE KEY")
+            ) {
+              throw new TypeError("APP_PRIVATE_KEY is invalid");
+            }
+            if (!Number.isSafeInteger(nowSeconds) || nowSeconds < 1) {
+              throw new TypeError("JWT clock is invalid");
+            }
+            const encode = (value) =>
+              Buffer.from(JSON.stringify(value)).toString("base64url");
+            const header = encode({ alg: "RS256", typ: "JWT" });
+            const payload = encode({
+              iat: nowSeconds - 60,
+              exp: nowSeconds + 540,
+              iss: appId,
+            });
+            const signingInput = `${header}.${payload}`;
+            const key = createPrivateKey(privateKeyPem);
+            const signature = sign(
+              "RSA-SHA256",
+              Buffer.from(signingInput),
+              key,
+            );
+            return `${signingInput}.${signature.toString("base64url")}`;
+          }
+
+          function validateToken(token) {
+            if (
+              typeof token !== "string" ||
+              token.length < 1 ||
+              token.length > 4_096 ||
+              /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(token)
+            ) {
+              throw new TypeError("Authentication token is invalid");
+            }
+          }
+
+          function redact(value, secrets, maximumLength = 2_000) {
+            let result = String(value);
+            for (const secret of secrets) {
+              if (typeof secret === "string" && secret.length >= 4) {
+                result = result.replaceAll(secret, "[REDACTED]");
+              }
+            }
+            return result
+              .replace(/[\r\n\u0085\u2028\u2029]+/g, " ")
+              .replace(
+                /[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f-\u009f]/g,
+                "",
+              )
+              .slice(0, maximumLength);
+          }
+
+          function errorDescription(error) {
+            return error instanceof Error
+              ? `${error.name}: ${error.message}`
+              : "Unknown error";
+          }
+
+          export class GitHubApi {
+            constructor({
+              fetchImpl = globalThis.fetch,
+              secrets = [],
+              timeoutMs = 20_000,
+              sleep = (milliseconds) =>
+                new Promise((resolve) =>
+                  setTimeout(resolve, milliseconds),
+                ),
+            } = {}) {
+              if (typeof fetchImpl !== "function") {
+                throw new TypeError("fetch implementation is required");
+              }
+              this.fetchImpl = fetchImpl;
+              this.secrets = secrets;
+              this.timeoutMs = timeoutMs;
+              this.sleep = sleep;
+            }
+
+            async request(
+              method,
+              path,
+              { token, body, expectedStatuses = [200] } = {},
+            ) {
+              if (!["GET", "POST", "PATCH"].includes(method)) {
+                throw new TypeError("Unsupported GitHub API method");
+              }
+              if (
+                typeof path !== "string" ||
+                !path.startsWith("/") ||
+                path.startsWith("//") ||
+                path.length > 2_000
+              ) {
+                throw new TypeError("GitHub API path is invalid");
+              }
+              validateToken(token);
+              if (
+                !Array.isArray(expectedStatuses) ||
+                expectedStatuses.length < 1 ||
+                expectedStatuses.some(
+                  (status) =>
+                    !Number.isInteger(status) ||
+                    status < 200 ||
+                    status > 299,
+                )
+              ) {
+                throw new TypeError("Expected status list is invalid");
+              }
+
+              for (let attempt = 1; attempt <= 3; attempt += 1) {
+                const controller = new AbortController();
+                const timeout = setTimeout(
+                  () => controller.abort(),
+                  this.timeoutMs,
+                );
+                let response;
+                try {
+                  response = await this.fetchImpl(
+                    `https://api.github.com${path}`,
+                    {
+                      method,
+                      redirect: "error",
+                      signal: controller.signal,
+                      headers: {
+                        Accept: "application/vnd.github+json",
+                        Authorization: ["Bearer", token].join(" "),
+                        "Content-Type": "application/json",
+                        "User-Agent":
+                          "naturalization-puzzle-review-policy/1.0",
+                        "X-GitHub-Api-Version": API_VERSION,
+                      },
+                      body:
+                        body === undefined
+                          ? undefined
+                          : JSON.stringify(body),
+                    },
+                  );
+                } catch (cause) {
+                  clearTimeout(timeout);
+                  if (
+                    method !== "POST" &&
+                    attempt < 3 &&
+                    cause?.name !== "AbortError"
+                  ) {
+                    await this.sleep(250 * 2 ** (attempt - 1));
+                    continue;
+                  }
+                  throw new Error(
+                    `GitHub API network failure for ${method} ${path}`,
+                    { cause },
+                  );
+                }
+
+                if (expectedStatuses.includes(response.status)) {
+                  if (response.status === 204) {
+                    clearTimeout(timeout);
+                    return null;
+                  }
+                  let text;
+                  try {
+                    text = await response.text();
+                  } finally {
+                    clearTimeout(timeout);
+                  }
+                  if (text.length > 10_000_000) {
+                    throw new Error("GitHub API response exceeded 10 MB");
+                  }
+                  try {
+                    return JSON.parse(text);
+                  } catch (cause) {
+                    throw new Error("GitHub API returned invalid JSON", {
+                      cause,
+                    });
+                  }
+                }
+
+                if (
+                  method !== "POST" &&
+                  TRANSIENT_STATUSES.has(response.status) &&
+                  attempt < 3
+                ) {
+                  await response.body?.cancel();
+                  clearTimeout(timeout);
+                  await this.sleep(250 * 2 ** (attempt - 1));
+                  continue;
+                }
+                let errorText;
+                try {
+                  errorText = (await response.text()).slice(0, 16_384);
+                } finally {
+                  clearTimeout(timeout);
+                }
+                throw new Error(
+                  `GitHub API ${method} ${path} failed (${response.status}): ${redact(errorText, [token, ...this.secrets])}`,
+                );
+              }
+              throw new Error("GitHub API exhausted transient retries");
+            }
+          }
+
+          function validateSession(session) {
+            requirePositiveInteger(session?.appId, "session.appId");
+            if (
+              typeof session?.appSlug !== "string" ||
+              !/^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$/.test(
+                session.appSlug,
+              )
+            ) {
+              throw new TypeError("session.appSlug is invalid");
+            }
+            validateToken(session?.token);
+          }
+
+          export class GitHubService {
+            constructor({
+              api,
+              appId,
+              privateKeyPem,
+              now = () => new Date(),
+              maskSecret = () => {},
+            }) {
+              this.api = requireObject(api, "api");
+              this.appId = requirePositiveInteger(appId, "appId");
+              this.privateKeyPem = privateKeyPem;
+              this.now = now;
+              this.maskSecret = maskSecret;
+            }
+
+            appJwt() {
+              const now = this.now();
+              if (
+                !(now instanceof Date) ||
+                !Number.isFinite(now.getTime())
+              ) {
+                throw new TypeError("Clock returned an invalid date");
+              }
+              const jwt = createAppJwt(
+                this.appId,
+                this.privateKeyPem,
+                Math.floor(now.getTime() / 1_000),
+              );
+              this.maskSecret(jwt);
+              return jwt;
+            }
+
+            async authenticate() {
+              const jwt = this.appJwt();
+              const app = await this.api.request("GET", "/app", {
+                token: jwt,
+              });
+              const appId = requirePositiveInteger(app?.id, "app.id");
+              if (appId !== this.appId) {
+                throw new Error("Authenticated App ID mismatch");
+              }
+              if (!Array.isArray(app.events) || app.events.length !== 0) {
+                throw new Error("GitHub App must have no webhook events");
+              }
+              if (
+                typeof app.slug !== "string" ||
+                !/^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$/.test(
+                  app.slug,
+                )
+              ) {
+                throw new TypeError("Authenticated App slug is invalid");
+              }
+              assertExactPermissions(app.permissions, "app.permissions");
+
+              const installation = await this.api.request(
+                "GET",
+                `/repos/${OWNER}/${REPOSITORY}/installation`,
+                { token: jwt },
+              );
+              const installationId = requirePositiveInteger(
+                installation?.id,
+                "installation.id",
+              );
+              if (
+                installation.account?.login !== OWNER ||
+                installation.account?.id !== OWNER_ID
+              ) {
+                throw new Error("App installation owner mismatch");
+              }
+              if (installation.repository_selection !== "selected") {
+                throw new Error(
+                  "App installation must use selected repositories",
+                );
+              }
+              if (installation.suspended_at !== null) {
+                throw new Error("App installation is suspended");
+              }
+              assertExactPermissions(
+                installation.permissions,
+                "installation.permissions",
+              );
+
+              const tokenResponse = await this.api.request(
+                "POST",
+                `/app/installations/${installationId}/access_tokens`,
+                {
+                  token: jwt,
+                  body: {
+                    repositories: [REPOSITORY],
+                    permissions: REQUIRED_PERMISSIONS,
+                  },
+                  expectedStatuses: [201],
+                },
+              );
+              validateToken(tokenResponse?.token);
+              if (
+                typeof tokenResponse.expires_at !== "string" ||
+                !Number.isFinite(
+                  Date.parse(tokenResponse.expires_at),
+                ) ||
+                Date.parse(tokenResponse.expires_at) <=
+                  this.now().getTime()
+              ) {
+                throw new TypeError(
+                  "Installation token expiry is invalid",
+                );
+              }
+              assertExactPermissions(
+                tokenResponse.permissions,
+                "installation token permissions",
+              );
+              if (
+                !Array.isArray(tokenResponse.repositories) ||
+                tokenResponse.repositories.length !== 1 ||
+                tokenResponse.repositories[0]?.name !== REPOSITORY ||
+                tokenResponse.repositories[0]?.full_name !==
+                  `${OWNER}/${REPOSITORY}`
+              ) {
+                throw new Error(
+                  "Installation token repository scope mismatch",
+                );
+              }
+              this.maskSecret(tokenResponse.token);
+              return {
+                appId,
+                appSlug: app.slug,
+                token: tokenResponse.token,
+              };
+            }
+
+            async getPull(session, pullNumber) {
+              validateSession(session);
+              requirePositiveInteger(pullNumber, "pullNumber");
+              return this.api.request(
+                "GET",
+                `/repos/${OWNER}/${REPOSITORY}/pulls/${pullNumber}`,
+                { token: session.token },
+              );
+            }
+
+            async listReviews(session, pullNumber) {
+              validateSession(session);
+              requirePositiveInteger(pullNumber, "pullNumber");
+              const reviews = await this.api.request(
+                "GET",
+                `/repos/${OWNER}/${REPOSITORY}/pulls/${pullNumber}/reviews?per_page=100`,
+                { token: session.token },
+              );
+              if (!Array.isArray(reviews) || reviews.length >= 100) {
+                throw new Error(
+                  "Review pagination limit reached; refusing partial data",
+                );
+              }
+              return reviews;
+            }
+
+            async listOpenPulls(session) {
+              validateSession(session);
+              const pulls = await this.api.request(
+                "GET",
+                `/repos/${OWNER}/${REPOSITORY}/pulls?state=open&sort=created&direction=asc&per_page=100`,
+                { token: session.token },
+              );
+              if (!Array.isArray(pulls) || pulls.length >= 100) {
+                throw new Error(
+                  "Pull request pagination limit reached; refusing partial data",
+                );
+              }
+              return pulls;
+            }
+
+            async ensureTrustedAuthorApproval(
+              session,
+              pullNumber,
+              headSha,
+              reviews,
+            ) {
+              validateSession(session);
+              requirePositiveInteger(pullNumber, "pullNumber");
+              if (
+                typeof headSha !== "string" ||
+                !SHA_PATTERN.test(headSha)
+              ) {
+                throw new TypeError("Approval head SHA is invalid");
+              }
+              if (!Array.isArray(reviews)) {
+                throw new TypeError("Approval reviews are invalid");
+              }
+              const appLogin = `${session.appSlug}[bot]`;
+              const latestAppDecision = (candidateReviews) => {
+                let latest;
+                for (const review of candidateReviews) {
+                  if (
+                    review.type === "Bot" &&
+                    review.login === appLogin &&
+                    DECISIVE_REVIEW_STATES.has(review.state) &&
+                    isLaterReview(review, latest)
+                  ) {
+                    latest = review;
+                  }
+                }
+                return latest;
+              };
+              let validatedReviews = validateReviews(reviews);
+              let latestDecisive =
+                latestAppDecision(validatedReviews);
+              if (
+                latestDecisive?.state === "APPROVED" &&
+                latestDecisive.commitId === headSha
+              ) {
+                return;
+              }
+              if (validatedReviews.length >= 99) {
+                throw new Error(
+                  "Review limit would be reached; refusing to create the 100th review",
+                );
+              }
+              validatedReviews = validateReviews(
+                await this.listReviews(session, pullNumber),
+              );
+              latestDecisive =
+                latestAppDecision(validatedReviews);
+              if (
+                latestDecisive?.state === "APPROVED" &&
+                latestDecisive.commitId === headSha
+              ) {
+                return;
+              }
+              if (validatedReviews.length >= 99) {
+                throw new Error(
+                  "Review limit would be reached; refusing to create the 100th review",
+                );
+              }
+              await this.api.request(
+                "POST",
+                `/repos/${OWNER}/${REPOSITORY}/pulls/${pullNumber}/reviews`,
+                {
+                  token: session.token,
+                  body: { commit_id: headSha, event: "APPROVE" },
+                  expectedStatuses: [200],
+                },
+              );
+            }
+
+            async upsertCheck(session, input) {
+              validateSession(session);
+              const pullNumber = requirePositiveInteger(
+                input?.pullNumber,
+                "check.pullNumber",
+              );
+              if (
+                typeof input.headSha !== "string" ||
+                !SHA_PATTERN.test(input.headSha)
+              ) {
+                throw new TypeError("check.headSha is invalid");
+              }
+              if (
+                typeof input.detailsUrl !== "string" ||
+                !input.detailsUrl.startsWith(
+                  `https://github.com/${OWNER}/${REPOSITORY}/pull/`,
+                ) ||
+                input.detailsUrl.length > 500
+              ) {
+                throw new TypeError("check.detailsUrl is invalid");
+              }
+              if (!["in_progress", "completed"].includes(input.status)) {
+                throw new TypeError("check.status is invalid");
+              }
+              if (
+                input.status === "completed" &&
+                !["success", "failure"].includes(input.conclusion)
+              ) {
+                throw new TypeError("check.conclusion is invalid");
+              }
+              for (const [name, maximum] of [
+                ["title", 255],
+                ["summary", 65_535],
+              ]) {
+                if (
+                  typeof input[name] !== "string" ||
+                  input[name].length < 1 ||
+                  input[name].length > maximum
+                ) {
+                  throw new TypeError(`check.${name} is invalid`);
+                }
+              }
+
+              const externalId =
+                `v1:pr${pullNumber}:head:${input.headSha}`;
+              const repositoryPath = `/repos/${OWNER}/${REPOSITORY}`;
+              const list = await this.api.request(
+                "GET",
+                `${repositoryPath}/commits/${input.headSha}/check-runs?check_name=${CHECK_NAME}&filter=all&per_page=100`,
+                { token: session.token },
+              );
+              if (
+                list === null ||
+                typeof list !== "object" ||
+                !Number.isSafeInteger(list.total_count) ||
+                list.total_count < 0 ||
+                !Array.isArray(list.check_runs) ||
+                list.check_runs.length >= 100 ||
+                list.total_count > list.check_runs.length
+              ) {
+                throw new Error(
+                  "Check-run pagination or response is invalid",
+                );
+              }
+              const matchingIds = [];
+              for (const [index, check] of list.check_runs.entries()) {
+                if (
+                  check === null ||
+                  typeof check !== "object" ||
+                  !Number.isSafeInteger(check.id) ||
+                  check.id < 1 ||
+                  typeof check.name !== "string" ||
+                  typeof check.head_sha !== "string" ||
+                  (check.external_id !== null &&
+                    typeof check.external_id !== "string") ||
+                  !Number.isSafeInteger(check.app?.id)
+                ) {
+                  throw new Error(
+                    `Check-run list item ${index} is invalid`,
+                  );
+                }
+                if (
+                  check.name === CHECK_NAME &&
+                  check.head_sha === input.headSha &&
+                  check.external_id === externalId &&
+                  check.app.id === session.appId
+                ) {
+                  matchingIds.push(check.id);
+                }
+              }
+
+              const timestamp = this.now().toISOString();
+              const body = {
+                name: CHECK_NAME,
+                details_url: input.detailsUrl,
+                external_id: externalId,
+                status: input.status,
+                output: {
+                  title: input.title,
+                  summary: input.summary,
+                },
+                ...(input.status === "in_progress"
+                  ? { started_at: timestamp }
+                  : {
+                      conclusion: input.conclusion,
+                      completed_at: timestamp,
+                    }),
+              };
+              if (matchingIds.length === 0) {
+                await this.api.request(
+                  "POST",
+                  `${repositoryPath}/check-runs`,
+                  {
+                    token: session.token,
+                    body: { ...body, head_sha: input.headSha },
+                    expectedStatuses: [201],
+                  },
+                );
+                return;
+              }
+              for (const id of matchingIds) {
+                await this.api.request(
+                  "PATCH",
+                  `${repositoryPath}/check-runs/${id}`,
+                  { token: session.token, body },
+                );
+              }
+            }
+          }
+
+          export class PolicyEvaluator {
+            constructor({ github, policy }) {
+              this.github = requireObject(github, "github");
+              this.policy = requireObject(policy, "policy");
+            }
+
+            async evaluate(pullNumberInput, session) {
+              const pullNumber = requirePositiveInteger(
+                pullNumberInput,
+                "pullNumber",
+              );
+              const pull = await this.github.getPull(
+                session,
+                pullNumber,
+              );
+              const authoritative = validateAuthoritativePull(pull);
+              if (pull.number !== pullNumber) {
+                throw new Error(
+                  `Authoritative pull number mismatch for ${pullNumber}`,
+                );
+              }
+              if (
+                pull.state !== "open" ||
+                !this.policy.protectedBases.includes(
+                  authoritative.baseRef,
+                )
+              ) {
+                return {
+                  skipped: true,
+                  reason:
+                    "Pull request is not open on a protected base",
+                };
+              }
+
+              const check = {
+                pullNumber,
+                headSha: authoritative.headSha,
+                detailsUrl: pull.html_url,
+              };
+              await this.github.upsertCheck(session, {
+                ...check,
+                status: "in_progress",
+                title: "Evaluating external review policy",
+                summary:
+                  "Fetching authoritative pull request and review data.",
+              });
+              const reviews = await this.github.listReviews(
+                session,
+                pullNumber,
+              );
+              const decision = decidePolicy(
+                pull,
+                reviews,
+                this.policy,
+              );
+              if (decision.trustedAuthor) {
+                await this.github.ensureTrustedAuthorApproval(
+                  session,
+                  pullNumber,
+                  authoritative.headSha,
+                  reviews,
+                );
+              }
+              await this.github.upsertCheck(session, {
+                ...check,
+                status: "completed",
+                conclusion: decision.conclusion,
+                title: decision.title,
+                summary: decision.summary,
+              });
+              return decision;
+            }
+          }
+
+          export async function reconcile(
+            github,
+            evaluator,
+            session,
+            secrets = [],
+          ) {
+            const pulls = await github.listOpenPulls(session);
+            const errors = [];
+            let failureCount = 0;
+            for (let offset = 0; offset < pulls.length; offset += 5) {
+              const batch = pulls.slice(offset, offset + 5);
+              const outcomes = await Promise.all(
+                batch.map(async (pull, batchIndex) => {
+                  const index = offset + batchIndex;
+                  let identifier = `openPulls[${index}]`;
+                  try {
+                    const pullNumber = requirePositiveInteger(
+                      pull?.number,
+                      `openPulls[${index}].number`,
+                    );
+                    identifier = `PR #${pullNumber}`;
+                    await evaluator.evaluate(pullNumber, session);
+                    return null;
+                  } catch (error) {
+                    return { error, identifier };
+                  }
+                }),
+              );
+              for (const outcome of outcomes) {
+                if (outcome !== null) {
+                  failureCount += 1;
+                  if (
+                    errors.length <
+                    MAX_RECONCILIATION_DIAGNOSTICS
+                  ) {
+                    errors.push(
+                      new Error(
+                        redact(
+                          `${outcome.identifier}: ${errorDescription(outcome.error)}`,
+                          secrets,
+                          160,
+                        ),
+                      ),
+                    );
+                  }
+                }
+              }
+            }
+            if (failureCount > 0) {
+              throw new AggregateError(
+                errors,
+                `Reconciliation failed for ${failureCount} pull request(s); retained ${errors.length} diagnostic(s)`,
+              );
+            }
+            return { evaluated: pulls.length };
+          }
+
+          function requireEnvironment(name, maximumLength) {
+            const value = process.env[name];
+            if (
+              typeof value !== "string" ||
+              value.length < 1 ||
+              value.length > maximumLength
+            ) {
+              throw new TypeError(`${name} is missing or invalid`);
+            }
+            return value;
+          }
+
+          export function safeError(error, secrets) {
+            let message = errorDescription(error);
+            if (
+              error instanceof AggregateError &&
+              Array.isArray(error.errors)
+            ) {
+              const diagnostics = error.errors
+                .slice(0, MAX_RECONCILIATION_DIAGNOSTICS)
+                .map(errorDescription);
+              if (diagnostics.length > 0) {
+                message =
+                  `${message}; diagnostics: ${diagnostics.join(" | ")}`;
+              }
+            }
+            return redact(message, secrets);
+          }
+
+          export async function main() {
+            const appIdText = requireEnvironment("APP_ID", 20);
+            if (!/^[1-9][0-9]{0,15}$/.test(appIdText)) {
+              throw new TypeError("APP_ID is invalid");
+            }
+            const appId = requirePositiveInteger(
+              Number(appIdText),
+              "APP_ID",
+            );
+            const privateKeyPem = requireEnvironment(
+              "APP_PRIVATE_KEY",
+              32_768,
+            );
+            const eventName = requireEnvironment(
+              "GITHUB_EVENT_NAME",
+              100,
+            );
+            if (
+              ![
+                "pull_request_target",
+                "push",
+                "schedule",
+                "workflow_run",
+              ].includes(eventName)
+            ) {
+              throw new TypeError(`Unsupported event: ${eventName}`);
+            }
+
+            const secrets = [privateKeyPem];
+            const maskSecret = (secret) => {
+              validateToken(secret);
+              secrets.push(secret);
+              process.stdout.write(`::add-mask::${secret}\n`);
+            };
+            const api = new GitHubApi({ secrets });
+            const github = new GitHubService({
+              api,
+              appId,
+              privateKeyPem,
+              maskSecret,
+            });
+            const session = await github.authenticate();
+            const evaluator = new PolicyEvaluator({
+              github,
+              policy: POLICY,
+            });
+            return reconcile(github, evaluator, session, secrets);
+          }
+
+          export async function runMain() {
+            try {
+              await main();
+            } catch (error) {
+              process.stderr.write(
+                `::error::${safeError(error, [
+                  process.env.APP_PRIVATE_KEY,
+                ])}\n`,
+              );
+              process.exitCode = 1;
+            }
+          }
+
+          await runMain();
+          POLICY
