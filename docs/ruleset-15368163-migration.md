@@ -109,8 +109,8 @@ The following were verified after applying the target state:
    `60139a9` after current-head approval.
 4. Live-observed: a review submission completed the secretless signal, woke the
    trusted `workflow_run`, and propagated authoritative state immediately
-   without waiting for the scheduled backstop; a new commit left the new head
-   ungated until re-approval.
+   without waiting for the scheduled backstop; a new commit left the new head's
+   App-bound check non-successful, blocking the merge until re-approval.
 5. Configured and unit-tested but not live-proven (pending): review edit and
    review dismissal completing the signal and driving reconciliation, and a
    post-approval Dependabot rebase invalidating a prior approval. These follow
