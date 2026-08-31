@@ -19,7 +19,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - `container-start.bat` — builds/starts container with running detection, health check, smoke test
 - `container-stop.bat` — stops container and verifies port is free
 - `.github/workflows/ci-cd.yml` — GitHub Actions CI/CD (build, test, docker build, push to GHCR)
-- `.github/workflows/external-review-policy.yml` + `external-review-policy-signal.yml` — repository-local App-owned review policy with a secretless review wake-up and authoritative default-branch API refetch; rollout awaits App-authored no-bypass bootstrap, target Actions secrets, canary proof, and ruleset migration documented under `docs/`
+- `.github/workflows/external-review-policy.yml` + `external-review-policy-signal.yml` — repository-local App-owned review policy with a secretless review wake-up and authoritative default-branch API refetch; rolled out with a no-bypass App-authored bootstrap, target Actions secrets, and canary proofs, and the production ruleset migration is applied (see `docs/`). Owner PRs merge on CI + the App-bound `external-review-policy` check with zero native approvals; external/bot/Dependabot PRs require the owner's current-head APPROVED review via that check during successful reconciliation of a unique head (subject to the documented same-head stale-success and duplicate-head residual risks in `docs/external-review-policy-threat-model.md`)
 
 ### Backend (`src/api/`)
 - .NET 10 Minimal API project with EF Core + SQLite
@@ -301,7 +301,7 @@ Repo settings (configured via `gh api`):
 21. ✅ Private vulnerability reporting enabled
 22. ✅ Default `GITHUB_TOKEN` workflow permissions: **read-only**
 23. ✅ "Allow Actions to create and approve PRs": **off**
-24. ✅ Branch ruleset `main-protection` on `~DEFAULT_BRANCH`: require PR + 1 approval, dismiss stale, require code-owner review, require status checks (Build & Test, Analyze csharp, Analyze javascript-typescript), require linear history, block force push and deletion. Bypass: Repository admin role.
+24. ✅ Branch ruleset `main-protection` (ID 15368163) on `~DEFAULT_BRANCH`: require PR, `required_approving_review_count` 0 (App-bound `external-review-policy` check enforces owner review, not a native approval), dismiss stale, do not require code-owner review, resolve threads, require extra approval for unattributed Copilot changes, require status checks (Build & Test, Analyze csharp, Analyze javascript-typescript, E2E Playwright, external-review-policy bound to NP-APP integration ID 4755833), require linear history, block force push and deletion. Bypass: none (`bypass_actors` empty).
 25. ✅ Tag ruleset `release-tag-protection` on `refs/tags/v*` and `refs/tags/release-*`: block create/update/delete. Bypass: Repository admin role.
 
 Deferred / handled outside Phase 4:
@@ -310,7 +310,7 @@ Deferred / handled outside Phase 4:
 - **Fork PR workflow approval ("require approval for all outside collaborators")** — **not available for personal-account repositories.** This UI toggle and the matching `actions/permissions/fork-pr-workflows` API endpoint exist only for organization-owned repos and enterprise accounts. Personal repos get a fixed GitHub default: workflow runs from **first-time contributors** require manual approval; subsequent runs from the same contributor are auto-approved. To get the explicit "approve all outside collaborator runs" toggle, the repo would need to be transferred to a (free) GitHub Organization. Residual risk on this personal repo is mitigated by:
   - Default `GITHUB_TOKEN` workflow permissions = read-only (no write tokens leak to fork PRs).
   - "Allow Actions to create and approve pull requests" = off (a fork PR cannot self-approve).
-  - Branch ruleset on `main` requires PR + approval + status checks (a fork PR cannot land code without admin sign-off).
+  - Branch ruleset on `main` requires PR + the App-bound `external-review-policy` check + status checks (a fork PR needs the owner's current-head approval to land code during successful reconciliation of a unique head, subject to the documented same-head stale-success and duplicate-head residual risks in `docs/external-review-policy-threat-model.md`; there is no admin/RepositoryRole bypass).
   - Concurrency group on CI cancels superseded fork-PR runs.
 
 ## Next Steps
@@ -399,9 +399,9 @@ The most recent things shipped, all live in production at `https://np.metzger.dk
 
 Active state at the time of writing this guide:
 
-- `main` is at the PR #96 squash-merge tip (the API performance baseline shipped above), with PRs #93, #94, and #101 dependency bumps fast-followed on top; production is up-to-date or pending the `production` GitHub-environment approval gate for the most recent deploy-relevant tip.
+- `main` advances through reviewed squash/normal merges; at the time of writing its tip is `dd7905f` (Dependabot PR #153). Production is up-to-date or pending the `production` GitHub-environment approval gate for the most recent deploy-relevant tip.
 - `production` GitHub-environment approval gate is the sole human-in-the-loop step; check Actions for the latest run state if uncertain. **Deploy-watch playbook:** after a merge to `main`, the `CI/CD` run progresses through Build/Test → Docker Build & Push (GHCR) → Image Smoke Test → Container E2E → Deploy Plan (what-if) → **Deploy Apply (gated)**, which parks in `waiting` until a reviewer approves the `production` environment. The `Deploy Apply` step targets Azure Container App `ca-natpuzzle-prod` in RG `rg-naturalizationpuzzle-prod`, pulls `ghcr.io/henrik-me/naturalizationpuzzle:<short-sha>`, waits for the new revision to report `Healthy`, then smoke-tests `https://ca-natpuzzle-prod.wittyisland-552f7b95.westus2.azurecontainerapps.io/api/health`. To verify a release independently: `GET /api/health` should return `{"status":"healthy","database":true,"questionCount":128}` (200) and `GET /` should return 200. **Do not auto-approve the production gate on the user's behalf** — it is intentionally human-gated.
-- 0 high-severity Dependabot alerts open at the time of writing.
+- 0 open Dependabot alerts on NaturalizationPuzzle (all severities) at the time of writing; the App-bound review policy is live on `main` with the ruleset migration applied.
 
 ### Where the work that's still on the table lives
 
