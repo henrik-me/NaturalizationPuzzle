@@ -25,7 +25,12 @@ re-fetches open pull requests and reviews from GitHub's API.
   required.
 - Every other PR passes the App-bound check only when the latest decisive
   review from the allowlisted human `henrik-me`/`34380746` is `APPROVED` for
-  the authoritative current head. The App never approves an external-author PR.
+  the authoritative current head. This current-head enforcement holds during
+  successful reconciliation of a unique head; it is bounded by the documented
+  same-head stale-success outage window and the duplicate-head cross-PR risk
+  pending code hardening (see the
+  [threat model](external-review-policy-threat-model.md) residual risks 1 and
+  6). The App never approves an external-author PR.
 - Dependabot is an external Bot author. Its PRs require the allowlisted owner's
   approval of the authoritative current head, because otherwise the App-bound
   check is a failure; green dependency checks do not substitute for that
@@ -208,9 +213,16 @@ workflow-capable owner-authored PR.
   and a fresh owner approval of the replacement's current head.
 - Alert on failed or missing scheduled runs and App approvals on PRs not
   authored by `henrik-me`/`34380746`.
-- On suspected compromise, disable the App installation and rotate its key.
-  Restore reviewed workflow code through the protected PR process. Never add a
-  success fallback or bypass.
+- On suspected compromise, contain in the safe order before touching the App:
+  first establish an App-independent block by setting
+  `required_approving_review_count` to 1 (or another independently unsatisfied
+  required gate) and closing or invalidating affected PR heads, because
+  suspending the App alone does not invalidate an already-successful stale
+  check and removing the App-bound rule alone deletes the only external-approval
+  gate. Only then suspend or disable the App installation and rotate its key.
+  Restore reviewed workflow code through the protected PR process (see the
+  [ruleset record](ruleset-15368163-migration.md) rollback sequence), then
+  switch the native count back to 0. Never add a success fallback or bypass.
 
 See the local [threat model](external-review-policy-threat-model.md).
 

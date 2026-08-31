@@ -19,7 +19,7 @@ Full-stack application scaffolded and building. Backend API is functional with s
 - `container-start.bat` — builds/starts container with running detection, health check, smoke test
 - `container-stop.bat` — stops container and verifies port is free
 - `.github/workflows/ci-cd.yml` — GitHub Actions CI/CD (build, test, docker build, push to GHCR)
-- `.github/workflows/external-review-policy.yml` + `external-review-policy-signal.yml` — repository-local App-owned review policy with a secretless review wake-up and authoritative default-branch API refetch; rolled out with a no-bypass App-authored bootstrap, target Actions secrets, and canary proofs, and the production ruleset migration is applied (see `docs/`). Owner PRs merge on CI + the App-bound `external-review-policy` check with zero native approvals; external/bot/Dependabot PRs require the owner's current-head APPROVED review via that check
+- `.github/workflows/external-review-policy.yml` + `external-review-policy-signal.yml` — repository-local App-owned review policy with a secretless review wake-up and authoritative default-branch API refetch; rolled out with a no-bypass App-authored bootstrap, target Actions secrets, and canary proofs, and the production ruleset migration is applied (see `docs/`). Owner PRs merge on CI + the App-bound `external-review-policy` check with zero native approvals; external/bot/Dependabot PRs require the owner's current-head APPROVED review via that check during successful reconciliation of a unique head (subject to the documented same-head stale-success and duplicate-head residual risks in `docs/external-review-policy-threat-model.md`)
 
 ### Backend (`src/api/`)
 - .NET 10 Minimal API project with EF Core + SQLite
@@ -310,7 +310,7 @@ Deferred / handled outside Phase 4:
 - **Fork PR workflow approval ("require approval for all outside collaborators")** — **not available for personal-account repositories.** This UI toggle and the matching `actions/permissions/fork-pr-workflows` API endpoint exist only for organization-owned repos and enterprise accounts. Personal repos get a fixed GitHub default: workflow runs from **first-time contributors** require manual approval; subsequent runs from the same contributor are auto-approved. To get the explicit "approve all outside collaborator runs" toggle, the repo would need to be transferred to a (free) GitHub Organization. Residual risk on this personal repo is mitigated by:
   - Default `GITHUB_TOKEN` workflow permissions = read-only (no write tokens leak to fork PRs).
   - "Allow Actions to create and approve pull requests" = off (a fork PR cannot self-approve).
-  - Branch ruleset on `main` requires PR + the App-bound `external-review-policy` check + status checks (a fork PR cannot land code without the owner's current-head approval, and there is no admin/RepositoryRole bypass).
+  - Branch ruleset on `main` requires PR + the App-bound `external-review-policy` check + status checks (a fork PR needs the owner's current-head approval to land code during successful reconciliation of a unique head, subject to the documented same-head stale-success and duplicate-head residual risks in `docs/external-review-policy-threat-model.md`; there is no admin/RepositoryRole bypass).
   - Concurrency group on CI cancels superseded fork-PR runs.
 
 ## Next Steps

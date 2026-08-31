@@ -87,13 +87,21 @@ blocked until the owner approved its current head, then merged as `60139a9`.
    still-successful same-head check to failure, so the PR can merge on a stale
    success without a current valid approval. Do not assume safe immediate
    failure during such an outage. Mitigation and incident response: the merge
-   remains gated by resolved threads and strict status, but on any owner
-   dismissal or revocation treat the affected PR as merge-capable until the App
-   reconciles; close the PR, push an invalidating new head, or disable the
-   App-bound requirement or App installation until the App recovers and
-   re-fetches. Monitor and alert on failed or missing scheduled reconciliation
-   runs so the outage is detected promptly. Once the App is reachable again, a
-   new head after dismissal still fails until re-approved.
+   remains gated by resolved threads and strict status. On any owner dismissal
+   or revocation, treat the affected PR as merge-capable until the App
+   reconciles, and contain in this order: (a) first restore an independent
+   block that does not depend on the App -- through owner settings set
+   `required_approving_review_count` to 1 (or add another independently
+   unsatisfied required gate) so a native requirement blocks the merge; (b)
+   close the affected PRs and/or push an invalidating new head; (c) only then,
+   if the App is suspected compromised, suspend or disable it. Never disable the
+   App-bound rule or suspend the App as the containment step: removing the App
+   check alone deletes the only external-approval gate, and suspending the App
+   alone does not invalidate an already-successful stale check. Monitor and
+   alert on failed or missing scheduled reconciliation runs so the outage is
+   detected promptly. Once the App is reachable again, a new head after
+   dismissal still fails until re-approved; only then switch the native count
+   back to 0.
 2. **Review signal delivery.** The local secretless signal and trusted
    `workflow_run` normally propagate review changes immediately after Actions
    scheduling, but a PR can modify/remove its merge-ref signal and delivery or
@@ -120,9 +128,13 @@ blocked until the owner approved its current head, then merged as `60139a9`.
    multiple open PRs sharing one head and refuse to write, or actively fail,
    the check for every PR except the authoritatively approved one) is a required
    follow-up before POL-001 is considered complete or the design is reused for
-   another rollout. Operational mitigation until then: detect and close
-   duplicate-head PRs, and disable the App-bound requirement or the App
-   installation while investigating; never bypass.
+   another rollout. Operational mitigation until hardening ships: through owner
+   settings raise `required_approving_review_count` to 1 (or add another
+   independently unsatisfied required gate) so a native block that does not
+   share the commit-scoped check is in force, and close all affected
+   duplicate-head PRs or move their heads. Maintain that independent block until
+   the hardening is deployed. Do not rely on disabling the App-bound rule or
+   suspending the App as containment, and never bypass.
 7. **GitHub availability.** Actions or API outages deny policy freshness and
    may deny merges. This is intentional fail-closed behavior except for the
    zero-approval stale-success window in residual risk 1, which can permit a

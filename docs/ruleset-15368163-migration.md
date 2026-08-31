@@ -140,9 +140,12 @@ Delete the temporary branch and its ruleset only after that PR merges normally.
   unapproved duplicate-head PR -- a potential bypass. The workflow does not yet
   fail closed across duplicate-head PRs. A code hardening change is a required
   follow-up before POL-001 is considered complete or the design is reused.
-  Until then, detect and close duplicate-head PRs and disable the App-bound
-  requirement or App installation while investigating. See threat model
-  residual risk 6.
+  Until then, containment is an independent native block, not disabling the
+  App: through owner settings raise `required_approving_review_count` to 1 (or
+  add another independently unsatisfied required gate), close all affected
+  duplicate-head PRs or move their heads, and maintain that independent block
+  until the hardening is deployed. Do not disable the App-bound requirement or
+  suspend the App as the containment step. See threat model residual risk 6.
 - **Zero-approval stale-success window.** With `required_approving_review_count`
   0, an owner dismissal during an App/API outage can leave a still-successful
   same-head check as the only gate. See threat model residual risk 1 for
@@ -150,32 +153,34 @@ Delete the temporary branch and its ruleset only after that PR merges normally.
 
 ## Rollback (no-bypass repair)
 
-Repairs never use a `RepositoryRole` bypass, admin merge, or self-approval.
-Because `required_approving_review_count` is 0 and the sole owner cannot
-self-approve, removing the App-bound `external-review-policy` requirement and
-relying only on a restored native owner approval would deadlock this
-single-owner repository: the owner could neither satisfy a check that is being
-repaired nor approve their own repair PR. The rollback therefore retains the
-App-bound check and routes the fix through a non-owner author so that a valid
-owner current-head approval can merge it:
+Repairs never use a `RepositoryRole` bypass, admin merge, or self-approval, and
+they never remove the external-approval gate before an independent one is
+active. Because `required_approving_review_count` is 0 and the sole owner
+cannot self-approve, naively removing the App-bound `external-review-policy`
+requirement and relying on a restored native owner approval would deadlock this
+single-owner repository. Use this exact sequence:
 
-1. Keep the `external-review-policy` requirement in place. Preserve the four
-   existing checks, stale dismissal, resolved threads, deletion,
-   non-fast-forward, and linear-history rules.
-2. Author the repair PR from an external identity, or temporarily grant the
-   dedicated App Contents/Workflows write to author it (the bootstrap
-   mechanism), so the change is not owner-authored and the owner's review is a
-   valid, counted external approval.
-3. The owner submits an APPROVED review at the repair PR's current head. The
-   functioning App writes a passing `external-review-policy` check for that
-   approved head and the PR merges normally. Immediately revoke any temporary
-   App permissions afterward.
-4. If the App itself is the failed component, first restore the reviewed
-   App/workflow through this same non-owner-authored, owner-approved path before
-   any further ruleset change; do not remove the App-bound requirement to force
-   a merge, which would strand the single owner without a mergeable gate.
+1. Establish an independent block, then disable only the failed check. Through
+   owner settings, set `required_approving_review_count` to 1 and, only after
+   that native block is active, remove or temporarily disable only the failed
+   App check. Add no bypass actors. Preserve the CI checks, deletion,
+   non-fast-forward, linear-history, stale dismissal, and thread-resolution
+   rules.
+2. Author the repair PR independently of `henrik-me`. Prefer a newly created or
+   dedicated temporary repair App granted Contents and Workflows write, or a
+   distinct human writer. If the existing App still authenticates and only its
+   workflow logic is broken, it may author the repair PR temporarily; if it is
+   compromised or suspended, use a separate repair App instead.
+3. `henrik-me` submits an APPROVED review at the repair PR's exact current head.
+4. Merge normally. Because native approvals is 1 and the author is not the
+   owner, the owner's approval is a valid, counted gate with no App dependency.
+5. Restore and verify the App-bound `external-review-policy` check, then switch
+   `required_approving_review_count` back to 0.
+6. Revoke the temporary repair App's Contents and Workflows write (or retire the
+   dedicated repair App).
 
-If validation still fails, stop and investigate; never bypass or admin-merge.
+If no independent author is available, the repository remains intentionally
+frozen until one is; do not use admin merge or a bypass to break the freeze.
 
 GitHub documents [required status checks and expected App sources][checks] and
 [pull request review rules][reviews].
