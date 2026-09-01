@@ -587,8 +587,12 @@ The App-owned external review gate runs entirely from trusted local workflow
 code and authoritative GitHub API state; it has no runtime central-dispatch
 dependency. A secretless, empty-permission review signal wakes trusted
 default-branch reconciliation for immediate authoritative propagation, while
-the schedule remains a backstop. Rollout remains blocked on the documented
-App, bootstrap, canary, and ruleset prerequisites. See the
+the schedule remains a backstop. The rollout and duplicate-head hardening are
+complete: production runs with zero native approvals, an empty bypass list, and
+the NP-APP-bound `external-review-policy` required check, and duplicate
+protected heads are failed closed in code (App-authored PR #177, main commit
+`6e15df2`). The only remaining work is retiring the disposable `policy-canary`
+branch and its temporary ruleset. See the
 [operations guide](docs/external-review-policy.md) and
 [threat model](docs/external-review-policy-threat-model.md).
 

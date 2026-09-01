@@ -1425,6 +1425,30 @@ test("workflow removes App approval creation and adds duplicate-head failure", a
   assert.match(workflow, /per_page=\$\{perPage\}&page=\$\{page\}/);
 });
 
+test("policy protects only the production base and drops the temporary canary", async () => {
+  const { POLICY } = await loadPolicy();
+  const workflow = await read(workflowPath);
+
+  assert.deepEqual([...POLICY.protectedBases], ["main"]);
+  assert.ok(!POLICY.protectedBases.includes("policy-canary"));
+  assert.doesNotMatch(workflow, /policy-canary/);
+});
+
+test("steady-state installation permissions are exact least privilege with pull_requests read", async () => {
+  const { REQUIRED_PERMISSIONS } = await loadPolicy();
+  const workflow = await read(workflowPath);
+
+  assert.deepEqual(
+    { ...REQUIRED_PERMISSIONS },
+    { checks: "write", metadata: "read", pull_requests: "read" },
+  );
+  assert.doesNotMatch(workflow, /pull_requests: "write"/);
+  assert.match(
+    workflow,
+    /expected exactly checks:write, metadata:read, pull_requests:read/,
+  );
+});
+
 test("JWT is short-lived RS256 and uses a numeric App ID issuer", async () => {
   const { createAppJwt } = await loadPolicy();
   const { privateKey, publicKey } = generateKeyPairSync("rsa", {
@@ -1532,7 +1556,7 @@ test("App authentication is repository-scoped and exact least privilege", async 
       permissions: {
         checks: "write",
         metadata: "read",
-        pull_requests: "write",
+        pull_requests: "read",
       },
     },
     {
@@ -1543,7 +1567,7 @@ test("App authentication is repository-scoped and exact least privilege", async 
       permissions: {
         checks: "write",
         metadata: "read",
-        pull_requests: "write",
+        pull_requests: "read",
       },
     },
     {
@@ -1552,7 +1576,7 @@ test("App authentication is repository-scoped and exact least privilege", async 
       permissions: {
         checks: "write",
         metadata: "read",
-        pull_requests: "write",
+        pull_requests: "read",
       },
       repositories: [
         {
@@ -1589,7 +1613,7 @@ test("App authentication is repository-scoped and exact least privilege", async 
     permissions: {
       checks: "write",
       metadata: "read",
-      pull_requests: "write",
+      pull_requests: "read",
     },
   });
 });
@@ -1698,13 +1722,15 @@ test("Build & Test enforces the local policy suite", async () => {
     buildAndTestJob,
     /run: node --test tests\/policy\/external-review-policy\.test\.mjs/,
   );
-  assert.match(workflow, /pull_request:\s*\n\s+branches: \[main, master, policy-canary\]/);
+  assert.match(workflow, /pull_request:\s*\n\s+branches: \[main, master\]/);
+  assert.doesNotMatch(workflow, /policy-canary/);
 
   const codeql = await read(".github/workflows/codeql.yml");
   assert.match(
     codeql,
-    /pull_request:\s*\n\s+branches: \[main, master, policy-canary\]/,
+    /pull_request:\s*\n\s+branches: \[main, master\]/,
   );
+  assert.doesNotMatch(codeql, /policy-canary/);
 
   const pushPathsIgnore = workflow.match(
     /^    paths-ignore:\r?\n[\s\S]*?(?=^  pull_request:)/m,
