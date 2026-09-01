@@ -99,14 +99,19 @@ The following were verified after applying the target state:
    rule, every pull request parameter, merge methods, strictness flag, and each
    required context matched the target state.
 2. Owner PRs merged on the four existing checks plus the App-bound policy
-   check, with zero native approvals and resolved threads. The workflow still
-   posts an informational App approval on owner PRs; that review is not an
-   enforcement layer and GitHub does not count it. Owner security PR #168
-   merged as `85481ad`.
+   check, with zero native approvals and resolved threads. This verification
+   ran under the pre-PR-#177 workflow, which posted an informational
+   `np-app[bot]` APPROVED review on owner PRs; that review did not count toward
+   the native required-review count and was never an enforcement layer —
+   enforcement was carried solely by the App-bound `external-review-policy`
+   check. Owner security PR #168 merged as `85481ad`, carrying such an
+   informational App approval. (Since App-authored PR #177 / `6e15df2` the
+   workflow creates no review at all.)
 3. External PRs required the owner's current-head APPROVED human review,
-   surfaced through the App-bound check; the App never approved them. External
-   App canary PR #175 was blocked before owner approval, then merged as
-   `60139a9` after current-head approval.
+   surfaced through the App-bound check; the App never approved them, even under
+   the pre-PR-#177 workflow that approved trusted-owner PRs. External App canary
+   PR #175 was blocked before owner approval, then merged as `60139a9` after
+   current-head approval.
 4. Live-observed: a review submission completed the secretless signal, woke the
    trusted `workflow_run`, and propagated authoritative state immediately
    without waiting for the scheduled backstop; a new commit left the new head's
@@ -125,27 +130,41 @@ The following were verified after applying the target state:
 
 ## Remaining cleanup
 
-The temporary `policy-canary` branch, its separate no-bypass ruleset, and the
-policy-workflow / CI / CodeQL PR filters that reference `policy-canary` still
-exist and are pending removal in a separate workflow-capable owner-authored PR.
-Delete the temporary branch and its ruleset only after that PR merges normally.
+Duplicate-head hardening has landed (App-authored PR #177, main commit
+`6e15df2`). The only remaining cleanup is the disposable `policy-canary` branch
+and its separate temporary no-bypass ruleset (#21943248). This cleanup PR
+removes the `policy-canary` protected base from the policy workflow and the
+`policy-canary` filters from the CI and CodeQL workflows. After it merges, the
+owner performs the branch and ruleset deletions in this exact order. Deleting
+the ruleset first would strip all protection from the still-live `policy-canary`
+branch, leaving an unprotected live-branch interval until the branch is
+deleted; keeping the ruleset (minus only the deletion restriction) preserves
+every other protection until the branch is gone:
+
+1. The owner edits the temporary canary ruleset (#21943248) to remove **only**
+   the deletion-protection rule, retaining every other protection on
+   `policy-canary`.
+2. The agent or user deletes the `policy-canary` branch.
+3. The owner deletes the now-orphaned temporary ruleset #21943248.
 
 ## Remaining issues
 
-- **Duplicate-head cross-PR bypass (code hardening required).** Required status
+- **Duplicate-head cross-PR reuse (fail-closed in code).** Required status
   checks are commit-scoped, and the ruleset matches the `external-review-policy`
   context by name and App source on the head commit, ignoring the App's
   PR-specific `external_id`. Two open PRs that share one head SHA see the same
-  commit-scoped check, so a success written for the approved PR can satisfy an
-  unapproved duplicate-head PR -- a potential bypass. The workflow does not yet
-  fail closed across duplicate-head PRs. A code hardening change is a required
-  follow-up before POL-001 is considered complete or the design is reused.
-  Until then, containment is an independent native block, not disabling the
-  App: through owner settings raise `required_approving_review_count` to 1 (or
-  add another independently unsatisfied required gate), close all affected
-  duplicate-head PRs or move their heads, and maintain that independent block
-  until the hardening is deployed. Do not disable the App-bound requirement or
-  suspend the App as the containment step. See threat model residual risk 6.
+  commit-scoped check. This reuse is now failed closed in code: App-authored
+  PR #177 (`6e15df2`) detects multiple open protected PRs sharing one head SHA
+  and fails the check for every such PR, so no unapproved duplicate-head PR
+  inherits an approved PR's success. Two narrow residual timing races remain (a
+  reviews-read-to-check-write race and a final authoritative PR
+  snapshot-to-write race); both self-correct on the next reconciliation. See
+  threat model residual risk 6 for containment. Containment is an independent
+  native block, not disabling the App: through owner settings raise
+  `required_approving_review_count` to 1 (or add another independently
+  unsatisfied required gate) and close all affected duplicate-head PRs or move
+  their heads. Do not disable the App-bound requirement or suspend the App as
+  the containment step.
 - **Zero-approval stale-success window.** With `required_approving_review_count`
   0, an owner dismissal during an App/API outage can leave a still-successful
   same-head check as the only gate. See threat model residual risk 1 for

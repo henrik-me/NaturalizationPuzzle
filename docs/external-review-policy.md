@@ -14,23 +14,26 @@ re-fetches open pull requests and reviews from GitHub's API.
 
 ## Policy
 
-- An open PR to `main` or the temporary `policy-canary` branch is a
-  trusted-author PR when its authoritative author is the human account
-  `henrik-me` with immutable user ID `34380746` and that same identity owns the
-  head repository. The App writes a passing `external-review-policy` check on
-  the authoritative current head and idempotently posts an informational
-  approval. That App approval does not count toward any native required-review
-  count and is not an enforcement layer; GitHub does not tally it. Owner PRs
-  therefore merge on green CI plus the App-bound check, with no human approval
-  required.
+- An open PR to `main` is a trusted-author PR when its authoritative author is
+  the human account `henrik-me` with immutable user ID `34380746` and that same
+  identity owns the head repository. The App writes a passing
+  `external-review-policy` check on the authoritative current head only for a
+  unique protected head after a successful fail-closed reconciliation; trusted
+  authorship is necessary but not sufficient, and duplicate-head detection
+  (see below) or any reconciliation error deliberately withholds success. The
+  workflow creates no App approval or review of any kind; GitHub tallies no App
+  review, and none is written. Owner PRs merge on green CI plus the App-bound
+  check, with zero native approvals required.
 - Every other PR passes the App-bound check only when the latest decisive
   review from the allowlisted human `henrik-me`/`34380746` is `APPROVED` for
   the authoritative current head. This current-head enforcement holds during
-  successful reconciliation of a unique head; it is bounded by the documented
-  same-head stale-success outage window and the duplicate-head cross-PR risk
-  pending code hardening (see the
+  successful reconciliation of a unique head. Duplicate protected heads are
+  failed closed in code (App-authored PR #177, main commit `6e15df2`), but
+  three residual timing risks remain: a same-head stale-success window during
+  an App/API/reconciliation outage; a reviews-read-to-check-write race; and a
+  final authoritative PR snapshot-to-write race (see the
   [threat model](external-review-policy-threat-model.md) residual risks 1 and
-  6). The App never approves an external-author PR.
+  6). The App never writes any review of an external-author PR.
 - Dependabot is an external Bot author. Its PRs require the allowlisted owner's
   approval of the authoritative current head, because otherwise the App-bound
   check is a failure; green dependency checks do not substitute for that
@@ -101,8 +104,20 @@ authorization. Grant exactly:
 | Repository permission | Level | Purpose |
 | --- | --- | --- |
 | Metadata | Read | Installation and repository identity |
-| Pull requests | Read and write | Read authoritative PR/reviews and approve trusted-owner PRs |
+| Pull requests | Read | Read authoritative PR and review state |
 | Checks | Read and write | Create and update the App-owned required check |
+
+The current steady-state runtime grant is exactly Checks write, Metadata read,
+and Pull requests read. This became correct only after App-authored PR #177
+(main commit `6e15df2`) removed all review creation from the workflow. Before
+PR #177 the workflow created informational `np-app[bot]` App approvals, so Pull
+requests **write** was then the steady-state grant; the App-authored bootstrap
+PR #173 and hardening PR #177 were both authored while Pull requests write was
+still steady state, not under a temporary elevation. Since PR #177 the workflow
+writes no review, so Pull requests write is no longer part of steady state.
+Going forward it would be granted only temporarily -- for example if the App
+must author a future publication PR after this read-only downgrade -- and
+revoked immediately afterward.
 
 Subscribe to no events and install it using **Only select repositories**, with
 only `henrik-me/NaturalizationPuzzle` selected.
@@ -159,36 +174,75 @@ bypass, admin merge, self-approval, or settings weakening.
 2. Before the policy executed on `main`, the dedicated App was temporarily
    granted the additional Contents and Workflows write permissions needed to
    create a branch containing the reviewed bootstrap commit and author the
-   bootstrap PR. Pull requests write was already part of its runtime grant.
+   bootstrap PR. Pull requests write was already the steady-state grant at that
+   time, because the pre-PR-#177 workflow created informational `np-app[bot]`
+   App approvals; only Contents and Workflows write were the temporary
+   elevation.
 3. `henrik-me` reviewed and approved the App-authored bootstrap PR #173 at its
-   frozen current head. Contents and Workflows access was immediately revoked,
-   the App was verified back to exactly Metadata read, Pull requests write, and
-   Checks write, and the PR merged normally as `d1de384`.
+   frozen current head. Only the temporary Contents and Workflows write access
+   was revoked; the App was verified back to its then-steady-state grant of
+   Checks write, Metadata read, and Pull requests write (Pull requests write
+   remained because the workflow still created informational App approvals),
+   and the PR merged normally as `d1de384`.
 4. The `main` push then ran the protected local policy. An owner-authored PR
-   showed the App-owned current-head check and the informational App approval;
-   logs revealed no credential disclosure.
+   showed the App-owned current-head check and, under that pre-PR-#177
+   workflow, an informational `np-app[bot]` APPROVED review that did not count
+   toward the native required-review count. Logs revealed no credential
+   disclosure.
 5. A disposable `policy-canary` branch and an identical temporary no-bypass
    ruleset targeting only that branch required the four existing CI contexts,
    resolved threads, and the observed App-bound `external-review-policy` check.
+   This canary evidence is complete and disposable; the branch and its ruleset
+   are being retired (see the cleanup order below).
 6. On the canary ruleset an owner-authored PR was first tested with
-   `required_approving_review_count` 1. Owner canary PR #174, carrying only the
-   App's approval, remained `REVIEW_REQUIRED` and could not merge -- directly
-   proving that the App approval does not count toward a native required-review
-   count. The count was then switched to 0 under the same no-bypass ruleset,
-   and PR #174 merged normally as `900f406` on green CI plus the App-bound
-   check. External App canary PR #175 was blocked before the owner approved its
-   current head, then merged normally as `60139a9` after that approval.
+   `required_approving_review_count` 1. Owner canary PR #174, carrying the
+   pre-PR-#177 workflow's informational `np-app[bot]` APPROVED review as its
+   only review, remained `REVIEW_REQUIRED` and could not merge -- directly
+   proving that a GitHub App approval does not count toward a native
+   required-review count. The count was then switched to 0 under the same
+   no-bypass ruleset, and PR #174 merged normally as `900f406` on green CI plus
+   the App-bound check. External App canary PR #175 was blocked before the
+   owner approved its current head, then merged normally as `60139a9` after
+   that approval.
 7. The reviewed [ruleset 15368163 migration](ruleset-15368163-migration.md)
    was applied: `bypass_actors` empty, `required_approving_review_count` 0,
    `require_code_owner_review` false, and the App-source-bound
    `external-review-policy` check appended.
-8. Production proofs followed: owner security PR #168 merged as `85481ad`, and
-   Dependabot PR #153 merged as `dd7905f` after an owner approval of its
-   current head. NaturalizationPuzzle now has zero open Dependabot alerts.
+8. Production proofs followed under the pre-PR-#177 workflow: owner security
+   PR #168 merged as `85481ad` (it too carried an informational `np-app[bot]`
+   APPROVED review that did not count natively), and Dependabot PR #153 merged
+   as `dd7905f` after an owner approval of its current head. NaturalizationPuzzle
+   now has zero open Dependabot alerts.
+9. Duplicate protected pull request heads were made fail-closed in code through
+   the App-authored PR #177, merged to `main` as commit `6e15df2`. The workflow
+   detects multiple open protected PRs that share one head SHA and fails the
+   `external-review-policy` check for every such PR, closing the former
+   duplicate-head cross-PR gap in code. PR #177 also removed all App review
+   creation: since `6e15df2` the workflow writes no `np-app[bot]` approval or
+   review, which is what makes the steady-state Pull requests read grant valid.
 
-The temporary `policy-canary` branch, its ruleset, and the workflow/CI filters
-referencing it still exist and are pending removal in a separate
-workflow-capable owner-authored PR.
+Production steady state is now zero native approvals, an empty `bypass_actors`
+list, and the NP-APP-bound `external-review-policy` required check. The
+temporary `policy-canary` branch and its ruleset are completed, disposable
+canary evidence and are the only remaining cleanup.
+
+### Safe cleanup order (settings actions performed by the owner)
+
+Perform these steps in this exact order. Deleting the ruleset first would strip
+all protection from the still-live `policy-canary` branch, leaving an
+unprotected live-branch interval until the branch is deleted; keeping the
+ruleset (minus only the deletion restriction) preserves every other protection
+right up to the moment the branch is removed:
+
+1. The owner edits the temporary canary ruleset (#21943248) to remove **only**
+   the deletion-protection rule, retaining every other protection on
+   `policy-canary`.
+2. The agent or user deletes the `policy-canary` branch.
+3. The owner deletes the now-orphaned temporary ruleset #21943248.
+
+This PR removes the `policy-canary` protected base from the policy workflow and
+the `policy-canary` filters from the CI and CodeQL workflows; the branch and
+ruleset deletions above are owner settings actions taken after it merges.
 
 ## Maintenance and incidents
 
@@ -199,20 +253,17 @@ workflow-capable owner-authored PR.
 - On every reevaluation after successful App authentication and authoritative
   head lookup, the workflow reopens matching App checks as `in_progress`
   before fetching reviews.
-- Review lists deliberately fail closed at 100 returned records. Observed
-  growth is append-only at this API boundary: each new owner-authored head
-  normally adds one App approval, each newly approved external head adds an
-  owner review, and review tools can add further records on the same push.
-  Immediately before creating an App approval, the workflow re-fetches reviews
-  and refuses the write at 99 records. GitHub offers no atomic
-  create-if-below-limit operation, so a concurrent review can still win the
-  narrow check/write race; the next reconciliation then fails closed at 100.
-  Do not redesign pagination or widen the bound here. Preserve the old PR as
-  evidence and replace it before record 100; replacement resets the review
-  list but costs a new PR, complete CI/review reruns, resolved-thread handling,
-  and a fresh owner approval of the replacement's current head.
-- Alert on failed or missing scheduled runs and App approvals on PRs not
-  authored by `henrik-me`/`34380746`.
+- Review lists deliberately fail closed at 100 returned records. The workflow
+  writes no App approval or review, so it never contributes to this count;
+  growth is append-only from the owner's reviews of external heads and from
+  review tools on the same push. When a review list reaches 100 records the
+  workflow fails closed and writes no new success. Do not redesign pagination
+  or widen the bound here. Preserve the old PR as evidence and replace it
+  before record 100; replacement resets the review list but costs a new PR,
+  complete CI/review reruns, resolved-thread handling, and a fresh owner
+  approval of the replacement's current head.
+- Alert on failed or missing scheduled runs and on any unexpected write by the
+  App to PRs not authored by `henrik-me`/`34380746`.
 - On suspected compromise, contain in the safe order before touching the App:
   first establish an App-independent block by setting
   `required_approving_review_count` to 1 (or another independently unsatisfied
@@ -234,7 +285,6 @@ See the local [threat model](external-review-policy-threat-model.md).
 - [GitHub App JWTs][app-jwt]
 - [Installation token scoping][installation-token]
 - [Checks API and App-only writes][checks-api]
-- [Create a pull request review][create-review]
 - [Fine-grained token permissions][fine-grained]
 - [Workflow concurrency and pending-run replacement][concurrency]
 
@@ -244,6 +294,5 @@ See the local [threat model](external-review-policy-threat-model.md).
 [app-jwt]: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app
 [installation-token]: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app
 [checks-api]: https://docs.github.com/en/rest/checks/runs
-[create-review]: https://docs.github.com/en/rest/pulls/reviews#create-a-review-for-a-pull-request
 [fine-grained]: https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens
 [concurrency]: https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency

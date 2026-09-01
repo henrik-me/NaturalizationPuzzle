@@ -34,7 +34,7 @@ on:
       - '.gitignore'
       - '.editorconfig'
   pull_request:
-    branches: [main, master, policy-canary]
+    branches: [main, master]
   workflow_dispatch:
 
 env:

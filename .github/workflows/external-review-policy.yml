@@ -35,7 +35,7 @@ jobs:
           export const OWNER_ID = 34380746;
           export const CHECK_NAME = "external-review-policy";
           export const POLICY = Object.freeze({
-            protectedBases: Object.freeze(["main", "policy-canary"]),
+            protectedBases: Object.freeze(["main"]),
             trustedAuthors: Object.freeze([
               Object.freeze({ login: OWNER, id: OWNER_ID }),
             ]),
@@ -46,7 +46,7 @@ jobs:
           export const REQUIRED_PERMISSIONS = Object.freeze({
             checks: "write",
             metadata: "read",
-            pull_requests: "write",
+            pull_requests: "read",
           });
 
           const API_VERSION = "2026-03-10";
@@ -123,7 +123,7 @@ jobs:
               )
             ) {
               throw new Error(
-                `${path}: expected exactly checks:write, metadata:read, pull_requests:write`,
+                `${path}: expected exactly checks:write, metadata:read, pull_requests:read`,
               );
             }
           }
