@@ -7,7 +7,7 @@ COPY src/client/ ./
 RUN npm run build
 
 # Stage 2: Build and publish backend
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS backend-build
 WORKDIR /app
 COPY src/api/NaturalizationPuzzle.Api.csproj src/api/
 RUN dotnet restore src/api/NaturalizationPuzzle.Api.csproj
