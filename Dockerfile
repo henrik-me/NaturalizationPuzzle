@@ -32,7 +32,7 @@ COPY --from=frontend-build /app/client/dist/ src/api/wwwroot/
 RUN dotnet publish src/api/NaturalizationPuzzle.Api.csproj -c Release -o /publish --no-restore
 
 # Stage 3: Runtime
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+FROM mcr.microsoft.com/dotnet/aspnet:11.0
 WORKDIR /app
 COPY --from=backend-build /publish .
 
